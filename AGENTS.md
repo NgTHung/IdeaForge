@@ -2,6 +2,8 @@
 
 A one-week hackathon project centered on merging ideas. Before changing product scope, architecture, or access policy, read `docs/decisions.md` and log the change there. Priorities and verification status live in `docs/roadmap.md`.
 
+When `AGENTS.local.md` exists, read it for local instructions.
+
 ## Invariants
 
 - Provider credentials stay server-side.

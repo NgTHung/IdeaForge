@@ -1,0 +1,71 @@
+{
+  "domains": {
+    "work": {
+      "prefixes": [
+        "WORK",
+        "BUG"
+      ]
+    },
+    "milestones": {
+      "prefixes": [
+        "MILESTONE"
+      ]
+    }
+  },
+  "tags": {
+    "policy": "strict",
+    "allowed": [
+      "bug",
+      "enhancement",
+      "needs-triage",
+      "needs-info",
+      "ready-for-agent",
+      "ready-for-human",
+      "wontfix"
+    ],
+    "exclusive_groups": {
+      "triage-category": [
+        "bug",
+        "enhancement"
+      ],
+      "triage-state": [
+        "needs-triage",
+        "needs-info",
+        "ready-for-agent",
+        "ready-for-human",
+        "wontfix"
+      ]
+    }
+  },
+  "task_types": {
+    "Milestone": {
+      "criteria": "exit",
+      "role": "milestone"
+    },
+    "Epic": {
+      "criteria": "exit"
+    },
+    "Feature": {
+      "criteria": "acceptance"
+    },
+    "Bug": {
+      "criteria": "acceptance"
+    },
+    "Refactor": {
+      "criteria": "acceptance"
+    },
+    "TechDebt": {
+      "criteria": "acceptance"
+    },
+    "TestDebt": {
+      "criteria": "acceptance"
+    },
+    "Design": {
+      "criteria": "acceptance"
+    },
+    "Docs": {
+      "criteria": "acceptance"
+    }
+  },
+  "version": 1
+}
