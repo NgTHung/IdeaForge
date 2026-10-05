@@ -1,10 +1,19 @@
 # Working in IdeaForge
 
-Read `README.md`, `docs/decisions.md`, and `docs/roadmap.md` before substantial changes.
+A one-week hackathon project centered on merging ideas. Before changing product scope, architecture, or access policy, read `docs/decisions.md` and log the change there. Priorities and verification status live in `docs/roadmap.md`.
 
-Keep this a one-week hackathon project centered on merging ideas. Use TypeScript and the existing Next.js, React Flow, Liveblocks, Gemini, and Zod stack. Keep provider credentials server-side. Preserve source snapshots and original notes when merging. Do not replace real AI calls with unlabeled canned results.
+## Invariants
 
-Use `npm ci` to install the locked dependencies. Run `npm run lint`, `npm run typecheck`, and `npm run build` after meaningful code changes. Verify live provider behavior only when credentials are available; state limitations clearly. Update the decision log when product scope, architecture, or access policy changes.
+- Provider credentials stay server-side.
+- Merging preserves the original notes and their source snapshots.
+- AI output comes from real provider calls; label any canned or mocked result.
+
+## Working style
+
+- Long-term maintainability comes first. Extract shared logic into a module its callers reuse, and refactor existing code freely when it leaves one source of truth. Sweeping changes are welcome while the project is WIP.
+- After code changes, run `npm run lint`, `npm run typecheck`, and `npm run build`.
+- Verify live Gemini and Liveblocks behavior only when credentials are available, and report what went unverified.
+- Writing docs, design notes, or code comments: follow `docs/writing-style.md`.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

@@ -1,94 +1,83 @@
-# IdeaForge decisions
+# Decisions
 
-Accepted on 2026-10-05 for a one-week Forgehack project.
+What IdeaForge is, how it's built, and why. Accepted on 2026-10-05 for a one-week Forgehack project. Add a dated entry to the [log](#log) when scope, architecture, or access policy changes.
 
 ## Product
 
-**Pitch:** A shared canvas where teams combine rough ideas into new concepts and trace how those concepts evolved.
+**Pitch:** a shared canvas where teams combine rough ideas into new concepts and can trace how each concept evolved.
 
-The initial audience is student teams brainstorming hackathon projects. The problem is moving from scattered contributions to a concept the team wants to build. The audience and benefit are hypotheses to validate during the week, not established market demand.
+**Audience:** student teams brainstorming hackathon projects, who struggle to turn scattered contributions into one concept they want to build. Both the audience and the benefit are hypotheses to test this week, not established demand.
 
-The key interaction is synthesis: select two notes, propose a new concept using both, then let the team keep, edit, discard, or regenerate it. Existing tools already generate and summarize notes; the differentiator to demonstrate is deliberate combinations with visible ancestry and repeated branching.
+**Differentiator:** other tools already generate and summarize notes. IdeaForge focuses on deliberate combinations of two ideas, with visible ancestry and repeated branching.
 
-### Accepted merge behavior
+### Merge rules
 
 - Each board has a goal that constrains generation.
-- Exactly two nonempty notes are merged at a time, including previously merged notes.
-- The AI returns one concept, a contribution from each source, a tension, and a next experiment.
-- Generation produces a preview; acceptance creates a third note. Originals remain intact.
-- Each child keeps source IDs and snapshots of the text used for generation. Connections show ancestry; source edits do not rewrite historical snapshots.
-- Weak connections must be acknowledged instead of presented as validated opportunities.
-- Generated explanations are model claims to assess, not proof that a concept works.
+- Exactly two nonempty notes are merged at a time. Merged notes can be merged again.
+- The AI returns a title, a concept, each source's contribution, a tension, and a next experiment.
+- Generation produces a preview. Only acceptance creates a new note, and the originals stay intact.
+- Each merged note stores its parents' IDs and a snapshot of the text used. Later edits to a source don't rewrite the snapshot.
+- When a connection is weak, the AI must say so instead of presenting it as a validated opportunity.
+- Generated explanations are claims for the team to assess, not proof that a concept works.
 
 ### Scope
 
-MVP: editable notes on a pan/zoom canvas; guest collaboration through a board URL; goal-aware AI merging; preview and acceptance; visible ancestry; repeated merging; reliable feedback on failure.
+**MVP:** editable notes on a pan/zoom canvas, guest collaboration through a board URL, goal-aware AI merging, preview and acceptance, visible ancestry, repeated merging, and clear feedback on failure.
 
-Defer: persona critics, summaries on zoom-out, drawing tools, uploads, voting, accounts, dashboards, and a separate database. Later, zoom-out should reveal readable theme summaries. Critic personas should reflect the intended audience and be labeled simulated feedback.
+**Deferred:** persona critics, summaries on zoom-out, drawing tools, uploads, voting, accounts, dashboards, and a separate database. If added later, zoom-out should show readable theme summaries, and critic personas should match the target audience and be labeled as simulated feedback.
 
 ## Technology
 
-| Decision | Rationale | Tradeoff |
+| Choice | Why | Tradeoff |
 | --- | --- | --- |
-| Next.js App Router + React + TypeScript | UI and server routes in one familiar project | Canvas must be a client component |
-| React Flow | Notes are custom nodes; edges naturally show ancestry; pan, zoom, selection, and dragging are built in | A purpose-built notes interface rather than a complete drawing editor |
-| Liveblocks Storage | Managed synchronization and durable shared rooms reduce infrastructure work | External account and service dependency |
-| Gemini through `@google/genai` | Direct model call with structured output | Model access and quality must be validated with the configured API project |
-| Zod | Validate requests and responses with one typed contract | Valid shape does not guarantee a good idea |
-| Tailwind + small CSS layer | Fast layout and styling | Maintain a coherent small set of styles |
-| npm and lockfile | Reproducible installation using popular tooling | Update dependencies intentionally |
-| No separate database yet | Shared board data lives in Liveblocks | Local draft has no persistence in this starter |
+| Next.js App Router, React, TypeScript | UI and server routes in one project | The canvas must be a client component |
+| React Flow | Notes are custom nodes, edges show ancestry, and pan/zoom/select/drag are built in | A notes interface, not a full drawing editor |
+| Liveblocks Storage | Managed sync and durable rooms with little infrastructure | External account and service dependency |
+| Gemini via `@google/genai` | Direct model call with structured JSON output | Model access and quality must be checked per API project |
+| Zod | One typed contract validates requests and responses | A valid shape doesn't guarantee a good idea |
+| Tailwind plus a small CSS layer | Fast layout and styling | Keep the style set small and coherent |
+| npm with a lockfile | Reproducible installs | Dependency updates must be deliberate |
+| No database | Shared board data lives in Liveblocks | The local board doesn't persist |
 
-React Flow's core uses the MIT license. tldraw remains an alternative if full drawing becomes central; its production license/key requirements make it a less direct fit for this scope.
+React Flow's core is MIT-licensed. tldraw would fit better if freeform drawing became central, but its production license-key requirement makes it a poorer fit for this scope.
 
-Gemini's model is configurable through `GEMINI_MODEL`; `gemini-2.5-flash` is a starter default, not a commitment to a model or its future availability. Compare available models with the evaluation pairs before the demo. The installed SDK's `models.generateContent` interface is used; newer API interfaces can be adopted separately.
+The model is set by `GEMINI_MODEL`. `gemini-2.5-flash` is only a starting default; compare available models on the [evaluation pairs](roadmap.md#merge-quality-evaluation) before the demo. The code uses the SDK's `models.generateContent` interface.
 
-## Architecture and data ownership
+## Architecture
 
 ```text
-React Flow canvas ── local component state (local draft)
+React Flow canvas ── local component state (local board)
         │
         ├── Liveblocks room storage (shared boards)
         │
-        └── POST /api/merge ── Zod validation ── Gemini ── validated proposal
+        └── POST /api/merge ── Zod ── Gemini ── validated proposal
                     │
                     └── user accepts ── new child note + parent snapshots
 ```
 
-`Board` receives data and operations. `LocalBoard` supplies in-memory state; `SharedBoard` supplies Liveblocks mutations. Selection, viewport, pending proposals, and loading/error messages belong to the local client. Shared text, positions, goals, and accepted ideas belong to room storage.
+`Board` renders the canvas and receives data and operations from one of two adapters: `LocalBoard` (in-memory state) or `SharedBoard` (Liveblocks mutations).
 
-A LiveMap holds one LiveObject per note. Mutations update the relevant fields rather than replacing the whole board. Text fields currently use whole-string edits; simultaneous typing into the same note needs an explicit UX policy before calling the editor robust. Rich-text CRDT editing is outside the starter scope.
+- **Per client:** selection, viewport, the pending proposal, and loading and error states.
+- **Shared in room storage:** note text, positions, the goal, and accepted ideas.
 
-The AI request captures text at the time of generation. Acceptance creates one child atomically in the state backend. Each accepted concept can be selected for another merge; original generations remain recorded alongside the editable concept text.
+Notes are stored as one `LiveObject` per note in a `LiveMap`, and mutations update individual fields. Text edits replace the whole string, so two people typing in the same note need an explicit UX policy. Rich-text CRDT editing is out of scope.
+
+A merge request captures source text at generation time. Accepting a proposal creates the child note in one operation. The original generated proposal is stored alongside the editable concept text.
 
 ## Access and configuration
 
-- Gemini and Liveblocks keys stay on the server in ignored `.env.local`.
-- Guest IDs use an HTTP-only cookie. `/api/liveblocks-auth` grants access only to the requested valid `ideaforge:<uuid>` room.
-- The MVP deliberately lets anyone holding a board link edit that board. These are shared demo rooms, not private workspaces.
-- Creating a shared board starts a fresh seeded board; it does not migrate the local draft.
-- AI requests have input size limits and timeouts, but no application-level request quota. The global daily cap was removed at the user's request on 2026-10-05. Gemini's provider quotas still apply; per-user controls are deferred.
-- No deployment, vendor account, or credentials are created by initialization.
+- Gemini and Liveblocks keys are server-only, kept in git-ignored `.env.local`.
+- Guests are identified by an HTTP-only cookie. `/api/liveblocks-auth` grants access only to the requested `ideaforge:<uuid>` room.
+- Anyone with a board link can edit that board. Boards are shared demo rooms, not private workspaces.
+- **New shared board** creates a fresh, seeded board. It doesn't copy the local board.
+- AI requests have input size limits and a 30-second timeout but no app-level quota. Gemini's provider quotas apply. Per-user fairness controls are deferred.
+- Deployment is deferred. The app is demoed from a developer machine, and hosting will be documented once a deployment target is chosen.
 
-## Verification and remaining work
+## Log
 
-### Workstation demos and Funnel hosting
-
-The private demo remains on this workstation's Tailscale IPv4 address, port 3100, under the transient `ideaforge-demo` user service. Browser note IDs use a cryptographically random UUID fallback because `crypto.randomUUID()` is unavailable on HTTP origins.
-
-For public hosting, an enabled persistent user service `ideaforge-funnel` runs the production app on `127.0.0.1:3101`. Tailscale Funnel exposes this through HTTPS port 8443 because port 443 already hosts another app. Initial activation required an administrator command; Funnel status now confirms port 8443 is active and the HTTPS merge route is reachable from this workstation. Reachability from a device outside the tailnet has not been verified in this session. Anyone on the internet can open the app; board-link guest editing policy stays the same. See `demo.md` for activation, verification, and process controls.
-
-The public service initially enforced 100 Gemini call attempts per UTC day with a persistent JSON counter. On 2026-10-05, the user requested reversal because merges were failing despite remaining quota. The recorded counter showed only two attempts before investigation, so the app's daily cap had not been exhausted. The request gate, quota implementation, quota-only tests, and service quota configuration have been removed. The old counter file is no longer read or written. Public and private demos now send validated merge requests directly to Gemini without an application-level cap.
-
-After removal, lint, typecheck, and production build passed, both demo services were restarted, and a real merge through the running Funnel backend returned HTTP 200 with all six proposal fields. An earlier Gemini call failed, but that failure did not reproduce after restart; its underlying cause remains unconfirmed.
-
-Gemini and Liveblocks credentials are now configured in ignored environment files. One live Gemini merge returned validated structured output and Liveblocks authorization returned a token with a secure guest cookie. Two-browser synchronization has not been verified.
-
-Initialization is checked with lint, TypeScript, production build, and HTTP smoke tests. A Chromium smoke check covers selection, missing-key feedback, merge acceptance using an intercepted test response, ancestry, editing, adding notes, and mobile width. Live Gemini generation and two-browser synchronization require real credentials and are not verified by these checks.
-
-The starter intentionally omits undo, deletion, local persistence, cursor avatars, editable proposal fields, and a dedicated regenerate button. Accepted concept text is editable, and a discarded proposal can be regenerated by merging again. See `roadmap.md` for completion priorities.
-
-At initialization, `npm audit` reports five high-severity findings in the development-only lint dependency chain (`eslint-config-next` → `fast-glob` → `micromatch` → `braces`). The registry has no patched `braces` release; do not force-downgrade Next tooling to an unrelated major version. Recheck during the week. The production dependency audit is checked separately.
+- **2026-10-05: initial decisions accepted**, as recorded above.
+- **2026-10-05: development audit advisory accepted.** `npm audit` reports five high-severity findings in the dev-only lint chain (`eslint-config-next` → `fast-glob` → `micromatch` → `braces`). No patched `braces` release exists. Don't force-downgrade Next tooling to an unrelated major version; recheck during the week.
+- **2026-10-05: daily AI cap removed.** The demo first enforced 100 Gemini calls per UTC day with a persistent counter. It was removed at the user's request after merges started failing. The counter showed only two attempts, so the cap itself wasn't the cause. The gate, counter, and its tests were deleted. The failure didn't recur after a restart, and its cause is still unknown.
 
 ## References
 
