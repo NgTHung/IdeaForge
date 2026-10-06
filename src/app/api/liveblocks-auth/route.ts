@@ -15,9 +15,11 @@ export async function POST(request: Request) {
   const cookieStore = await cookies();
   const existing = boardIdSchema.safeParse(cookieStore.get("ideaforge-guest")?.value);
   const guestId = existing.success ? existing.data : crypto.randomUUID();
+  const displayName = cookieStore.get("ideaforge-guest-name")?.value?.trim().slice(0, 60)
+    || `Guest ${guestId.slice(0, 4)}`;
   try {
     const liveblocks = new Liveblocks({ secret });
-    const session = liveblocks.prepareSession(guestId, { userInfo: { name: `Guest ${guestId.slice(0, 4)}` } });
+    const session = liveblocks.prepareSession(guestId, { userInfo: { name: displayName } });
     // MVP access policy: anyone with a board link may collaborate in that exact room.
     session.allow(room.data, session.FULL_ACCESS);
     const { body, status } = await session.authorize();

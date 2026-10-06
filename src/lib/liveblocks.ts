@@ -8,11 +8,12 @@ type BoardStorage = {
   relationships: LiveMap<string, LiveObject<Relationship>>;
 };
 type BoardPresence = Record<string, never>;
+type BoardUserMeta = { id?: string; info?: { name?: string; avatar?: string } };
 
 const client = createClient({ authEndpoint: "/api/liveblocks-auth" });
 
-export const { RoomProvider, useMutation, useStatus, useStorage } =
-  createRoomContext<BoardPresence, BoardStorage>(client);
+export const { RoomProvider, useMutation, useStatus, useStorage, useOthers, useSelf } =
+  createRoomContext<BoardPresence, BoardStorage, BoardUserMeta>(client);
 
 export function createBoardStorage(title: string, ideas: Idea[], relationships: Relationship[]) {
   return {

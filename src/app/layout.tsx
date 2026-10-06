@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "IdeaForge",
-  description: "A local canvas for capturing and connecting ideas.",
+  description: "A shared canvas for capturing and connecting ideas.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

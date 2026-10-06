@@ -1,5 +1,5 @@
-import { BoardApp } from "@/features/board/board-app";
+import { LandingPage } from "@/features/board/landing-page";
 
 export default function Home() {
-  return <BoardApp />;
+  return <LandingPage />;
 }
