@@ -6,9 +6,11 @@ import { IDEA_CARD_SIZE, type Board } from "./model";
 
 type Particle = SimulationNodeDatum & { id: string; x: number; y: number; pinned: boolean };
 type Spring = SimulationLinkDatum<Particle> & { source: string | Particle; target: string | Particle };
+export type Contact = { first: string; second: string; axis: "x" | "y" };
 
 // Card centers share one simulation. Weak forces and slow cooling make movement soft without drawing cards to the origin.
 const CARD_CENTER = { x: IDEA_CARD_SIZE.width / 2, y: IDEA_CARD_SIZE.height / 2 };
+const CONTACT_GAP = 42;
 const MOTION = {
   collisionRadius: Math.ceil(Math.hypot(IDEA_CARD_SIZE.width, IDEA_CARD_SIZE.height) / 2),
   collisionStrength: 0.4,
@@ -23,14 +25,42 @@ const MOTION = {
 };
 
 export function usePhysics(board: Board, enabled: boolean, frozenId: string | null,
-  onPositions: (positions: Map<string, { x: number; y: number }>) => void) {
+  onPositions: (positions: Map<string, { x: number; y: number }>) => void,
+  onContacts: (contacts: Contact[]) => void) {
   const simulation = useRef<Simulation<Particle, Spring> | null>(null);
   const particles = useRef(new Map<string, Particle>());
-  const latest = useRef({ board, enabled, frozenId, onPositions });
-  useEffect(() => { latest.current = { board, enabled, frozenId, onPositions }; }, [board, enabled, frozenId, onPositions]);
+  const latest = useRef({ board, enabled, frozenId, onPositions, onContacts });
+  useEffect(() => { latest.current = { board, enabled, frozenId, onPositions, onContacts }; }, [board, enabled, frozenId, onPositions, onContacts]);
   const frame = useRef<number | null>(null);
   const dragging = useRef<string | null>(null);
+  const activeContacts = useRef(new Set<string>());
   const shape = `${board.ideas.map((idea) => idea.id).join("|")}:${board.relationships.map((link) => `${link.id}:${link.source}:${link.target}`).join("|")}`;
+
+  function checkContacts() {
+    const nodes = [...particles.current.values()];
+    const currentContacts = new Set<string>();
+    const impacts: Contact[] = [];
+    for (let firstIndex = 0; firstIndex < nodes.length; firstIndex += 1) {
+      const first = nodes[firstIndex];
+      for (let secondIndex = firstIndex + 1; secondIndex < nodes.length; secondIndex += 1) {
+        const second = nodes[secondIndex];
+        const dx = Math.abs(first.x - second.x);
+        const dy = Math.abs(first.y - second.y);
+        const gapX = Math.max(0, dx - IDEA_CARD_SIZE.width);
+        const gapY = Math.max(0, dy - IDEA_CARD_SIZE.height);
+        if (Math.hypot(gapX, gapY) > CONTACT_GAP) continue;
+        const key = [first.id, second.id].sort().join(":");
+        currentContacts.add(key);
+        if (!activeContacts.current.has(key)) impacts.push({
+          first: first.id,
+          second: second.id,
+          axis: dx / IDEA_CARD_SIZE.width >= dy / IDEA_CARD_SIZE.height ? "x" : "y",
+        });
+      }
+    }
+    activeContacts.current = currentContacts;
+    if (impacts.length) latest.current.onContacts(impacts);
+  }
 
   useEffect(() => {
     const sim = forceSimulation<Particle, Spring>([])
@@ -40,6 +70,7 @@ export function usePhysics(board: Board, enabled: boolean, frozenId: string | nu
       .alphaDecay(MOTION.alphaDecay).velocityDecay(MOTION.velocityDecay).stop();
     simulation.current = sim;
     sim.on("tick", () => {
+      checkContacts();
       if (frame.current !== null) return;
       frame.current = requestAnimationFrame(() => {
         frame.current = null;
@@ -70,6 +101,7 @@ export function usePhysics(board: Board, enabled: boolean, frozenId: string | nu
       .filter((link) => ids.has(link.source) && ids.has(link.target))
       .map((link) => ({ source: link.source, target: link.target }));
     (sim.force("links") as ReturnType<typeof forceLink<Particle, Spring>>).links(links);
+    checkContacts();
     if (latest.current.enabled) sim.alpha(MOTION.initialAlpha).restart();
   }, [shape]);
 
@@ -103,7 +135,7 @@ export function usePhysics(board: Board, enabled: boolean, frozenId: string | nu
     },
     drag(id: string, position: { x: number; y: number }) {
       const node = particles.current.get(id);
-      if (node) { node.x = position.x + CARD_CENTER.x; node.y = position.y + CARD_CENTER.y; node.fx = node.x; node.fy = node.y; }
+      if (node) { node.x = position.x + CARD_CENTER.x; node.y = position.y + CARD_CENTER.y; node.fx = node.x; node.fy = node.y; checkContacts(); }
     },
     dragStop(id: string, position: { x: number; y: number }, pinned: boolean) {
       dragging.current = null;
@@ -111,6 +143,7 @@ export function usePhysics(board: Board, enabled: boolean, frozenId: string | nu
       if (node) {
         node.x = position.x + CARD_CENTER.x; node.y = position.y + CARD_CENTER.y;
         node.fx = pinned ? node.x : null; node.fy = pinned ? node.y : null;
+        checkContacts();
       }
       if (latest.current.enabled) simulation.current?.alpha(MOTION.releaseAlpha).restart();
     },

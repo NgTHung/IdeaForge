@@ -31,6 +31,9 @@
 .board-canvas .react-flow__edge-text { cursor: pointer; }
 .board-bubble { position: relative; width: 272px; height: 148px; cursor: grab; }
 .board-bubble-float { position: absolute; inset: 0; animation: board-bubble-float var(--float-duration, 6s) ease-in-out var(--float-delay, 0s) infinite; }
+.board-bubble-squash { position: absolute; inset: 0; transform-origin: center; }
+.board-bubble.is-squashing-x .board-bubble-squash { animation: board-bubble-squash-x 380ms cubic-bezier(.2,.75,.25,1) both; }
+.board-bubble.is-squashing-y .board-bubble-squash { animation: board-bubble-squash-y 380ms cubic-bezier(.2,.75,.25,1) both; }
 .board-bubble-surface { position: absolute; inset: 0; padding: 18px 21px; background: #fff; border: 1.5px solid #d9e4de; border-radius: 26px; box-shadow: 0 9px 28px #2a58451a, 0 1px 3px #244f3e10; transition: transform .38s cubic-bezier(.2,.8,.2,1), border-color .22s ease, box-shadow .3s ease; }
 .board-bubble:hover .board-bubble-surface { transform: translateY(-3px) scale(1.012); border-color: #7eb9a2; box-shadow: 0 12px 30px #2a58452b; }
 .board-bubble.is-selected .board-bubble-surface, .board-bubble.is-source .board-bubble-surface { border: 2px solid #168264; box-shadow: 0 0 0 4px #4bb59327, 0 10px 28px #2a58452b; }
@@ -44,8 +47,21 @@
   0%, 100% { transform: translateY(0) scale(1); }
   50% { transform: translateY(-3px) scale(1.008, .996); }
 }
+@keyframes board-bubble-squash-x {
+  0%, 100% { transform: scale(1); }
+  22% { transform: scale(.94, 1.045); }
+  48% { transform: scale(1.035, .98); }
+  72% { transform: scale(.99, 1.008); }
+}
+@keyframes board-bubble-squash-y {
+  0%, 100% { transform: scale(1); }
+  22% { transform: scale(1.045, .94); }
+  48% { transform: scale(.98, 1.035); }
+  72% { transform: scale(1.008, .99); }
+}
 @media (prefers-reduced-motion: reduce) {
   .board-bubble-float { animation: none; }
+  .board-bubble-squash { animation: none !important; }
   .board-bubble-surface { transition: none; }
 }
 .board-bubble-top { display: flex; align-items: center; justify-content: space-between; height: 18px; color: #568371; }
