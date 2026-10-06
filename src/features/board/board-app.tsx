@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
 import { ReactFlow, Background, BackgroundVariant, MarkerType, type Edge, type NodeChange, type ReactFlowInstance } from "@xyflow/react";
 import { createIdeaId } from "./id";
 import { initialBoard } from "./fixtures";
@@ -24,6 +27,10 @@ function ToolButton({ label, active, disabled, title, onClick, children }: {
 }
 
 export function BoardApp() {
+  const router = useRouter();
+  const { data: session, isPending: sessionPending } = authClient.useSession();
+  const [signOutBusy, setSignOutBusy] = useState(false);
+  const [authError, setAuthError] = useState("");
   const [board, setBoard] = useState<Board>(initialBoard);
   const [title, setTitle] = useState("Student collaboration ideas");
   const [tool, setTool] = useState<Tool>("select");
@@ -126,6 +133,20 @@ export function BoardApp() {
     setEditor(null);
   }
 
+  async function signOut() {
+    setSignOutBusy(true);
+    setAuthError("");
+    try {
+      const result = await authClient.signOut();
+      if (result.error) throw new Error(result.error.message);
+      router.replace("/");
+      router.refresh();
+    } catch {
+      setAuthError("Sign out failed. Please try again.");
+      setSignOutBusy(false);
+    }
+  }
+
   const nodes = useMemo<IdeaNode[]>(() => board.ideas.map((idea) => ({
     ...nodeLayouts[idea.id],
     id: idea.id, type: "idea", position: idea.position, selected: selection?.kind === "idea" && selection.id === idea.id,
@@ -168,7 +189,11 @@ export function BoardApp() {
   return <main className="board-shell">
     <header className="board-topbar"><div className="board-brand"><span className="board-brand-symbol">✳</span><strong>IdeaForge</strong><span className="board-divider" />
       <input aria-label="Board title" value={title} maxLength={80} onChange={(event) => setTitle(event.target.value)} /></div>
-      <div className="board-top-actions"><span className="board-local-badge"><i /> Local demo · resets on refresh</span><button disabled title="Sharing is coming later">Share</button></div></header>
+      <div className="board-top-actions"><span className="board-local-badge"><i /> Local demo · resets on refresh</span>
+        {sessionPending ? <span className="board-auth-status" aria-label="Checking sign-in status" /> : session ? <><span className="board-user-name" title={session.user.email}>{session.user.name || session.user.email}</span><button className="board-signout" type="button" disabled={signOutBusy} onClick={() => void signOut()}>{signOutBusy ? "Signing out…" : "Sign out"}</button></> : <Link className="board-login-link" href="/login">Sign in</Link>}
+        <button disabled title="Sharing is coming later">Share</button></div>
+      {authError && <p className="board-auth-error" role="alert">{authError}</p>}
+    </header>
     <div className="board-workspace">
       <div ref={canvas} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""}`}>
         <ReactFlow<IdeaNode> nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onInit={(instance) => { flow.current = instance; }}
