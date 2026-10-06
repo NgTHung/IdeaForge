@@ -104,7 +104,7 @@ export async function generateJson<T extends z.ZodType>(request: GenerationReque
 export async function embedTexts(
   texts: string[],
   config?: Omit<EmbedContentConfig, "httpOptions" | "abortSignal">,
-): Promise<number[][]> {
+): Promise<{ model: string; vectors: number[][] }> {
   if (!texts.length || texts.some((text) => !text.trim())) throw new TypeError("Provide nonempty texts to embed.");
   return callGemini(
     process.env.GEMINI_EMBEDDING_MODEL?.trim() || "gemini-embedding-001",
@@ -118,7 +118,7 @@ export async function embedTexts(
       if (vectors.length !== texts.length || vectors.some((vector) => vector.length !== dimensions)) {
         throw new AiError("invalid_output");
       }
-      return vectors;
+      return { model, vectors };
     },
   );
 }

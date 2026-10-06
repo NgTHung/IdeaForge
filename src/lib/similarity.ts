@@ -38,14 +38,16 @@ export type SimilarityCard = z.infer<typeof similarityCardSchema>;
 export type SimilarityResult = z.infer<typeof similarityResultSchema>;
 
 const EMBEDDING_DIMENSIONS = 768;
+const MAX_CACHED_TEXTS = 2_000;
 const DEFAULT_CENTERED_THRESHOLD = 8;
 const MIN_CENTERED_THRESHOLD = 2;
 const MAX_CENTERED_THRESHOLD = 50;
 
-type EmbeddingCache = Map<string, Promise<number[]>>;
-type CacheGlobal = typeof globalThis & { __IDEAFORGE_EMBEDDING_CACHE__?: EmbeddingCache };
+type CachedEmbedding = { model: string; vector: number[] };
+type EmbeddingCache = Map<string, Promise<CachedEmbedding>>;
+type CacheGlobal = typeof globalThis & { __IDEAFORGE_EMBEDDING_CACHE_V2__?: EmbeddingCache };
 const cacheGlobal = globalThis as CacheGlobal;
-const embeddingCache = cacheGlobal.__IDEAFORGE_EMBEDDING_CACHE__ ??= new Map<string, Promise<number[]>>();
+const embeddingCache = cacheGlobal.__IDEAFORGE_EMBEDDING_CACHE_V2__ ??= new Map<string, Promise<CachedEmbedding>>();
 
 function centeredThreshold(): number {
   const value = Number(process.env.SIMILARITY_MIN_CENTERED_CARDS);
@@ -55,31 +57,89 @@ function centeredThreshold(): number {
   return value;
 }
 
+function trimEmbeddingCache(): void {
+  while (embeddingCache.size > MAX_CACHED_TEXTS) {
+    const oldest = embeddingCache.keys().next().value;
+    if (oldest === undefined) break;
+    embeddingCache.delete(oldest);
+  }
+}
+
+function rememberEmbedding(text: string, cached: Promise<CachedEmbedding>): void {
+  embeddingCache.delete(text);
+  embeddingCache.set(text, cached);
+  trimEmbeddingCache();
+  void cached.catch(() => {
+    if (embeddingCache.get(text) === cached) embeddingCache.delete(text);
+  });
+}
+
+function touchCachedEmbeddings(texts: string[], cached: Promise<CachedEmbedding>[]): void {
+  texts.forEach((text, index) => {
+    const entry = cached[index];
+    if (entry && embeddingCache.get(text) === entry) {
+      embeddingCache.delete(text);
+      embeddingCache.set(text, entry);
+    }
+  });
+}
+
+async function embedAndCache(texts: string[]): Promise<CachedEmbedding[]> {
+  const batch = embedTexts(texts, { outputDimensionality: EMBEDDING_DIMENSIONS });
+  const cached = texts.map((text, index) => {
+    const entry = batch.then(({ model, vectors }) => ({ model, vector: vectors[index] }));
+    rememberEmbedding(text, entry);
+    return entry;
+  });
+  return Promise.all(cached);
+}
+
+function sameModel(entries: CachedEmbedding[]): boolean {
+  return entries.length > 0 && entries.every((entry) => entry.model === entries[0].model);
+}
+
+function vectorsForTexts(
+  texts: string[],
+  uniqueTexts: string[],
+  entries: CachedEmbedding[],
+): number[][] {
+  const byText = new Map<string, number[]>(uniqueTexts.map((text, index) => [text, entries[index].vector]));
+  return texts.map((text) => byText.get(text)!);
+}
+
 async function embeddingsFor(texts: string[]): Promise<number[][]> {
   const uniqueTexts = [...new Set(texts)];
-  const missing = uniqueTexts.filter((text) => !embeddingCache.has(text));
+  const cachedByText = uniqueTexts.map((text) => embeddingCache.get(text));
+  const missing = uniqueTexts.filter((_, index) => !cachedByText[index]);
+  const hits = uniqueTexts.flatMap((text, index) =>
+    cachedByText[index] ? [{ text, entry: cachedByText[index]! }] : [],
+  );
 
-  if (missing.length) {
-    const batch = embedTexts(missing, { outputDimensionality: EMBEDDING_DIMENSIONS });
-    missing.forEach((text, index) => {
-      const cached = batch.then((vectors) => vectors[index]);
-      embeddingCache.set(text, cached);
-      void cached.catch(() => {
-        if (embeddingCache.get(text) === cached) embeddingCache.delete(text);
-      });
-    });
+  if (missing.length === 0) {
+    const cachedEntries = await Promise.all(cachedByText as Promise<CachedEmbedding>[]);
+    if (sameModel(cachedEntries)) {
+      touchCachedEmbeddings(uniqueTexts, cachedByText as Promise<CachedEmbedding>[]);
+      return vectorsForTexts(texts, uniqueTexts, cachedEntries);
+    }
+    return vectorsForTexts(texts, uniqueTexts, await embedAndCache(uniqueTexts));
   }
 
-  const vectors = await Promise.all(uniqueTexts.map((text) => {
-    const cached = embeddingCache.get(text);
-    if (!cached) throw new Error("Embedding cache entry was removed before it could be read.");
-    embeddingCache.delete(text);
-    embeddingCache.set(text, cached);
-    return cached;
-  }));
+  if (hits.length > 0) {
+    const hitEntries = await Promise.all(hits.map(({ entry }) => entry));
+    if (sameModel(hitEntries)) {
+      touchCachedEmbeddings(hits.map(({ text }) => text), hits.map(({ entry }) => entry));
+      const missingEntries = await embedAndCache(missing);
+      if (missingEntries.every((entry) => entry.model === hitEntries[0].model)) {
+        const byText = new Map<string, CachedEmbedding>(
+          hits.map(({ text }, index) => [text, hitEntries[index]]),
+        );
+        missing.forEach((text, index) => byText.set(text, missingEntries[index]));
+        return texts.map((text) => byText.get(text)!.vector);
+      }
+    }
+  }
 
-  const byText = new Map<string, number[]>(uniqueTexts.map((text, index) => [text, vectors[index]]));
-  return texts.map((text) => byText.get(text)!);
+  return vectorsForTexts(texts, uniqueTexts, await embedAndCache(uniqueTexts));
 }
 
 function cosine(left: number[], right: number[]): number {

@@ -171,7 +171,9 @@ test("embeddings retry and use only their configured embedding fallback", async 
   process.env.GEMINI_EMBEDDING_MODEL = "test-embedding";
   process.env.GEMINI_EMBEDDING_FALLBACK_MODEL = "embedding-fallback";
   mockProvider(t, [503, 503, { embeddings: [{ values: [1, 2] }, { values: [3, 4] }] }]);
-  assert.deepEqual(await embedTexts(["A", "B"], { outputDimensionality: 2 }), [[1, 2], [3, 4]]);
+  const embedded = await embedTexts(["A", "B"], { outputDimensionality: 2 });
+  assert.deepEqual(embedded.vectors, [[1, 2], [3, 4]]);
+  assert.equal(embedded.model, "embedding-fallback");
   assert.deepEqual(models(), ["test-embedding", "test-embedding", "embedding-fallback"]);
   assert.deepEqual(requests[0].body.requests.map((entry) => entry.content.parts[0].text), ["A", "B"]);
   assert.ok(requests.every(({ body }) => body.requests.every((entry) => entry.outputDimensionality === 2)));

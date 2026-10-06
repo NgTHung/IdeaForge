@@ -6,6 +6,7 @@ import {
   similarityRequestSchema,
   similarityResultSchema,
 } from "../src/lib/similarity.ts";
+import { AI_RETRY_DELAY_MS } from "../src/lib/ai-policy.ts";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -26,7 +27,7 @@ beforeEach(() => {
   savedEnv = Object.fromEntries(variables.map((key) => [key, process.env[key]]));
   variables.forEach((key) => delete process.env[key]);
   process.env.GEMINI_API_KEY = "test-only-secret";
-  globalThis.__IDEAFORGE_EMBEDDING_CACHE__?.clear();
+  globalThis.__IDEAFORGE_EMBEDDING_CACHE_V2__?.clear();
   providerRequests = [];
   providerUrls = [];
 });
@@ -36,7 +37,7 @@ afterEach(() => {
     if (savedEnv[key] === undefined) delete process.env[key];
     else process.env[key] = savedEnv[key];
   }
-  globalThis.__IDEAFORGE_EMBEDDING_CACHE__?.clear();
+  globalThis.__IDEAFORGE_EMBEDDING_CACHE_V2__?.clear();
 });
 
 function paddedVector(values) {
@@ -151,4 +152,75 @@ test("same card text is embedded once across concurrent and later requests", asy
 
   assert.equal(providerRequests.length, 1);
   assert.equal(providerRequests[0].requests.length, 2);
+});
+
+test("fallback vectors are never mixed with primary-model vectors in one board", async (t) => {
+  process.env.GEMINI_EMBEDDING_MODEL = "primary-embedding";
+  process.env.GEMINI_EMBEDDING_FALLBACK_MODEL = "fallback-embedding";
+  const fallbackVectors = new Map([
+    ["fallback-alpha", [1, 0]],
+    ["fallback-beta", [0, 1]],
+  ]);
+  const primaryVectors = new Map([
+    ["fallback-alpha", [0, 1]],
+    ["fresh-gamma", [1, 0]],
+  ]);
+  let primaryFailures = 0;
+  t.mock.method(console, "error", () => {});
+  const originalSetTimeout = globalThis.setTimeout;
+  t.mock.method(globalThis, "setTimeout", (callback, delay, ...args) =>
+    originalSetTimeout(callback, delay === AI_RETRY_DELAY_MS ? 1 : delay, ...args));
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    const model = String(url).match(/models\/([^:]+)/)[1];
+    const body = JSON.parse(init.body);
+    providerUrls.push(String(url));
+    providerRequests.push(body);
+    if (model === "primary-embedding" && primaryFailures < 2) {
+      primaryFailures += 1;
+      return Response.json({ error: { code: 503, message: "busy" } }, { status: 503 });
+    }
+    const vectorsByText = model === "fallback-embedding" ? fallbackVectors : primaryVectors;
+    const embeddings = body.requests.map((request) => {
+      const text = request.content.parts[0].text;
+      const vector = vectorsByText.get(text);
+      assert.ok(vector, `No vector configured for ${model}: ${text}`);
+      return { values: paddedVector(vector) };
+    });
+    return Response.json({ embeddings });
+  });
+
+  await calculateSimilarity(cards(["fallback-alpha", "fallback-beta"]));
+  assert.deepEqual(providerUrls.map((url) => url.match(/models\/([^:]+)/)[1]), [
+    "primary-embedding", "primary-embedding", "fallback-embedding",
+  ]);
+  const cache = globalThis.__IDEAFORGE_EMBEDDING_CACHE_V2__;
+  const fallbackEntries = await Promise.all(["fallback-alpha", "fallback-beta"].map((text) => cache.get(text)));
+  assert.deepEqual(fallbackEntries.map((entry) => entry.model), ["fallback-embedding", "fallback-embedding"]);
+
+  await calculateSimilarity(cards(["fallback-alpha", "fresh-gamma"]));
+  assert.deepEqual(providerRequests[3].requests.map((request) => request.content.parts[0].text), ["fresh-gamma"]);
+  assert.deepEqual(providerRequests[4].requests.map((request) => request.content.parts[0].text), ["fallback-alpha", "fresh-gamma"]);
+  assert.match(providerUrls[4], /models\/primary-embedding/);
+  const primaryEntries = await Promise.all(["fallback-alpha", "fresh-gamma"].map((text) => cache.get(text)));
+  assert.deepEqual(primaryEntries.map((entry) => entry.model), ["primary-embedding", "primary-embedding"]);
+
+  await calculateSimilarity(cards(["fallback-alpha", "fresh-gamma"]));
+  assert.equal(providerRequests.length, 5);
+});
+
+test("embedding cache evicts the least recently used entry at its 2,000-item limit", async (t) => {
+  const cache = globalThis.__IDEAFORGE_EMBEDDING_CACHE_V2__;
+  const warmVector = paddedVector([1, 0]);
+  for (let index = 0; index < 2_000; index += 1) {
+    cache.set(`warm-${index}`, Promise.resolve({ model: "gemini-embedding-001", vector: warmVector }));
+  }
+  mockEmbeddings(t, new Map([["new-lru-text", [0, 1]]]));
+
+  await calculateSimilarity(cards(["warm-0", "new-lru-text"]));
+
+  assert.equal(cache.size, 2_000);
+  assert.equal(cache.has("warm-0"), true);
+  assert.equal(cache.has("warm-1"), false);
+  assert.equal(cache.has("new-lru-text"), true);
+  assert.deepEqual(providerRequests[0].requests.map((request) => request.content.parts[0].text), ["new-lru-text"]);
 });
