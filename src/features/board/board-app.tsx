@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
 import { ReactFlow, Background, BackgroundVariant, MarkerType, type Edge, type NodeChange, type ReactFlowInstance } from "@xyflow/react";
 import { createIdeaId } from "./id";
 import { initialBoard } from "./fixtures";
@@ -16,6 +19,14 @@ type Tool = "select" | "hand" | "add" | "connect";
 type Selection = { kind: "idea" | "relationship"; id: string } | null;
 const nodeTypes = { idea: Bubble };
 
+type BoardAppProps = {
+  sharedBoard?: Board;
+  sharedTitle?: string;
+  onBoardChange?: (update: (board: Board) => Board) => void;
+  onTitleChange?: (title: string) => void;
+  roomStatus?: string;
+};
+
 function ZoomReadout({ zoom }: { zoom: number }) {
   return <span className="board-zoom-level" aria-live="off">{Math.round(zoom * 100)}%</span>;
 }
@@ -27,9 +38,20 @@ function ToolButton({ label, active, disabled, title, onClick, children }: {
     title={title || label} disabled={disabled} onClick={onClick}><span className="board-tool-icon" aria-hidden="true">{children}</span></button>;
 }
 
-export function BoardApp() {
-  const [board, setBoard] = useState<Board>(initialBoard);
-  const [title, setTitle] = useState("Student collaboration ideas");
+export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChange, roomStatus }: BoardAppProps) {
+  const router = useRouter();
+  const { data: session, isPending: sessionPending } = authClient.useSession();
+  const [signOutBusy, setSignOutBusy] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [localBoard, setLocalBoard] = useState<Board>(initialBoard);
+  const board = sharedBoard ?? localBoard;
+  const setBoard = useCallback<Dispatch<SetStateAction<Board>>>((update) => {
+    if (onBoardChange) onBoardChange((current) => typeof update === "function" ? update(current) : update);
+    else setLocalBoard(update);
+  }, [onBoardChange]);
+  const [localTitle, setLocalTitle] = useState("Student collaboration ideas");
+  const title = sharedTitle ?? localTitle;
+  const [shareNotice, setShareNotice] = useState("");
   const [tool, setTool] = useState<Tool>("select");
   const [selection, setSelection] = useState<Selection>(null);
   const [sourceId, setSourceId] = useState<string | null>(null);
@@ -39,7 +61,7 @@ export function BoardApp() {
   const [linkError, setLinkError] = useState("");
   const [editor, setEditor] = useState<{ id: string; title: string; content: string } | null>(null);
   const [editError, setEditError] = useState("");
-  const [physicsEnabled, setPhysicsEnabled] = useState(true);
+  const [physicsEnabled, setPhysicsEnabled] = useState(!onBoardChange);
   const [chatOpen, setChatOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [zoom, setZoom] = useState(0.72);
@@ -76,10 +98,6 @@ export function BoardApp() {
       const position = positions.get(idea.id);
       return position && !idea.pinned && idea.id !== frozenId ? { ...idea, position } : idea;
     }) }));
-<<<<<<< Updated upstream
-  }, [frozenId]);
-  const physics = usePhysics(board, physicsEnabled, frozenId, applyPositions);
-=======
   }, [frozenId, setBoard]);
   const applyContacts = useCallback((contacts: Contact[]) => {
     for (const contact of contacts) {
@@ -101,9 +119,25 @@ export function BoardApp() {
     }
   }, []);
   const physics = usePhysics(board, physicsEnabled, frozenId, applyPositions, applyContacts);
->>>>>>> Stashed changes
   const chosenIdea = selection?.kind === "idea" ? board.ideas.find((idea) => idea.id === selection.id) : undefined;
   const chosenLink = selection?.kind === "relationship" ? board.relationships.find((link) => link.id === selection.id) : undefined;
+
+  function changeTitle(nextTitle: string) {
+    if (onTitleChange) onTitleChange(nextTitle);
+    else setLocalTitle(nextTitle);
+  }
+  function createSharedBoard() {
+    router.push(`/board/${crypto.randomUUID()}`);
+  }
+  async function copyBoardLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setShareNotice("Link copied");
+    } catch {
+      setShareNotice("Copy the board URL from your browser address bar");
+    }
+    window.setTimeout(() => setShareNotice(""), 2500);
+  }
 
   function openEditor(idea: Idea) { setSelection({ kind: "idea", id: idea.id }); setEditor({ id: idea.id, title: idea.title, content: idea.content }); setEditError(""); }
   const editingId = editor?.id;
@@ -169,6 +203,20 @@ export function BoardApp() {
     setEditor(null);
   }
 
+  async function signOut() {
+    setSignOutBusy(true);
+    setAuthError("");
+    try {
+      const result = await authClient.signOut();
+      if (result.error) throw new Error(result.error.message);
+      router.replace("/");
+      router.refresh();
+    } catch {
+      setAuthError("Sign out failed. Please try again.");
+      setSignOutBusy(false);
+    }
+  }
+
   const nodes = useMemo<IdeaNode[]>(() => board.ideas.map((idea) => ({
     ...nodeLayouts[idea.id],
     id: idea.id, type: "idea", position: idea.position, selected: selection?.kind === "idea" && selection.id === idea.id,
@@ -211,8 +259,14 @@ export function BoardApp() {
 
   return <main className="board-shell" data-theme={theme}>
     <header className="board-topbar" aria-label="Board controls"><div className="board-brand" aria-label="IdeaForge board"><span className="board-brand-symbol" aria-hidden="true">✳</span>
-      <input aria-label="Board title" value={title} maxLength={80} onChange={(event) => setTitle(event.target.value)} /></div>
-      <div className="board-top-actions" aria-label="Appearance"><button className="board-theme-toggle" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} aria-pressed={theme === "dark"} onClick={() => setTheme((value) => value === "dark" ? "light" : "dark")}>{theme === "dark" ? "☼" : "◐"}</button></div></header>
+      <input aria-label="Board title" value={title} maxLength={80} onChange={(event) => changeTitle(event.target.value)} /></div>
+      <div className="board-top-actions"><span className={`board-local-badge ${onBoardChange ? "is-shared" : ""}`}><i /> {onBoardChange ? `Shared · ${roomStatus || "connecting"}` : "Local demo · resets on refresh"}</span>
+        {sessionPending ? <span className="board-auth-status" aria-label="Checking sign-in status" /> : session ? <><span className="board-user-name" title={session.user.email}>{session.user.name || session.user.email}</span><button className="board-signout" type="button" disabled={signOutBusy} onClick={() => void signOut()}>{signOutBusy ? "Signing out…" : "Sign out"}</button></> : <Link className="board-login-link" href="/login">Sign in</Link>}
+        {onBoardChange ? <button className="board-share-button" type="button" onClick={() => void copyBoardLink()}>Share</button> : <button className="board-share-button" type="button" onClick={createSharedBoard}>Create shared board</button>}
+        <button className="board-theme-toggle" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} aria-pressed={theme === "dark"} onClick={() => setTheme((value) => value === "dark" ? "light" : "dark")}>{theme === "dark" ? "☼" : "◐"}</button></div>
+      {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
+      {authError && <p className="board-auth-error" role="alert">{authError}</p>}
+    </header>
     <div className="board-workspace">
       <div ref={canvas} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""}`}>
         <ReactFlow<IdeaNode> nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onInit={(instance) => { flow.current = instance; setZoom(instance.getZoom()); }} onMove={(_, viewport) => setZoom(viewport.zoom)}
@@ -240,7 +294,7 @@ export function BoardApp() {
           <ToolButton label="Add idea" active={tool === "add"} onClick={() => selectTool("add")}>＋</ToolButton>
           <ToolButton label="Connect" active={tool === "connect"} title={tool === "connect" ? "Connect is active. Drag from one idea into another." : "Connect ideas by dragging from one bubble into another"} onClick={() => selectTool("connect")}>⌁</ToolButton>
           <div className="board-tool-rule" />
-          <ToolButton label="Physics" active={physicsEnabled} onClick={() => setPhysicsEnabled((value) => !value)}>◉</ToolButton>
+          <ToolButton label="Physics" active={physicsEnabled} disabled={Boolean(onBoardChange)} title={onBoardChange ? "Physics is available on the local demo" : "Physics"} onClick={() => setPhysicsEnabled((value) => !value)}>◉</ToolButton>
         </nav></div>
         {board.ideas.length === 0 && <div className="board-empty"><span>✳</span><h2>Your board is ready</h2><p>Start with one thought. You can connect it to others as your map grows.</p><button onClick={addAtCenter}>＋ Add your first idea</button></div>}
         {(chosenIdea || chosenLink) && <div className="board-selection-bar">
