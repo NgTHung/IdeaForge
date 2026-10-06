@@ -6,8 +6,11 @@ What's built, what's verified, and the five-day plan to the Forgehack submission
 
 Done:
 
-- Local canvas at `/` with sample ideas, adding, editing, deleting, pinning, typed relationships created by dragging one idea into another, and physics people can turn off. Board data resets on refresh.
+- Landing screen at `/` with actions to create a shared board or join by URL or UUID.
+- Guest lobby at `/board/<uuid>` that asks for a display name before connecting to Liveblocks and remembers the name in that browser.
 - Shared canvas at `/board/<uuid>` with seeded Liveblocks Storage, live board mutations, saved room state, and a share-link button.
+- Shared-board header with active connection avatars and count; the member list shows connected names and Editor or Viewer access.
+- Account popover on the landing screen and shared boards, with the signed-in user's name and sign-out action.
 - Merge endpoint with Zod validation and Gemini structured output
 - Liveblocks guest authorization route
 - Shared server-only Gemini module with one retry, optional generation and embedding fallbacks, output validation, and cause-specific errors
@@ -21,21 +24,23 @@ Verified:
 - On 2026-10-06, 34 mocked tests cover AI generation, embeddings, retry and fallback attempt counts, SDK timeouts, output validation, safe errors, and merge-route contracts. Lint, typecheck, and production build pass.
 - On 2026-10-06, live Gemini calls through the shared module returned a valid merge in 8.4 seconds and two 768-dimensional embeddings in 0.7 seconds. The production browser, reached through Tailscale, showed the missing-key message and allowed editing and adding notes after the failed request. A live browser merge could be kept, leaving both originals and two ancestry edges. The Gemini key and SDK were absent from client chunks, and the server-only import guard passed.
 - Liveblocks authorization returned a token and a secure guest cookie
+- On 2026-10-06, the guest profile endpoint accepted a trimmed display name, set an HTTP-only cookie, and rejected an empty name. The board route serves the guest-entry client before mounting the Liveblocks room.
 - On 2026-10-06, the Vercel production app at [idea-forge-wine.vercel.app](https://idea-forge-wine.vercel.app) served the local and shared boards over HTTPS. A real browser merge returned a valid proposal in 26.3 seconds; keeping it preserved both originals, their source snapshots, and two ancestry edges. A fresh shared board connected to Liveblocks with a secure HTTP-only guest cookie. Ten loaded client chunks contained no known provider keys, credential patterns, or Gemini SDK code.
-- On 2026-10-06, after restoring the shared canvas, the local production build returned HTTP 200 for `/` and `/board/<uuid>`. A POST to `/api/liveblocks-auth` for that room returned HTTP 200. The Liveblocks client connection, persisted mutations, and two-browser sync still need browser verification.
+- On 2026-10-06, two local browser sessions created and joined a shared board from the landing screen. A new idea appeared in both browsers and remained after both reloaded. On the deployed app, two browsers connected to one room, synchronized a new idea, a card title edit, and a card move, and retained those changes after both reloaded.
 - On 2026-10-05, live tests measured embedding similarity and merge latency across Gemini models. The results are in [Similarity](decisions.md#similarity) and [AI reliability](decisions.md#ai-reliability).
 
-Not yet verified: two browsers syncing the same board. Production retry, fallback, and forced timeout behavior remain unverified. The deployed commit configures the merge function for 95 seconds; its live merge completed within the first 30-second attempt.
+Not yet verified: active member names across two deployed browsers, goal changes, and kept merges syncing and surviving reload on the deployed shared board. The current canvas does not expose board-goal editing or the merge flow. Production retry, fallback, and forced timeout behavior remain unverified. The deployed commit configures the merge function for 95 seconds; its live merge completed within the first 30-second attempt.
 
-The browser checks above that mention merging, ancestry, or shared boards ran against the previous merge UI, which the local canvas replaced on 2026-10-06. The merge proposal preview, parent edges, and the `/board/[id]` shared board are no longer reachable from the UI.
+The browser checks above that mention merging or ancestry ran against the previous merge UI. The current landing screen links to the shared board at `/board/<uuid>`, but merge proposals and ancestry are not connected to the current canvas.
 
 Known gaps:
 
 - Connecting the canvas to the merge and similarity routes.
-- Verifying two-browser sync on a shared board.
-- Undo.
-- Local persistence.
-- Display names and card authors.
+- Verifying goal changes and kept merges across two deployed browsers and reloads.
+- Recording idea and relationship creators and last editors.
+- Reverting a participant's latest operation when no later edit has changed its affected values.
+- Persisting the MongoDB board directory record with its owner and Liveblocks room ID. Separate membership and share-grant collections are out of scope for the hackathon.
+- Recording authors on ideas and relationships.
 - Editing or regenerating a proposal before keeping it.
 - A policy for two people typing in one note.
 

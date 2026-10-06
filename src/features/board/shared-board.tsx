@@ -5,7 +5,7 @@ import { useCallback } from "react";
 import { initialBoard } from "./fixtures";
 import { BoardApp } from "./board-app";
 import type { Board, Idea, Relationship } from "./model";
-import { createBoardStorage, RoomProvider, useMutation, useStatus, useStorage } from "@/lib/liveblocks";
+import { createBoardStorage, RoomProvider, useMutation, useStorage } from "@/lib/liveblocks";
 
 const initialTitle = "Student collaboration ideas";
 
@@ -23,7 +23,6 @@ function SharedBoardContent() {
     ideas: Object.values(root.ideas),
     relationships: Object.values(root.relationships),
   }));
-  const status = useStatus();
   const updateBoard = useMutation(({ storage }, update: (board: Board) => Board) => {
     const ideas = storage.get("ideas");
     const relationships = storage.get("relationships");
@@ -65,6 +64,5 @@ function SharedBoardContent() {
     sharedTitle={snapshot.title}
     onBoardChange={changeBoard}
     onTitleChange={updateTitle}
-    roomStatus={status}
   />;
 }
