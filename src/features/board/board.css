@@ -255,6 +255,13 @@
 .board-organize-result { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 0; border-top: 1px solid #edf1ee; color: #405c52; font-size: 12px; font-weight: 700; }
 .board-organize-result span { display: grid; gap: 2px; }
 .board-organize-result small { color: #7a8a84; font-size: 10px; font-weight: 500; }
+.board-organize-result-main { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; flex: 1; }
+.board-organize-result-main > span { min-width: 0; overflow-wrap: anywhere; }
+.board-cluster-rename, .board-cluster-name-form button { flex: 0 0 auto; padding: 5px 8px; border: 1px solid #d4dfd9; border-radius: 7px; background: #f7faf8; color: #547064; font-size: 10px; font-weight: 700; }
+.board-cluster-name-form { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.board-cluster-name-form input { width: 108px; min-width: 0; padding: 6px 7px; border: 1px solid #b9ccc2; border-radius: 6px; background: #fff; color: #243e40; font: inherit; font-size: 11px; }
+.board-cluster-name-form button[type="submit"] { border-color: #16785f; background: #16785f; color: #fff; }
+.board-cluster-rename:disabled, .board-cluster-name-form button:disabled { opacity: .5; }
 .board-organize-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .board-organize-actions button, .board-organize-undo { padding: 9px 12px; border: 1px solid #d4dfd9; border-radius: 8px; background: #f5f7f5; color: #405c52; font-size: 12px; font-weight: 700; }
 .board-organize-actions button.primary { border-color: #16785f; background: #16785f; color: #fff; }
@@ -278,6 +285,9 @@
 .board-shell[data-theme="dark"] .board-organize-result { color: #b4c5bd; }
 .board-shell[data-theme="dark"] .board-organize-count select { border-color: #435b54; background: #243633; color: #dce8e3; }
 .board-shell[data-theme="dark"] .board-organize-result { border-color: #344744; }
+.board-shell[data-theme="dark"] .board-cluster-rename, .board-shell[data-theme="dark"] .board-cluster-name-form button { border-color: #435b54; background: #263633; color: #c3d4cb; }
+.board-shell[data-theme="dark"] .board-cluster-name-form input { border-color: #435b54; background: #243633; color: #dce8e3; }
+.board-shell[data-theme="dark"] .board-cluster-name-form button[type="submit"] { border-color: #248467; background: #1c795d; color: #fff; }
 .board-shell[data-theme="dark"] .board-organize-actions button { border-color: #435b54; background: #263633; color: #dce8e3; }
 .board-shell[data-theme="dark"] .board-organize-actions button.primary { border-color: #248467; background: #1c795d; color: #fff; }
 .board-shell[data-theme="dark"] .board-organize-undo { border-color: #416553; background: #213b30; color: #9ad1ae; }

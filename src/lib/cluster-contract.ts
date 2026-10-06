@@ -21,6 +21,57 @@ export const clusterRequestSchema = z.object({
   });
 });
 
+const clusterNameGroupRequestSchema = z.object({
+  id: z.string().trim().min(1).max(100),
+  representativeNoteId: z.string().trim().min(1).max(100),
+  notes: z.array(clusterCardSchema).min(1).max(50),
+}).superRefine((group, context) => {
+  if (!group.notes.some((note) => note.id === group.representativeNoteId)) context.addIssue({
+    code: "custom", path: ["representativeNoteId"], message: "The representative must belong to its group.",
+  });
+});
+
+export const clusterNamesRequestSchema = z.object({
+  revision: z.string().trim().min(1).max(100),
+  groups: z.array(clusterNameGroupRequestSchema).min(2).max(10),
+}).superRefine((request, context) => {
+  const groupIds = new Set<string>();
+  const noteIds = new Set<string>();
+  let noteCount = 0;
+  for (const [groupIndex, group] of request.groups.entries()) {
+    if (groupIds.has(group.id)) context.addIssue({
+      code: "custom", path: ["groups", groupIndex, "id"], message: "Group IDs must be unique.",
+    });
+    groupIds.add(group.id);
+    for (const [noteIndex, note] of group.notes.entries()) {
+      noteCount += 1;
+      if (noteIds.has(note.id)) context.addIssue({
+        code: "custom", path: ["groups", groupIndex, "notes", noteIndex, "id"], message: "Note IDs must be unique across groups.",
+      });
+      noteIds.add(note.id);
+    }
+  }
+  if (noteCount < 2 || noteCount > 50) context.addIssue({
+    code: "custom", path: ["groups"], message: "Provide 2 to 50 notes across all groups.",
+  });
+});
+
+export const clusterNamesResponseSchema = z.object({
+  revision: z.string().min(1).max(100),
+  names: z.array(z.object({
+    groupId: z.string().min(1).max(100),
+    suggestedName: z.string().min(1).max(40).nullable(),
+  })).min(2).max(10),
+}).superRefine((response, context) => {
+  const ids = new Set<string>();
+  for (const [index, item] of response.names.entries()) {
+    if (ids.has(item.groupId)) context.addIssue({
+      code: "custom", path: ["names", index, "groupId"], message: "Group name IDs must be unique.",
+    });
+    ids.add(item.groupId);
+  }
+});
+
 const clusterAssignmentGroupSchema = z.object({
   id: z.string().min(1),
   representativeNoteId: z.string().min(1),
@@ -217,6 +268,8 @@ export const clusterSnapshotSchema = z.object({
 export type ClusterCard = z.infer<typeof clusterCardSchema>;
 export type ClusterRequest = z.infer<typeof clusterRequestSchema>;
 export type ClusterResponse = z.infer<typeof clusterResponseSchema>;
+export type ClusterNamesRequest = z.infer<typeof clusterNamesRequestSchema>;
+export type ClusterNamesResponse = z.infer<typeof clusterNamesResponseSchema>;
 export type ClusterAssignmentRequest = z.infer<typeof clusterAssignmentRequestSchema>;
 export type ClusterAssignmentResponse = z.infer<typeof clusterAssignmentResponseSchema>;
 export type ClusterSnapshot = z.infer<typeof clusterSnapshotSchema>;

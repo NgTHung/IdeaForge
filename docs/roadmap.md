@@ -10,6 +10,7 @@ Done:
 - Guest lobby at `/board/<uuid>` that asks for a display name before connecting to Liveblocks and remembers the name in that browser.
 - Shared canvas at `/board/<uuid>` with seeded Liveblocks Storage, live board mutations, saved room state, and a share-link button.
 - Organize on the canvas with a chosen group count, separated rectangular notes, a score for each note pair, and optional placement of only newly saved notes. Group snapshots persist with shared boards.
+- Gemini suggested group names, with manual rename controls; labels save in the cluster snapshot and update matching canvas badges.
 - Shared-board header with active connection avatars and count; the member list shows connected names and Editor or Viewer access.
 - Account popover on the landing screen and shared boards, with the signed-in user's name and sign-out action.
 - Merge endpoint with Zod validation and Gemini structured output

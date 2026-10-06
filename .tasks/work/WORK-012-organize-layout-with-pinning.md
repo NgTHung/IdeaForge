@@ -30,6 +30,10 @@ Owner: SE1 with AI1. Organize lets a person choose a group count and lays out no
 - [x] Incremental assignment returns the complete pair score table for its submitted notes and positions only the new note from those scores.
 - [x] The add-note preference calls `POST /api/similarity/clusters/assign` and changes only the new note's membership and position.
 - [x] Shared boards persist group snapshots and reject an assignment from an older snapshot revision.
+- [x] Group labels can be renamed in Organize and saved with the group and bubble snapshot so the canvas badge stays in sync.
+- [x] After a successful full Organize, one Gemini request suggests bounded group labels; invalid or duplicate suggestions fall back to the numbered labels.
+- [x] Stale naming responses are ignored, and a manual rename made while suggestions are pending takes precedence.
+- [x] A failed naming request leaves the layout intact and offers a manual retry.
 - [x] Verify the add-note control, separated rectangle layout, and single-note placement in the earlier local browser demo.
 - [ ] Verify the Organize and add-note flow on the shared board after merging the new landing screen.
 - [ ] Verify group snapshot persistence and incremental placement across two shared-board browsers.

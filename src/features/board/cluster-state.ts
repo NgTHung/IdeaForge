@@ -2,6 +2,17 @@ import type { ClusterAssignmentResponse, ClusterSnapshot } from "@/lib/cluster-c
 import type { Idea } from "./model";
 import type { ClusterBubblePosition } from "./cluster-layout";
 
+export function renameClusterGroup(snapshot: ClusterSnapshot, groupId: string, label: string): ClusterSnapshot {
+  return {
+    ...snapshot,
+    result: {
+      ...snapshot.result,
+      groups: snapshot.result.groups.map((group) => group.id === groupId ? { ...group, label } : group),
+    },
+    bubbles: snapshot.bubbles.map((bubble) => bubble.clusterId === groupId ? { ...bubble, label } : bubble),
+  };
+}
+
 export function memberFingerprint(ideas: Idea[], snapshot: ClusterSnapshot): string {
   const ids = snapshot.result.groups.flatMap((group) => group.noteIds).sort();
   return JSON.stringify(ids.map((id) => {
