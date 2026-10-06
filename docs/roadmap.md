@@ -7,6 +7,7 @@ What's built, what's verified, and the five-day plan to the Forgehack submission
 Done:
 
 - Local canvas at `/` with sample ideas, adding, editing, deleting, pinning, typed relationships created by dragging one idea into another, and physics people can turn off. Board data resets on refresh.
+- Shared canvas at `/board/<uuid>` with seeded Liveblocks Storage, live board mutations, saved room state, and a share-link button.
 - Merge endpoint with Zod validation and Gemini structured output
 - Liveblocks guest authorization route
 - Shared server-only Gemini module with one retry, optional generation and embedding fallbacks, output validation, and cause-specific errors
@@ -21,6 +22,7 @@ Verified:
 - On 2026-10-06, live Gemini calls through the shared module returned a valid merge in 8.4 seconds and two 768-dimensional embeddings in 0.7 seconds. The production browser, reached through Tailscale, showed the missing-key message and allowed editing and adding notes after the failed request. A live browser merge could be kept, leaving both originals and two ancestry edges. The Gemini key and SDK were absent from client chunks, and the server-only import guard passed.
 - Liveblocks authorization returned a token and a secure guest cookie
 - On 2026-10-06, the Vercel production app at [idea-forge-wine.vercel.app](https://idea-forge-wine.vercel.app) served the local and shared boards over HTTPS. A real browser merge returned a valid proposal in 26.3 seconds; keeping it preserved both originals, their source snapshots, and two ancestry edges. A fresh shared board connected to Liveblocks with a secure HTTP-only guest cookie. Ten loaded client chunks contained no known provider keys, credential patterns, or Gemini SDK code.
+- On 2026-10-06, after restoring the shared canvas, the local production build returned HTTP 200 for `/` and `/board/<uuid>`. A POST to `/api/liveblocks-auth` for that room returned HTTP 200. The Liveblocks client connection, persisted mutations, and two-browser sync still need browser verification.
 - On 2026-10-05, live tests measured embedding similarity and merge latency across Gemini models. The results are in [Similarity](decisions.md#similarity) and [AI reliability](decisions.md#ai-reliability).
 
 Not yet verified: two browsers syncing the same board. Production retry, fallback, and forced timeout behavior remain unverified. The deployed commit configures the merge function for 95 seconds; its live merge completed within the first 30-second attempt.
@@ -29,7 +31,8 @@ The browser checks above that mention merging, ancestry, or shared boards ran ag
 
 Known gaps:
 
-- Connecting the canvas to the merge, similarity, and Liveblocks routes.
+- Connecting the canvas to the merge and similarity routes.
+- Verifying two-browser sync on a shared board.
 - Undo.
 - Local persistence.
 - Display names and card authors.
