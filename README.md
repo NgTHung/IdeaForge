@@ -1,19 +1,39 @@
 # IdeaForge
 
-IdeaForge is a local brainstorming canvas for capturing ideas and drawing typed relationships between them. You can move and pin ideas while gentle physics keeps the board readable. The assistant and AI controls are labeled placeholders. The board resets when you refresh.
+A shared brainstorming canvas for merging ideas. Pick two rough notes, and IdeaForge proposes a new concept that builds on both. Every merged idea records where it came from.
 
-## Run the app
+Built in one week for Forgehack.
 
-Use Node.js 24 or newer. From PowerShell in this repository, run:
+## How it works
 
-```powershell
-npm.cmd ci
-npm.cmd run dev
+1. Set a **board goal**, the problem your team is brainstorming about.
+2. Add notes to the canvas, then select two of them.
+3. Choose **Merge**. Gemini returns a proposal with a concept, what each note contributed, a tension or weakness, and a small experiment to try next.
+4. **Keep** the proposal to add it as a new note linked to its two parents, or **Discard** it. The original notes stay on the canvas.
+
+Merged notes can be edited and merged again, so ideas branch over several rounds. Each merged note keeps a snapshot of the source text it was generated from, so later edits to the sources don't rewrite its history.
+
+## Features
+
+- Pan/zoom canvas with editable, draggable notes (React Flow)
+- Goal-aware AI merging with a preview before anything is saved
+- Visible ancestry: edges link each merged note to its parents
+- Optional real-time shared boards at `/board/<id>`, editable by anyone with the link
+- No keys needed to try the canvas; AI merging and shared boards turn on when keys are set
+
+## Getting started
+
+Requirements: Node.js 24+ and npm.
+
+```bash
+npm ci
+cp .env.example .env.local   # add keys here (optional)
+npm run dev
 ```
 
-Open http://localhost:3000. No keys or external services are needed.
+Open http://localhost:3000. Click a note's border to select it, and hold Shift to select a second one.
 
-## Use the board
+Without keys, you get a local canvas that resets on reload. Add the keys below to enable AI merging and shared boards, then restart the dev server.
 
 ### Account API setup
 
@@ -26,23 +46,47 @@ To enable Google sign-in, set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `
 This API foundation does not yet create boards or restrict Liveblocks room access. Until board membership and sharing checks are implemented, the existing demo authorization policy still applies.
 
 ### Configuration
-Choose **Add idea**, then click empty canvas space to place a bubble. Double-click a bubble or select it and choose **Edit** to change its title and content. Drag a bubble to move it; select it to pin or delete it. The sample board starts with five ideas and two relationships.
 
-Choose **Connect**, then drag from one idea into another. Release over the target, choose **Works well together**, **Conflicts with**, or **Extends**, and optionally explain the link. The arrow for **Extends** points from the extending idea to the idea it extends. Select a connection to delete it.
+| Variable | Needed for | Notes |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | AI merging | Get one at https://aistudio.google.com/apikey |
+| `GEMINI_MODEL` | AI merging | Defaults to `gemini-2.5-flash`; use any model your API project can access |
+| `LIVEBLOCKS_SECRET_KEY` | Shared boards | Get one at https://liveblocks.io/dashboard. Enables **New shared board** |
 
-Use **Select** or **Hand / Pan** for navigation. Hold Space while dragging to pan, scroll to zoom, and use the lower-right controls to zoom or fit the ideas. Toggle **Physics** to pause or resume settling. The assistant panel accepts prompts and returns a fixed message that states AI is not connected. **AI Organize**, **Merge ideas**, **Generate brief**, and **Share** are disabled placeholders.
+All keys stay on the server. `.env.local` is git-ignored.
 
-## Code and checks
+## Scripts
 
-The app uses Next.js, React Flow, and d3-force. `src/app/` contains the route and base styles. `src/features/board/` contains the board UI, local state actions, fixtures, connection gesture, and physics. There is no backend or persistence.
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the development server |
+| `npm run build` / `npm start` | Production build and server |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | Generate route types and run `tsc` |
 
-Run these checks after changing code:
+## Project structure
 
-```powershell
-node --experimental-strip-types --test tests/board-model.test.mjs
-npm.cmd run lint
-npm.cmd run typecheck
-npm.cmd run build
+```text
+src/app/                         Pages and route handlers
+src/app/api/merge/               AI merge endpoint (Zod-validated, Gemini)
+src/app/api/liveblocks-auth/     Guest authorization for shared boards
+src/app/board/[id]/              Shared board route
+src/components/board.tsx         Canvas and merge-proposal UI
+src/components/local-board.tsx   In-memory board state
+src/components/shared-board.tsx  Liveblocks-backed board state
+src/lib/ideas.ts                 Types, schemas, example notes
+src/liveblocks.config.ts         Shared storage types
 ```
 
-The previous merge and shared-board implementation was removed when this canvas became the main app on 2026-10-06. The change is recorded in [decisions](docs/decisions.md); current verification status is in the [roadmap](docs/roadmap.md).
+**Stack:** Next.js (App Router), React, TypeScript, Tailwind CSS, React Flow, Liveblocks, Gemini (`@google/genai`), Zod.
+
+## Status
+
+This is an early hackathon build. Not yet implemented: undo, note deletion, local persistence, editing or regenerating a proposal before keeping it, and handling for two people typing in the same note. The app has no rate limit of its own on AI requests; Gemini's quotas apply. See the [roadmap](docs/roadmap.md) for what has been verified and what's next.
+
+## Documentation
+
+- [Decisions](docs/decisions.md): product scope, architecture, and tradeoffs
+- [Roadmap](docs/roadmap.md): current status, plan, and evaluation
+- [Writing style](docs/writing-style.md): how to write docs and code comments
+- [Contributor guide](AGENTS.md)

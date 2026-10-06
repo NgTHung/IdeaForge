@@ -1,5 +1,7 @@
-import { BoardApp } from "@/features/board/board-app";
+import { LocalBoard } from "@/components/local-board";
+
+export const dynamic = "force-dynamic";
 
 export default function Home() {
-  return <BoardApp />;
+  return <LocalBoard collaborationEnabled={Boolean(process.env.LIVEBLOCKS_SECRET_KEY)} />;
 }

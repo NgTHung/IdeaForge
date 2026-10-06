@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "IdeaForge — Brainstorming canvas",
-  description: "A local canvas for capturing and connecting ideas.",
+  title: "IdeaForge — Combine ideas together",
+  description: "A collaborative brainstorming canvas for evolving rough ideas into new concepts.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
