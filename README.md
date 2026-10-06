@@ -50,18 +50,6 @@ All keys stay on the server. `.env.local` is git-ignored.
 
 Each Gemini attempt has a 30-second timeout. On overload, quota exhaustion, or timeout, the server waits one second and retries once. If that attempt fails for the same causes, it calls the configured fallback once. Other errors stop immediately. A merge can take about 91 seconds across all three attempts; the browser waits 96 seconds. The UI shows the cause of a failed request, and manual editing stays available.
 
-## Deploy to Vercel
-
-The production app runs at [idea-forge-wine.vercel.app](https://idea-forge-wine.vercel.app). Vercel builds the `main` branch of this repository as the `idea-forge` project.
-
-1. Import the GitHub repository into Vercel. Select the Next.js framework preset, the repository root, and Node.js 24.x. Use `npm ci` to install and `npm run build` to build.
-2. In **Settings → Environment Variables**, add `GEMINI_API_KEY` and `LIVEBLOCKS_SECRET_KEY` as sensitive variables for production and preview. Add any model settings from the configuration table. Keep credentials server-side, without a `NEXT_PUBLIC_` prefix.
-3. Keep Fluid compute enabled. `/api/merge` exports `maxDuration = 95`, covering the three 30-second AI attempts and retry delay. Vercel reads this limit from the Next.js build; no separate `vercel.json` is needed. See [function duration](https://vercel.com/docs/functions/configuring-functions/duration).
-4. Deploy. Redeploy after changing environment variables so the new deployment receives them. Use the production domain for the public demo and check that it opens in a browser without a Vercel login.
-5. Open the local canvas, select the two example notes, and merge them. Keep the proposal and check that both originals and their ancestry remain. Click **New shared board** and check that the status reaches `connected`. Verify two-browser synchronization separately using `work:WORK-002`.
-
-The local canvas resets on reload. Shared-board data lives in Liveblocks. The public board URL allows anyone with the link to edit, and AI requests use your Gemini project's quota.
-
 ## Scripts
 
 | Command | Purpose |
