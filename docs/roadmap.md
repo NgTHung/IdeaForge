@@ -8,6 +8,7 @@ Done:
 
 - Local canvas at `/` with sample ideas, adding, editing, deleting, pinning, typed relationships created by dragging one idea into another, and physics people can turn off. Board data resets on refresh.
 - Shared canvas at `/board/<uuid>` with seeded Liveblocks Storage, live board mutations, saved room state, and a share-link button.
+- Automatic relationship suggestions across the board, with a two-second delay after saved text changes. Up to three dashed links can be edited, accepted, or dismissed. Suggestions use real Gemini calls, exclude existing links, and become invalid when source text changes. Each browser can pause suggestions or refresh them.
 - Merge endpoint with Zod validation and Gemini structured output
 - Liveblocks guest authorization route
 - Shared server-only Gemini module with one retry, optional generation and embedding fallbacks, output validation, and cause-specific errors
@@ -25,14 +26,14 @@ Verified:
 - On 2026-10-06, after restoring the shared canvas, the local production build returned HTTP 200 for `/` and `/board/<uuid>`. A POST to `/api/liveblocks-auth` for that room returned HTTP 200. The Liveblocks client connection, persisted mutations, and two-browser sync still need browser verification.
 - On 2026-10-05, live tests measured embedding similarity and merge latency across Gemini models. The results are in [Similarity](decisions.md#similarity) and [AI reliability](decisions.md#ai-reliability).
 
-Not yet verified: two browsers syncing the same board. Production retry, fallback, and forced timeout behavior remain unverified. The deployed commit configures the merge function for 95 seconds; its live merge completed within the first 30-second attempt.
+Two tabs now verify suggestion acceptance and saved-text sync on the local production build over Tailscale. Four-person collaboration and deployed-app retry, fallback, and forced timeout behavior remain unverified. The deployed commit configures the merge function for 95 seconds; its live merge completed within the first 30-second attempt.
 
-The browser checks above that mention merging, ancestry, or shared boards ran against the previous merge UI, which the local canvas replaced on 2026-10-06. The merge proposal preview, parent edges, and the `/board/[id]` shared board are no longer reachable from the UI.
+The browser checks above that mention merging, ancestry, or shared boards ran against the previous merge UI, which the local canvas replaced on 2026-10-06. The merge proposal preview and parent edges are no longer reachable from the UI. The shared board was restored later on 2026-10-06.
 
 Known gaps:
 
 - Connecting the canvas to the merge and similarity routes.
-- Verifying two-browser sync on a shared board.
+- Verifying four-person collaboration on the deployed app.
 - Undo.
 - Local persistence.
 - Display names and card authors.
@@ -40,6 +41,10 @@ Known gaps:
 - A policy for two people typing in one note.
 
 To regenerate a proposal today, discard it and merge again. Retry and fallback failures were tested with mocked provider responses; live overload and fallback behavior remain unverified. Liveblocks behavior was not retested for WORK-011.
+
+Connection suggestions were verified on 2026-10-06 with 60 automated tests, lint, typecheck, and a production build. Live Gemini returned suggestions through the configured generation fallback after primary-model overloads. In the Tailscale browser, a real suggestion appeared automatically and became a normal link when accepted. Card movement and acceptance caused no further generation requests. Mocked browser responses covered editable explanations, direction reversal, dismissal, clarification, and failure feedback. Two tabs connected to a fresh Liveblocks room; accepting an edited suggestion synchronized the link and it survived reload. Editing a source in the second tab removed the first tab's stale preview and queued fresh suggestions. Mobile layout verification was interrupted by preview resize timeouts.
+
+Candidate selection currently uses four nearest neighbors and three diverse candidates per card. These counts are provisional; the real-note evaluation in WORK-006 remains open.
 
 ## Team
 
@@ -124,7 +129,7 @@ Run these on the deployed app before the Day 4 feature freeze:
 1. Start from a seeded board of about 30 cards on one goal, where the best pair to combine isn't obvious.
 2. Two collaborators add cards live.
 3. Click **Organize** to show the groups.
-4. Select a card and click **Suggest connections**.
+4. Wait for automatic connection suggestions after adding or editing ideas.
 5. Open the explanation of a suggestion that links cards from different people, and accept it.
 6. Merge the pair, walk through each contribution and the assumptions it adds, and keep the concept.
 7. Show its authors and parent cards, and generate the concept brief.

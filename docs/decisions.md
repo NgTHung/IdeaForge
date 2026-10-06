@@ -122,7 +122,7 @@ All AI routes share one server module. It retries once on overload or timeout, t
 
 ## Architecture
 
-The UI at `/` is the local canvas in `src/features/board/`. Its board data lives in React memory and resets on refresh. **Create shared board** opens a new seeded room at `/board/<uuid>`. The shared canvas stores its title, cards, and relationships in Liveblocks Storage. Both views use the same canvas component. The assistant sidebar and AI controls are still placeholders, and the canvas doesn't call the merge or similarity routes yet.
+The UI at `/` is the local canvas in `src/features/board/`. Its board data lives in React memory and resets on refresh. **Create shared board** opens a new seeded room at `/board/<uuid>`. The shared canvas stores its title, cards, and relationships in Liveblocks Storage. Both views use the same canvas component. The assistant sidebar is still a placeholder, and the canvas does not call the merge or Organize routes yet. Automatic connection suggestions use `/api/connections`, which calls similarity and Gemini on the server.
 
 In the target architecture, `Board` renders the canvas and receives data and operations from one of two adapters: `LocalBoard` keeps in-memory state, and `SharedBoard` applies Liveblocks mutations. Each browser keeps its own selection, viewport, pending merge proposal, pending connection suggestions, and loading and error states. Room storage holds card text, authors, positions, pin state, the goal, links, and accepted ideas. Presence holds each participant's display name and the card they're editing.
 

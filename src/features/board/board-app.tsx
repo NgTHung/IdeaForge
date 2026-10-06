@@ -13,6 +13,9 @@ import { Bubble, type IdeaNode } from "./bubble";
 import { ChatSidebar } from "./chat-sidebar";
 import { useConnectDrag } from "./use-connect-drag";
 import { usePhysics, type Contact } from "./use-physics";
+import { useConnectionSuggestions } from "./use-connection-suggestions";
+import { ConnectionSuggestionsPanel } from "./connection-suggestions-panel";
+import { canAcceptConnection } from "./connection-preview";
 import "./board.css";
 
 type Tool = "select" | "hand" | "add" | "connect";
@@ -121,13 +124,14 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   const physics = usePhysics(board, physicsEnabled, frozenId, applyPositions, applyContacts);
   const chosenIdea = selection?.kind === "idea" ? board.ideas.find((idea) => idea.id === selection.id) : undefined;
   const chosenLink = selection?.kind === "relationship" ? board.relationships.find((link) => link.id === selection.id) : undefined;
+  const suggestions = useConnectionSuggestions(board, title, Boolean(editor));
 
   function changeTitle(nextTitle: string) {
     if (onTitleChange) onTitleChange(nextTitle);
     else setLocalTitle(nextTitle);
   }
   function createSharedBoard() {
-    router.push(`/board/${crypto.randomUUID()}`);
+    router.push(`/board/${createIdeaId()}`);
   }
   async function copyBoardLink() {
     try {
@@ -194,7 +198,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     const candidate: Relationship = { id: createIdeaId(), ...linkDraft, type: relationshipType, explanation: explanation.trim() };
     const next = createRelationship(boardRef.current, candidate);
     if (next === boardRef.current) { setLinkError("That relationship already exists, or the ideas are no longer available."); return; }
-    setBoard(next); setSelection({ kind: "relationship", id: candidate.id }); setLinkDraft(null); setSourceId(null); setTool("select"); physics.reheat();
+    setBoard((current) => createRelationship(current, candidate)); setSelection({ kind: "relationship", id: candidate.id }); setLinkDraft(null); setSourceId(null); setTool("select"); physics.reheat();
   }
   function saveEdit(event: FormEvent) {
     event.preventDefault(); if (!editor) return;
@@ -242,20 +246,22 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
       return next;
     });
   }
-  const edges = useMemo<Edge[]>(() => board.relationships.map((link) => {
+  const edges = useMemo<Edge[]>(() => [...board.relationships, ...suggestions.previews.filter((preview) => canAcceptConnection(board, preview)).map((preview) => ({ id: preview.id, source: preview.sourceId, target: preview.targetId, type: preview.type, explanation: preview.explanation }))].map((link) => {
+    const provisional = suggestions.previews.some((preview) => preview.id === link.id);
     const source = board.ideas.find((idea) => idea.id === link.source);
     const target = board.ideas.find((idea) => idea.id === link.target);
     const pointsRight = !source || !target || source.position.x <= target.position.x;
     return {
     id: link.id, source: link.source, target: link.target, sourceHandle: pointsRight ? "source-right" : "source-left",
-    targetHandle: pointsRight ? "target-left" : "target-right", type: "smoothstep", label: relationshipLabels[link.type],
+    targetHandle: pointsRight ? "target-left" : "target-right", type: "smoothstep", label: `${provisional ? "Suggested: " : ""}${relationshipLabels[link.type]}`,
+    selectable: !provisional, focusable: !provisional,
     selected: selection?.kind === "relationship" && selection.id === link.id,
     markerEnd: link.type === "extends" ? { type: MarkerType.ArrowClosed, color: theme === "dark" ? "#86bdd0" : "#46758c" } : undefined,
-    style: { stroke: link.type === "conflict" ? (theme === "dark" ? "#e08b7e" : "#b6665b") : link.type === "extends" ? (theme === "dark" ? "#86bdd0" : "#46758c") : (theme === "dark" ? "#79c5a6" : "#4b8a79"), strokeWidth: selection?.id === link.id ? 3 : 2 },
+    style: { stroke: link.type === "conflict" ? (theme === "dark" ? "#e08b7e" : "#b6665b") : link.type === "extends" ? (theme === "dark" ? "#86bdd0" : "#46758c") : (theme === "dark" ? "#79c5a6" : "#4b8a79"), strokeWidth: selection?.id === link.id ? 3 : 2, strokeDasharray: provisional ? "7 5" : undefined },
     labelStyle: { fontSize: 12, fontWeight: 700, fill: theme === "dark" ? "#dce8e3" : "#3c5260" },
     labelBgStyle: { fill: theme === "dark" ? "#21312f" : "#fff", fillOpacity: 0.96 }, labelBgPadding: [8, 5] as [number, number], labelBgBorderRadius: 6,
     interactionWidth: 24,
-  }; }), [board.relationships, board.ideas, selection, theme]);
+  }; }), [board, suggestions.previews, selection, theme]);
 
   return <main className="board-shell" data-theme={theme}>
     <header className="board-topbar" aria-label="Board controls"><div className="board-brand" aria-label="IdeaForge board"><span className="board-brand-symbol" aria-hidden="true">✳</span>
@@ -273,7 +279,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
           onPaneClick={(event) => { if (tool === "add" && flow.current) { const point = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }); makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 }); }
             else { setSelection(null); if (tool === "connect") { setSourceId(null); setLinkDraft(null); setTool("select"); } } }}
           onNodeClick={(_, node) => { if (tool !== "connect") setSelection({ kind: "idea", id: node.id }); }}
-          onEdgeClick={(_, edge) => { setSelection({ kind: "relationship", id: edge.id }); setTool("select"); }}
+          onEdgeClick={(_, edge) => { if (board.relationships.some((link) => link.id === edge.id)) { setSelection({ kind: "relationship", id: edge.id }); setTool("select"); } }}
           onNodeDragStart={(_, node) => physics.dragStart(node.id)}
           onNodeDrag={(_, node) => { physics.drag(node.id, node.position); setBoard((current) => moveIdea(current, node.id, node.position)); }}
           onNodeDragStop={(_, node) => { setBoard((current) => moveIdea(current, node.id, node.position)); physics.dragStop(node.id, node.position, Boolean(boardRef.current.ideas.find((idea) => idea.id === node.id)?.pinned)); }}
@@ -298,10 +304,11 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
         </nav></div>
         {board.ideas.length === 0 && <div className="board-empty"><span>✳</span><h2>Your board is ready</h2><p>Start with one thought. You can connect it to others as your map grows.</p><button onClick={addAtCenter}>＋ Add your first idea</button></div>}
         {(chosenIdea || chosenLink) && <div className="board-selection-bar">
-          {chosenIdea ? <><strong>{chosenIdea.title}</strong><button onClick={() => openEditor(chosenIdea)}>Edit</button><button onClick={() => { setBoard((current) => setIdeaPinned(current, chosenIdea.id, !chosenIdea.pinned)); if (chosenIdea.pinned) physics.reheat(); }}>{chosenIdea.pinned ? "Unpin" : "Pin"}</button></> : <><strong>{chosenLink && relationshipLabels[chosenLink.type]}</strong>{chosenLink?.explanation && <span title={chosenLink.explanation}>{chosenLink.explanation}</span>}</>}
+          {chosenIdea ? <><strong>{chosenIdea.title}</strong><button onClick={() => openEditor(chosenIdea)}>Edit</button><button onClick={() => { setBoard((current) => setIdeaPinned(current, chosenIdea.id, !chosenIdea.pinned)); if (chosenIdea.pinned) physics.reheat(); }}>{chosenIdea.pinned ? "Unpin" : "Pin"}</button></> : <><strong>{chosenLink && relationshipLabels[chosenLink.type]}</strong>{chosenLink?.explanation && <span title={[chosenLink.explanation, chosenLink.condition].filter(Boolean).join(" When: ")}>{chosenLink.explanation}{chosenLink.condition ? ` When: ${chosenLink.condition}` : ""}</span>}</>}
           <button className="danger" onClick={removeSelection}>Delete</button></div>}
         <div className="board-zoom"><button aria-label="Zoom out" title="Zoom out" onClick={() => flow.current?.zoomOut({ duration: 180 })}>−</button><button aria-label="Fit ideas" title="Fit ideas" onClick={() => { void fitBoard(); }}>⤢</button><ZoomReadout zoom={zoom} /><button aria-label="Zoom in" title="Zoom in" onClick={() => flow.current?.zoomIn({ duration: 180 })}>＋</button></div>
       </div>
+      {!chatOpen && <ConnectionSuggestionsPanel board={board} suggestions={suggestions} onBoardChange={setBoard} />}
       <ChatSidebar open={chatOpen} onToggle={() => setChatOpen((value) => !value)} />
     </div>
     {editor && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditor(null); }}><form className="board-dialog" onSubmit={saveEdit} aria-label="Edit idea">

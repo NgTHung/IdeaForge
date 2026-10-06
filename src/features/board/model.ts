@@ -15,6 +15,7 @@ export type Relationship = {
   target: string;
   type: RelationshipType;
   explanation: string;
+  condition?: string;
 };
 export type Board = { ideas: Idea[]; relationships: Relationship[] };
 
