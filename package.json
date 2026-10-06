@@ -30,11 +30,13 @@
     "next": "16.3.8",
     "nodemailer": "^10.0.15",
     "react": "19.2.8",
+    "d3-force": "^3.0.0",
     "react-dom": "19.2.8",
     "tsx": "^4.23.15",
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/d3-force": "^3.0.10",
     "@tailwindcss/postcss": "^4",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
@@ -44,7 +46,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
-    "tailwindcss": "^4",
     "typescript": "^5"
   }
 }

@@ -1,20 +1,20 @@
 # Working in IdeaForge
 
-A one-week hackathon project centered on merging ideas. Before changing product scope, architecture, or access policy, read `docs/decisions.md` and log the change there. Priorities and verification status live in `docs/roadmap.md`.
+A local brainstorming canvas for a hackathon project. Before changing product scope, architecture, or access policy, read `docs/decisions.md` and log the change there. Priorities and verification status live in `docs/roadmap.md`.
 
 When `AGENTS.local.md` exists, read it for local instructions.
 
 ## Invariants
 
-- Provider credentials stay server-side.
-- Merging preserves the original notes and their source snapshots.
-- AI output comes from real provider calls; label any canned or mocked result.
+- Provider credentials stay server-side if provider calls are added.
+- Relationships keep their type and direction; an Extends link points from the extending idea to its target.
+- Label canned or mocked AI results. Do not imply that a placeholder analyzed the board.
 
 ## Working style
 
 - Long-term maintainability comes first. Extract shared logic into a module its callers reuse, and refactor existing code freely when it leaves one source of truth. Sweeping changes are welcome while the project is WIP.
 - After code changes, run `npm run lint`, `npm run typecheck`, and `npm run build`.
-- Verify live Gemini and Liveblocks behavior only when credentials are available, and report what went unverified.
+- Verify external integrations only when they exist and credentials are available, and report what went unverified.
 - Writing docs, design notes, or code comments: follow `docs/writing-style.md`.
 
 <!-- BEGIN:nextjs-agent-rules -->
