@@ -10,6 +10,7 @@ export const similarityCardSchema = z.object({
 
 export const similarityRequestSchema = z.object({
   cards: z.array(similarityCardSchema).min(2).max(50),
+  compareMethods: z.boolean().optional(),
 }).superRefine(({ cards }, context) => {
   const ids = new Set<string>();
   for (const [index, card] of cards.entries()) {
@@ -24,18 +25,29 @@ export const similarityRequestSchema = z.object({
   }
 });
 
+const pairScoreSchema = z.object({
+  sourceId: z.string(),
+  targetId: z.string(),
+  score: z.number().finite().min(-1).max(1),
+});
+
 export const similarityResultSchema = z.object({
   method: z.enum(["mean_centered_cosine", "nearest_neighbor_rank"]),
   centeredThreshold: z.number().int().min(2).max(50),
-  scores: z.array(z.object({
-    sourceId: z.string(),
-    targetId: z.string(),
-    score: z.number().finite().min(-1).max(1),
-  })),
+  scores: z.array(pairScoreSchema),
+});
+
+export const similarityComparisonResultSchema = z.object({
+  method: z.literal("cosine_comparison"),
+  model: z.string().min(1),
+  centeredThreshold: z.number().int().min(2).max(50),
+  rawScores: z.array(pairScoreSchema),
+  centeredScores: z.array(pairScoreSchema),
 });
 
 export type SimilarityCard = z.infer<typeof similarityCardSchema>;
 export type SimilarityResult = z.infer<typeof similarityResultSchema>;
+export type SimilarityComparisonResult = z.infer<typeof similarityComparisonResultSchema>;
 
 const EMBEDDING_DIMENSIONS = 768;
 const MAX_CACHED_TEXTS = 2_000;
@@ -107,7 +119,7 @@ function vectorsForTexts(
   return texts.map((text) => byText.get(text)!);
 }
 
-async function embeddingsFor(texts: string[]): Promise<number[][]> {
+async function embeddingsFor(texts: string[]): Promise<{ vectors: number[][]; model: string }> {
   const uniqueTexts = [...new Set(texts)];
   const cachedByText = uniqueTexts.map((text) => embeddingCache.get(text));
   const missing = uniqueTexts.filter((_, index) => !cachedByText[index]);
@@ -119,9 +131,10 @@ async function embeddingsFor(texts: string[]): Promise<number[][]> {
     const cachedEntries = await Promise.all(cachedByText as Promise<CachedEmbedding>[]);
     if (sameModel(cachedEntries)) {
       touchCachedEmbeddings(uniqueTexts, cachedByText as Promise<CachedEmbedding>[]);
-      return vectorsForTexts(texts, uniqueTexts, cachedEntries);
+      return { vectors: vectorsForTexts(texts, uniqueTexts, cachedEntries), model: cachedEntries[0].model };
     }
-    return vectorsForTexts(texts, uniqueTexts, await embedAndCache(uniqueTexts));
+    const freshEntries = await embedAndCache(uniqueTexts);
+    return { vectors: vectorsForTexts(texts, uniqueTexts, freshEntries), model: freshEntries[0].model };
   }
 
   if (hits.length > 0) {
@@ -134,12 +147,13 @@ async function embeddingsFor(texts: string[]): Promise<number[][]> {
           hits.map(({ text }, index) => [text, hitEntries[index]]),
         );
         missing.forEach((text, index) => byText.set(text, missingEntries[index]));
-        return texts.map((text) => byText.get(text)!.vector);
+        return { vectors: texts.map((text) => byText.get(text)!.vector), model: hitEntries[0].model };
       }
     }
   }
 
-  return vectorsForTexts(texts, uniqueTexts, await embedAndCache(uniqueTexts));
+  const freshEntries = await embedAndCache(uniqueTexts);
+  return { vectors: vectorsForTexts(texts, uniqueTexts, freshEntries), model: freshEntries[0].model };
 }
 
 function cosine(left: number[], right: number[]): number {
@@ -167,6 +181,20 @@ function centeredVectors(vectors: number[][]): number[][] {
   return vectors.map((vector) => vector.map((value, dimension) => value - mean[dimension]));
 }
 
+function pairwiseScores(cards: SimilarityCard[], matrix: number[][]): SimilarityComparisonResult["rawScores"] {
+  const scores: SimilarityComparisonResult["rawScores"] = [];
+  for (let sourceIndex = 0; sourceIndex < cards.length; sourceIndex += 1) {
+    for (let targetIndex = sourceIndex + 1; targetIndex < cards.length; targetIndex += 1) {
+      scores.push({
+        sourceId: cards[sourceIndex].id,
+        targetId: cards[targetIndex].id,
+        score: matrix[sourceIndex][targetIndex],
+      });
+    }
+  }
+  return scores;
+}
+
 function rankedScores(cards: SimilarityCard[], rawScores: number[][]): SimilarityResult["scores"] {
   const rankBySource = rawScores.map((row, sourceIndex) => {
     const neighbors = row
@@ -192,7 +220,7 @@ function rankedScores(cards: SimilarityCard[], rawScores: number[][]): Similarit
 
 export async function calculateSimilarity(cards: SimilarityCard[]): Promise<SimilarityResult> {
   const threshold = centeredThreshold();
-  const vectors = await embeddingsFor(cards.map((card) => card.text));
+  const { vectors } = await embeddingsFor(cards.map((card) => card.text));
   const rawScores = cosineMatrix(vectors);
 
   if (cards.length < threshold) {
@@ -215,4 +243,15 @@ export async function calculateSimilarity(cards: SimilarityCard[]): Promise<Simi
     }
   }
   return { method: "mean_centered_cosine", centeredThreshold: threshold, scores };
+}
+
+export async function compareSimilarityMethods(cards: SimilarityCard[]): Promise<SimilarityComparisonResult> {
+  const { vectors, model } = await embeddingsFor(cards.map((card) => card.text));
+  return {
+    method: "cosine_comparison",
+    model,
+    centeredThreshold: centeredThreshold(),
+    rawScores: pairwiseScores(cards, cosineMatrix(vectors)),
+    centeredScores: pairwiseScores(cards, cosineMatrix(centeredVectors(vectors))),
+  };
 }

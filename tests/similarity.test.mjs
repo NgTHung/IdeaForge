@@ -3,6 +3,7 @@ import { registerHooks } from "node:module";
 import { afterEach, beforeEach, test } from "node:test";
 import {
   calculateSimilarity,
+  similarityComparisonResultSchema,
   similarityRequestSchema,
   similarityResultSchema,
 } from "../src/lib/similarity.ts";
@@ -138,6 +139,58 @@ test("route returns pairwise scores from shared embedding calls", async (t) => {
   assert.equal(result.scores[0].sourceId, "card-0");
   assert.equal(result.scores[0].targetId, "card-1");
   assert.equal(providerRequests.length, 1);
+});
+
+test("comparison mode returns raw and centered cosine from one provider batch", async (t) => {
+  process.env.GEMINI_EMBEDDING_MODEL = "comparison-embedding";
+  process.env.SIMILARITY_MIN_CENTERED_CARDS = "3";
+  mockEmbeddings(t, new Map([
+    ["compare-alpha", [1, 0]],
+    ["compare-beta", [0, 1]],
+    ["compare-gamma", [-1, 0]],
+  ]));
+
+  const response = await POST(request({ compareMethods: true, cards: cards(["compare-alpha", "compare-beta", "compare-gamma"]) }));
+  assert.equal(response.status, 200);
+  const result = similarityComparisonResultSchema.parse(await response.json());
+  assert.equal(result.method, "cosine_comparison");
+  assert.equal(result.model, "comparison-embedding");
+  assert.equal(result.rawScores.length, 3);
+  assert.equal(result.centeredScores.length, 3);
+  const rawOppositePair = result.rawScores.find((score) => score.sourceId === "card-0" && score.targetId === "card-2");
+  const centeredOppositePair = result.centeredScores.find((score) => score.sourceId === "card-0" && score.targetId === "card-2");
+  assert.equal(rawOppositePair.score, -1);
+  assert.ok(Math.abs(centeredOppositePair.score - -0.8) < 1e-10);
+  assert.equal(providerRequests.length, 1);
+});
+
+test("adding a note keeps old raw cosine fixed and recalculates old centered distances", async (t) => {
+  process.env.GEMINI_EMBEDDING_MODEL = "dynamic-embedding";
+  mockEmbeddings(t, new Map([
+    ["dynamic-alpha", [1, 0]],
+    ["dynamic-beta", [0, 1]],
+    ["dynamic-gamma", [-1, 0]],
+    ["dynamic-new-note", [1, 1]],
+  ]));
+
+  const beforeResponse = await POST(request({
+    compareMethods: true,
+    cards: cards(["dynamic-alpha", "dynamic-beta", "dynamic-gamma"]),
+  }));
+  const before = similarityComparisonResultSchema.parse(await beforeResponse.json());
+  const afterResponse = await POST(request({
+    compareMethods: true,
+    cards: cards(["dynamic-alpha", "dynamic-beta", "dynamic-gamma", "dynamic-new-note"]),
+  }));
+  const after = similarityComparisonResultSchema.parse(await afterResponse.json());
+  const alphaBeta = (scores) => scores.find((score) => score.sourceId === "card-0" && score.targetId === "card-1").score;
+
+  assert.equal(beforeResponse.status, 200);
+  assert.equal(afterResponse.status, 200);
+  assert.equal(alphaBeta(after.rawScores), alphaBeta(before.rawScores));
+  assert.notEqual(alphaBeta(after.centeredScores), alphaBeta(before.centeredScores));
+  assert.equal(providerRequests.length, 2);
+  assert.equal(providerRequests[1].requests.length, 1, "only the new note needs an embedding");
 });
 
 test("same card text is embedded once across concurrent and later requests", async (t) => {

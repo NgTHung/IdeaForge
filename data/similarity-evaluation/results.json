@@ -1,0 +1,37 @@
+{
+  "datasetId": "study-groups-synthetic-v1",
+  "source": "synthetic",
+  "noteCount": 40,
+  "goal": "Help first-year university students form small study groups and keep a useful weekly study habit through the semester.",
+  "model": "gemini-embedding-001",
+  "dimensions": 768,
+  "providerRequests": 1,
+  "methods": [
+    "raw cosine",
+    "cosine after subtracting the board mean vector"
+  ],
+  "reviewCandidatePolicy": {
+    "nearestPerNotePerMethod": 2,
+    "crossThemePerNotePerMethod": 1
+  },
+  "uniqueCandidatePairsForReview": 81,
+  "syntheticThemeAgreementAtTop2": {
+    "raw": {
+      "matching": 38,
+      "reviewed": 80,
+      "rate": 0.475
+    },
+    "centered": {
+      "matching": 44,
+      "reviewed": 80,
+      "rate": 0.55
+    },
+    "caveat": "Creator-assigned synthetic themes are a rough proxy, not human relevance judgments."
+  },
+  "productionSettings": {
+    "currentSmallBoardThreshold": 8,
+    "recommendedNearestCount": null,
+    "recommendedCrossThemeCount": null,
+    "status": "Awaiting human review; do not treat synthetic results as final settings."
+  }
+}

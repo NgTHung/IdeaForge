@@ -1,5 +1,5 @@
 import { aiErrorResponse } from "@/lib/ai";
-import { calculateSimilarity, similarityRequestSchema } from "@/lib/similarity";
+import { calculateSimilarity, compareSimilarityMethods, similarityRequestSchema } from "@/lib/similarity";
 
 export const runtime = "nodejs";
 export const maxDuration = 95;
@@ -20,6 +20,9 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (parsed.data.compareMethods) {
+      return Response.json(await compareSimilarityMethods(parsed.data.cards));
+    }
     return Response.json(await calculateSimilarity(parsed.data.cards));
   } catch (error) {
     return aiErrorResponse(error);

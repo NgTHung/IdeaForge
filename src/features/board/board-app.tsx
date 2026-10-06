@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { ReactFlow, Background, BackgroundVariant, MarkerType, type Edge, type NodeChange, type ReactFlowInstance } from "@xyflow/react";
 import { createIdeaId } from "./id";
 import { initialBoard } from "./fixtures";
@@ -168,7 +169,9 @@ export function BoardApp() {
   return <main className="board-shell">
     <header className="board-topbar"><div className="board-brand"><span className="board-brand-symbol">✳</span><strong>IdeaForge</strong><span className="board-divider" />
       <input aria-label="Board title" value={title} maxLength={80} onChange={(event) => setTitle(event.target.value)} /></div>
-      <div className="board-top-actions"><span className="board-local-badge"><i /> Local demo · resets on refresh</span><button disabled title="Sharing is coming later">Share</button></div></header>
+      <div className="board-top-actions"><span className="board-local-badge"><i /> Local demo · resets on refresh</span>
+        {process.env.NODE_ENV === "development" && <Link className="board-lab-link" href="/similarity-lab">WORK-006 Similarity Lab</Link>}
+        <button disabled title="Sharing is coming later">Share</button></div></header>
     <div className="board-workspace">
       <div ref={canvas} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""}`}>
         <ReactFlow<IdeaNode> nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onInit={(instance) => { flow.current = instance; }}
