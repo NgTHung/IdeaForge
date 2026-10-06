@@ -6,7 +6,7 @@ import { initialBoard } from "./fixtures";
 import { BoardApp } from "./board-app";
 import type { Board, Idea, Relationship } from "./model";
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
-import { createBoardStorage, RoomProvider, useMutation, useStatus, useStorage } from "@/lib/liveblocks";
+import { createBoardStorage, RoomProvider, useMutation, useStorage } from "@/lib/liveblocks";
 
 const initialTitle = "Student collaboration ideas";
 
@@ -25,7 +25,6 @@ function SharedBoardContent() {
     relationships: Object.values(root.relationships),
     clusterSnapshot: root.clusterSnapshot as ClusterSnapshot | undefined,
   }));
-  const status = useStatus();
   const updateBoard = useMutation(({ storage }, update: (board: Board) => Board) => {
     const ideas = storage.get("ideas");
     const relationships = storage.get("relationships");
@@ -72,6 +71,5 @@ function SharedBoardContent() {
     sharedTitle={snapshot.title}
     onBoardChange={changeBoard}
     onTitleChange={updateTitle}
-    roomStatus={status}
   />;
 }

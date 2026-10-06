@@ -1,0 +1,59 @@
+.guest-entry-shell { min-height: 100dvh; display: flex; flex-direction: column; color: #202a27; background: #fff; font-family: Arial, Helvetica, sans-serif; }
+.guest-entry-shell * { box-sizing: border-box; }
+.guest-entry-header { height: 76px; flex: 0 0 76px; display: flex; align-items: center; justify-content: space-between; padding: 0 38px; }
+.guest-entry-brand { display: flex; align-items: center; gap: 10px; color: #202a27; font-size: 22px; font-weight: 700; letter-spacing: -.7px; text-decoration: none; }
+.guest-entry-brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; color: #fff; background: #168264; font-size: 25px; line-height: 1; }
+.guest-entry-signin { color: #16785f; font-size: 14px; font-weight: 700; text-decoration: none; }
+.guest-entry-signin:hover, .guest-entry-signin-note a:hover { text-decoration: underline; }
+.guest-entry-content { width: min(1470px, calc(100% - 88px)); flex: 1; display: grid; grid-template-columns: minmax(0, 1.28fr) minmax(350px, .72fr); align-items: center; gap: clamp(54px, 8vw, 140px); margin: 0 auto; padding: 38px 0 50px; }
+.guest-entry-preview { min-width: 0; overflow: hidden; border-radius: 20px; background: #111817; box-shadow: 0 24px 70px #172d251f; }
+.guest-entry-preview-top { height: 47px; display: flex; align-items: center; gap: 7px; padding: 0 17px; background: #18211f; }
+.guest-entry-preview-top span { width: 7px; height: 7px; border-radius: 50%; background: #586560; }
+.guest-entry-preview-top span:first-child { background: #72b99b; }
+.guest-entry-preview-canvas { position: relative; min-height: 460px; overflow: hidden; background: radial-gradient(ellipse at 50% 47%, #263733 0%, #17221f 51%, #121917 100%); }
+.guest-entry-preview-canvas::before, .guest-entry-preview-canvas::after { position: absolute; inset: 0; content: ""; pointer-events: none; background-image: radial-gradient(#d5e7dc16 1px, transparent 1px); background-size: 24px 24px; mask-image: linear-gradient(transparent, #000 20%, #000 80%, transparent); }
+.guest-entry-preview-canvas::after { background: radial-gradient(ellipse at center, transparent 30%, #111817aa 100%); }
+.guest-entry-preview-message { position: absolute; z-index: 2; left: 50%; top: 49%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; width: min(75%, 390px); text-align: center; color: #f4f8f5; }
+.guest-entry-preview-symbol { display: grid; place-items: center; width: 54px; height: 54px; margin-bottom: 18px; border: 1px solid #84c5aa6e; border-radius: 18px; color: #a6dfc3; background: #34725a40; font-size: 36px; }
+.guest-entry-preview-message strong { font-size: clamp(18px, 2vw, 25px); line-height: 1.3; }
+.guest-entry-preview-message small { margin-top: 9px; color: #a3b8ae; font-size: 13px; }
+.guest-preview-note { position: absolute; z-index: 1; display: flex; align-items: center; gap: 8px; padding: 11px 14px; border: 1px solid #d9eee21e; border-radius: 15px; color: #d7e8de; background: #273631db; box-shadow: 0 9px 26px #0003; font-size: 12px; }
+.guest-preview-note i { width: 8px; height: 8px; border-radius: 50%; background: #79c3a4; }
+.guest-preview-note-one { left: 8%; top: 25%; }
+.guest-preview-note-two { right: 8%; top: 30%; }
+.guest-preview-note-three { left: 15%; bottom: 19%; }
+.guest-entry-preview-canvas svg { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; }
+.guest-entry-preview-canvas path { fill: none; stroke: #7fbaa14d; stroke-width: 2; stroke-dasharray: 5 6; }
+.guest-entry-preview-footer { height: 43px; display: flex; align-items: center; justify-content: center; gap: 7px; color: #98aaa2; background: #18211f; font-size: 11px; }
+.guest-entry-preview-footer span { width: 4px; height: 4px; margin: 0 7px; border-radius: 50%; background: #608c76; }
+.guest-entry-form-panel { width: min(100%, 430px); justify-self: center; }
+.guest-entry-form-panel h1 { margin: 0 0 24px; color: #263a33; font-size: clamp(28px, 3vw, 36px); font-weight: 600; letter-spacing: -1.2px; }
+.guest-entry-form-panel form { display: flex; flex-direction: column; }
+.guest-entry-form-panel label { margin-bottom: 8px; color: #506159; font-size: 12px; font-weight: 700; }
+.guest-entry-form-panel input { width: 100%; height: 54px; padding: 0 15px; border: 1px solid #cdd9d2; border-radius: 8px; outline: none; color: #243a32; background: white; font: inherit; font-size: 16px; transition: border-color .18s, box-shadow .18s; }
+.guest-entry-form-panel input:focus { border-color: #32866a; box-shadow: 0 0 0 3px #32866a20; }
+.guest-entry-count { align-self: flex-end; margin-top: 6px; color: #87938d; font-size: 11px; }
+.guest-entry-join { height: 52px; margin-top: 27px; border: 0; border-radius: 9px; color: #fff; background: #187b5e; font-size: 14px; font-weight: 700; transition: background .15s, transform .15s; }
+.guest-entry-join:hover:not(:disabled) { transform: translateY(-1px); background: #11694f; }
+.guest-entry-join:disabled { cursor: not-allowed; color: #929b96; background: #e6ebe8; }
+.guest-entry-error { margin: 11px 0 0; color: #a14338; font-size: 12px; }
+.guest-entry-signin-note { margin: 21px 0 0; color: #7a8880; font-size: 12px; text-align: center; }
+.guest-entry-signin-note a { color: #16785f; font-weight: 700; text-decoration: none; }
+.guest-entry-footer { padding: 22px; color: #9aa59f; font-size: 11px; text-align: center; }
+.guest-entry-loading { display: grid; min-height: 100dvh; place-items: center; color: #526d62; background: #f7faf8; font: 600 14px/1.5 system-ui, sans-serif; }
+@media (max-width: 850px) {
+  .guest-entry-content { width: min(600px, calc(100% - 48px)); grid-template-columns: 1fr; gap: 35px; padding: 28px 0 32px; }
+  .guest-entry-preview-canvas { min-height: 300px; }
+  .guest-entry-preview { grid-row: 2; }
+  .guest-entry-form-panel { grid-row: 1; width: 100%; }
+  .guest-entry-join { margin-top: 20px; }
+}
+@media (max-width: 520px) {
+  .guest-entry-header { height: 64px; flex-basis: 64px; padding: 0 20px; }
+  .guest-entry-brand { font-size: 19px; }
+  .guest-entry-content { width: calc(100% - 40px); gap: 25px; }
+  .guest-entry-preview-canvas { min-height: 240px; }
+  .guest-preview-note { padding: 8px 10px; font-size: 10px; }
+  .guest-entry-preview-message { width: 80%; }
+  .guest-entry-preview-footer { font-size: 9px; }
+}

@@ -1,0 +1,37 @@
+.active-members { position: relative; display: flex; align-items: center; pointer-events: auto; }
+.active-members-trigger { display: inline-flex; min-width: 74px; height: 42px; align-items: center; justify-content: center; gap: 7px; padding: 4px 10px 4px 6px; border: 1px solid #e0e6e2; border-radius: 999px; color: #334840; background: #f0f3f1; cursor: pointer; }
+.active-members-trigger:hover, .active-members-trigger[aria-expanded="true"] { background: #e6eeea; }
+.active-members-trigger:focus-visible { outline: 3px solid #68ad91; outline-offset: 3px; }
+.active-members-avatars { display: inline-flex; align-items: center; padding-left: 1px; }
+.active-member-avatar { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border: 2px solid #fff; border-radius: 50%; color: #fff; background: #147e68; font-size: 13px; font-weight: 750; line-height: 1; }
+.active-members-avatars .active-member-avatar + .active-member-avatar { margin-left: -9px; }
+.active-member-avatar-0 { color: #176b55; background: #cfe9d9; }
+.active-member-avatar-1 { color: #fff; background: #16816c; }
+.active-member-avatar-2 { color: #65500d; background: #f4e8b5; }
+.active-members-count { min-width: 10px; font-size: 14px; font-weight: 700; line-height: 1; }
+.active-members-popover { position: absolute; z-index: 30; top: calc(100% + 10px); right: 0; width: min(290px, calc(100vw - 28px)); padding: 10px; border: 1px solid #dce7e0; border-radius: 14px; color: #2c4038; background: #fff; box-shadow: 0 16px 42px #18392a2b; pointer-events: auto; }
+.active-members-popover-header { display: flex; align-items: center; justify-content: space-between; padding: 5px 7px 10px; color: #668075; font-size: 11px; text-transform: uppercase; letter-spacing: .09em; }
+.active-members-popover-header span { display: grid; width: 23px; height: 23px; place-items: center; border-radius: 50%; color: #17684f; background: #e5f2e9; font-size: 11px; font-weight: 800; letter-spacing: 0; }
+.active-members-popover ul { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.active-members-popover li { display: flex; min-width: 0; align-items: center; gap: 10px; padding: 8px 7px; border-radius: 9px; }
+.active-members-popover li:hover { background: #f4f8f5; }
+.active-member-details { display: grid; min-width: 0; gap: 3px; }
+.active-member-details strong { display: flex; min-width: 0; align-items: center; gap: 7px; overflow: hidden; color: #2b4037; font-size: 13px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.active-member-details small { color: #7a8d83; font-size: 11px; }
+.active-member-you { flex: 0 0 auto; padding: 3px 6px; border-radius: 999px; color: #487263; background: #edf4ef; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.board-shell[data-theme="dark"] .active-members-trigger { border-color: #405650; color: #dce8e3; background: #263633; }
+.board-shell[data-theme="dark"] .active-members-trigger:hover,
+.board-shell[data-theme="dark"] .active-members-trigger[aria-expanded="true"] { background: #2a403a; }
+.board-shell[data-theme="dark"] .active-members-popover { border-color: #344744; color: #dce8e3; background: #1c2a29; }
+.board-shell[data-theme="dark"] .active-members-popover-header { color: #9eb5aa; }
+.board-shell[data-theme="dark"] .active-members-popover-header span,
+.board-shell[data-theme="dark"] .active-member-you { color: #b9e5cb; background: #29483a; }
+.board-shell[data-theme="dark"] .active-members-popover li:hover { background: #263633; }
+.board-shell[data-theme="dark"] .active-member-details strong { color: #dce8e3; }
+.board-shell[data-theme="dark"] .active-member-details small { color: #9eb5aa; }
+@media (max-width: 760px) {
+  .active-members-trigger { min-width: 64px; height: 36px; gap: 5px; padding: 3px 7px 3px 4px; }
+  .active-member-avatar { width: 26px; height: 26px; flex-basis: 26px; font-size: 11px; }
+  .active-members-avatars .active-member-avatar + .active-member-avatar { margin-left: -8px; }
+  .active-members-count { font-size: 12px; }
+}

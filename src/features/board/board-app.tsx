@@ -1,16 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type FormEvent, type SetStateAction } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
 import { ReactFlow, Background, BackgroundVariant, MarkerType, type Edge, type NodeChange, type ReactFlowInstance } from "@xyflow/react";
+import Link from "next/link";
 import { createIdeaId } from "./id";
 import { initialBoard } from "./fixtures";
 import { createIdea, createRelationship, deleteIdea, deleteRelationship, IDEA_CARD_SIZE, moveIdea, relationshipLabels, setIdeaPinned, updateIdea,
   type Board, type Idea, type Relationship, type RelationshipType } from "./model";
 import { Bubble, type IdeaNode } from "./bubble";
 import { ChatSidebar } from "./chat-sidebar";
+import { AccountMenu } from "./account-menu";
+import { ActiveMembers } from "./active-members";
 import { useConnectDrag } from "./use-connect-drag";
 import { usePhysics, type Contact } from "./use-physics";
 import { clusterAssignmentResponseSchema, clusterResponseSchema, type ClusterCard } from "@/lib/cluster-contract";
@@ -55,7 +55,6 @@ type BoardAppProps = {
   sharedTitle?: string;
   onBoardChange?: (update: (board: Board) => Board) => void;
   onTitleChange?: (title: string) => void;
-  roomStatus?: string;
 };
 
 function ZoomReadout({ zoom }: { zoom: number }) {
@@ -69,11 +68,7 @@ function ToolButton({ label, active, disabled, title, onClick, children }: {
     title={title || label} disabled={disabled} onClick={onClick}><span className="board-tool-icon" aria-hidden="true">{children}</span></button>;
 }
 
-export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChange, roomStatus }: BoardAppProps) {
-  const router = useRouter();
-  const { data: session, isPending: sessionPending } = authClient.useSession();
-  const [signOutBusy, setSignOutBusy] = useState(false);
-  const [authError, setAuthError] = useState("");
+export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChange }: BoardAppProps) {
   const [localBoard, setLocalBoard] = useState<Board>(initialBoard);
   const board = sharedBoard ?? localBoard;
   const setBoard = useCallback<Dispatch<SetStateAction<Board>>>((update) => {
@@ -208,9 +203,6 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   function changeTitle(nextTitle: string) {
     if (onTitleChange) onTitleChange(nextTitle);
     else setLocalTitle(nextTitle);
-  }
-  function createSharedBoard() {
-    router.push(`/board/${crypto.randomUUID()}`);
   }
   async function copyBoardLink() {
     try {
@@ -558,20 +550,6 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     setClusterNotice("The new note returned to its previous position.");
   }
 
-  async function signOut() {
-    setSignOutBusy(true);
-    setAuthError("");
-    try {
-      const result = await authClient.signOut();
-      if (result.error) throw new Error(result.error.message);
-      router.replace("/");
-      router.refresh();
-    } catch {
-      setAuthError("Sign out failed. Please try again.");
-      setSignOutBusy(false);
-    }
-  }
-
   const nodes = useMemo<IdeaNode[]>(() => board.ideas.map((idea) => ({
     ...nodeLayouts[idea.id],
     id: idea.id, type: "idea", position: idea.position, selected: selection?.kind === "idea" && selection.id === idea.id,
@@ -617,14 +595,13 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   }; }), [board.relationships, board.ideas, selection, theme]);
 
   return <main className="board-shell" data-theme={theme}>
-    <header className="board-topbar" aria-label="Board controls"><div className="board-brand" aria-label="IdeaForge board"><span className="board-brand-symbol" aria-hidden="true">✳</span>
+    <header className="board-topbar" aria-label="Board controls"><div className="board-brand">
+      <Link href="/" className="board-brand-home" aria-label="IdeaForge home" title="IdeaForge home"><span className="board-brand-symbol" aria-hidden="true">✳</span></Link>
       <input aria-label="Board title" value={title} maxLength={80} onChange={(event) => changeTitle(event.target.value)} /></div>
-      <div className="board-top-actions"><span className={`board-local-badge ${onBoardChange ? "is-shared" : ""}`}><i /> {onBoardChange ? `Shared · ${roomStatus || "connecting"}` : "Local demo · resets on refresh"}</span>
-        {sessionPending ? <span className="board-auth-status" aria-label="Checking sign-in status" /> : session ? <><span className="board-user-name" title={session.user.email}>{session.user.name || session.user.email}</span><button className="board-signout" type="button" disabled={signOutBusy} onClick={() => void signOut()}>{signOutBusy ? "Signing out…" : "Sign out"}</button></> : <Link className="board-login-link" href="/login">Sign in</Link>}
-        {onBoardChange ? <button className="board-share-button" type="button" onClick={() => void copyBoardLink()}>Share</button> : <button className="board-share-button" type="button" onClick={createSharedBoard}>Create shared board</button>}
+      <div className="board-top-actions">{onBoardChange && <><ActiveMembers /><button className="board-share-button" type="button" onClick={() => void copyBoardLink()}>Share</button></>}
+        <AccountMenu />
         <button className="board-theme-toggle" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} aria-pressed={theme === "dark"} onClick={() => setTheme((value) => value === "dark" ? "light" : "dark")}>{theme === "dark" ? "☼" : "◐"}</button></div>
       {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
-      {authError && <p className="board-auth-error" role="alert">{authError}</p>}
     </header>
     <div className="board-workspace">
       <div ref={canvas} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""}`}>

@@ -1,18 +1,18 @@
 # IdeaForge
 
-A brainstorming canvas for capturing ideas and drawing typed relationships between them. You can group notes by embedding similarity, choose the number of groups, and place new notes into an existing group. Local and shared boards use the same canvas; merge and connection-suggestion endpoints still need UI flows.
+A brainstorming canvas for capturing ideas and drawing typed relationships between them. You can group notes by embedding similarity, choose the number of groups, and place new notes into an existing group. The home screen creates or joins shared boards; merge and connection-suggestion endpoints still need UI flows.
 
 Built in one week for Forgehack.
 
 ## Use the board
 
-Choose **Add idea**, then click empty canvas space to place a bubble. Double-click a bubble or select it and choose **Edit** to change its title and content. Drag a bubble to move it; select it to pin or delete it. The sample board starts with five ideas and two relationships, and resets when you refresh.
+Open the home screen, choose **Create board** or join a board link, then enter your display name if asked. Choose **Add idea**, then click empty canvas space to place a note. Double-click a note or select it and choose **Edit** to change its title and content. Drag a note to move it; select it to pin or delete it. A new shared board starts with five ideas and two relationships, and saves later changes through Liveblocks.
 
 Choose **Connect**, then drag from one idea into another. Release over the target, choose **Works well together**, **Conflicts with**, or **Extends**, and optionally explain the link. The arrow for **Extends** points from the extending idea to the idea it extends. Select a connection to delete it.
 
-Choose **Organize** to group notes by embedding similarity. Select 2 to 10 groups, review the scores, then choose **Organize canvas** to arrange the rectangular notes in separate spatial groups. Similar note pairs are placed closer when space permits; every pair's similarity and distance is returned by the clustering endpoint. Group badges identify membership without drawing bubble regions. Pinned notes stay where they are, and you can undo the layout before moving a note. After the first Organize, turn on **Place new notes in an existing group** in the add-note dialog. Saving a new note then moves only that note near its most similar existing group. The switch remembers your choice in this browser. Add a Gemini API key to enable grouping and placement. Local board content resets when you refresh; shared boards save group membership and positions through Liveblocks.
+Choose **Organize** to group notes by embedding similarity. Select 2 to 10 groups, review the scores, then choose **Organize canvas** to arrange the rectangular notes in separate spatial groups. Similar note pairs are placed closer when space permits; every pair's similarity and distance is returned by the clustering endpoint. Group badges identify membership without drawing bubble regions. Pinned notes stay where they are, and you can undo the layout before moving a note. After the first Organize, turn on **Place new notes in an existing group** in the add-note dialog. Saving a new note then moves only that note near its most similar existing group. The switch remembers your choice in this browser. Set `GEMINI_API_KEY` to enable grouping and placement. Shared boards save group membership and positions through Liveblocks.
 
-Use **Select** or **Hand / Pan** for navigation. Hold Space while dragging to pan, scroll to zoom, and use the lower-left controls to zoom or fit the ideas. Local **Physics** starts enabled, but **Organize** pauses it so the groups stay in place. The assistant panel accepts prompts and returns a fixed message that states AI is not connected. Merge and connection-suggestion routes do not yet have canvas controls.
+Use **Select** or **Hand / Pan** for navigation. Hold Space while dragging to pan, scroll to zoom, and use the lower-left controls to zoom or fit the ideas. Physics is disabled on shared boards so saved positions stay in place. The assistant panel accepts prompts and returns a fixed message that states AI is not connected. Merge and connection-suggestion routes do not yet have canvas controls.
 
 ## Getting started
 
@@ -24,7 +24,7 @@ cp .env.example .env.local   # add keys here (optional)
 npm run dev
 ```
 
-Open http://localhost:3000. You can edit notes and links without keys. Set `GEMINI_API_KEY` in `.env.local` to use **Organize**. Set `LIVEBLOCKS_SECRET_KEY` to create and use shared boards.
+Open http://localhost:3000. Set `LIVEBLOCKS_SECRET_KEY` to create and use shared boards, and set `GEMINI_API_KEY` to use **Organize**. You can view the landing screen without either key.
 
 ### Account API setup
 
