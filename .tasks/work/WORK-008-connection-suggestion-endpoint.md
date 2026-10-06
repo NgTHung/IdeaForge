@@ -1,7 +1,7 @@
 ---
 id: "WORK-008"
 title: "Connection suggestion endpoint"
-status: "To Do"
+status: In Progress
 priority: "High"
 type: "Feature"
 milestone: "day-2"
@@ -9,7 +9,7 @@ depends_on: ["WORK-005", "WORK-011"]
 risk: "Medium"
 impact: "Adds a Gemini route whose output becomes board links once accepted."
 tags: ["enhancement", "ready-for-agent"]
-last_updated: "2026-10-05"
+last_updated: 2026-10-06
 ---
 
 ## Summary
