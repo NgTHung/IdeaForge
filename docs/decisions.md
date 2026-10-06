@@ -68,7 +68,7 @@ MVP: one shared board for about four participants and 30 to 50 short cards. Thes
 
 Stretch, started only after the MVP works on the deployed app:
 
-- A board assistant that proposes create, edit, link, and merge actions as previews. A board this size fits in one prompt, so the assistant uses the whole board as context and needs no retrieval.
+- A board assistant that proposes create, edit, link, and merge actions as previews. A board this size fits in one prompt, so the assistant uses the whole board as context and needs no retrieval. The design is in [Board assistant](assistant.md).
 - Live cursors.
 
 Deferred:
@@ -144,6 +144,7 @@ For Organize, the browser that clicks the button gets similarity scores from the
 
 ## Log
 
+- **2026-10-06: board assistant design recorded.** [Board assistant](assistant.md) specifies the stretch assistant. It sends the whole board on every message, labels cards with per-request aliases so the model can't garble IDs, and returns cited paragraphs with up to three create, edit, link, or merge actions. Actions are browser-only previews until someone accepts them through the manual mutations and staleness check. An accepted created idea keeps its cited cards as parents with source snapshots, like a kept merge. A merge action opens the existing merge flow instead of generating a concept itself. Retrieval stays out of scope until boards exceed the route's size limits. The epic is `work:WORK-021`, with tasks `work:WORK-024` through `work:WORK-028`, and work still starts only after the Day 3 milestone.
 - **2026-10-06: local canvas replaces the merge UI.** The canvas from the `initial-ui` branch is now the app at `/`. It adds, edits, pins, deletes, and connects idea bubbles with typed relationships, using drag-to-connect and a mild d3-force simulation that people can turn off. That simulation is continuous layout physics, which the scope above deferred; it encodes no meaning. The previous `Board`, `LocalBoard`, and `SharedBoard` components, the `/board/[id]` route, and the Liveblocks client configuration were removed. The merge, similarity, and Liveblocks authorization routes, the shared AI module, and their tests remain. The canvas isn't connected to them yet, so AI merging and shared boards are unavailable in the UI until it is. The `initial-ui` branch also rewrote this document for a local-only product with no backend; that rewrite was not adopted, because the account, database, and shared AI decisions above came later.
 - **2026-10-06: similarity cache keeps model provenance and has a fixed bound.** Embedding calls return the selected model. Similarity reuses cached vectors only when all cards in a board use one model; it embeds the full board together when cached and new vectors would differ. The process cache evicts least-recently used entries above 2,000 card texts.
 - **2026-10-06: Vercel selected for hosting.** The existing production deployment uses the repository's Next.js app and Node.js 24. `GEMINI_API_KEY` and `LIVEBLOCKS_SECRET_KEY` are sensitive environment variables for production and preview. The public production URL serves the local canvas without Vercel authentication. Shared boards keep the existing guest access policy.
