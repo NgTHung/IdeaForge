@@ -2,15 +2,15 @@
 
 import { useEffect, useRef } from "react";
 import { forceCollide, forceLink, forceManyBody, forceSimulation, type Simulation, type SimulationLinkDatum, type SimulationNodeDatum } from "d3-force";
-import type { Board } from "./model";
+import { IDEA_CARD_SIZE, type Board } from "./model";
 
 type Particle = SimulationNodeDatum & { id: string; x: number; y: number; pinned: boolean };
 type Spring = SimulationLinkDatum<Particle> & { source: string | Particle; target: string | Particle };
 
 // Card centers share one simulation. Weak forces and slow cooling make movement soft without drawing cards to the origin.
-const CARD_CENTER = { x: 130, y: 70 };
+const CARD_CENTER = { x: IDEA_CARD_SIZE.width / 2, y: IDEA_CARD_SIZE.height / 2 };
 const MOTION = {
-  collisionRadius: 150,
+  collisionRadius: Math.ceil(Math.hypot(IDEA_CARD_SIZE.width, IDEA_CARD_SIZE.height) / 2),
   collisionStrength: 0.4,
   repulsion: -55,
   linkDistance: 345,
