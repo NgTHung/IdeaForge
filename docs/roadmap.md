@@ -64,7 +64,7 @@ Day 1 is the first of the five days remaining as of 2026-10-05. Each day ends wi
 | 4 | Session with an unfamiliar team, AI evaluation, release checks | Feature freeze: every release check passes |
 | 5 | Demo board, backup video, README, submission | Submitted with time remaining |
 
-Stretch work starts only after the Day 3 milestone is done. It covers a board assistant that proposes actions as previews, and live cursors.
+Stretch work starts only after the Day 3 milestone is done. It covers a board assistant that proposes actions as previews, specified in [Board assistant](assistant.md), and live cursors.
 
 If the schedule slips, cut in this order:
 
