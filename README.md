@@ -35,6 +35,16 @@ Open http://localhost:3000. Click a note's border to select it, and hold Shift t
 
 Without keys, you get a local canvas that resets on reload. Add the keys below to enable AI merging and shared boards, then restart the dev server.
 
+### Account API setup
+
+The Express account API runs separately from the Next.js frontend. Copy `.env.example` to `.env`, set `MONGODB_URI` to the Atlas connection string and `MONGODB_DB_NAME` to `ideaforge_dev`, and generate `BETTER_AUTH_SECRET` with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`. Keep `.env` out of Git. The MongoDB username and password belong in the URI; URL-encode special characters in them.
+
+Set `API_ORIGIN` to `http://localhost:4000`, `APP_ORIGIN` to `http://localhost:3000`, and `NEXT_PUBLIC_API_URL` to `http://localhost:4000`. Run `npm run dev` and `npm run api:dev` in separate terminals. The API checks its MongoDB connection at startup and reports health at `/healthz`.
+
+To enable Google sign-in, set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`. Add `http://localhost:4000/api/auth/callback/google` as an authorized redirect URI in Google Cloud. To enable email/password sign-up, configure all SMTP variables. New email/password accounts must verify their address, and password resets use the same SMTP service. The API accepts credentialed requests only from `APP_ORIGIN`.
+
+This API foundation does not yet create boards or restrict Liveblocks room access. Until board membership and sharing checks are implemented, the existing demo authorization policy still applies.
+
 ### Configuration
 
 | Variable | Needed for | Notes |
