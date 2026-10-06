@@ -1,0 +1,269 @@
+{
+  "labeler": "phattruong",
+  "labels": [
+    {
+      "caseId": "case-01",
+      "goal": "Help students build a consistent study habit.",
+      "a": "Students have trouble finding study partners.",
+      "b": "Add more bike racks outside the dormitory.",
+      "relationship": "needs-clairification",
+      "from": "",
+      "condition": "",
+      "question": "Why would bike help in this situation?",
+      "note": ""
+    },
+    {
+      "caseId": "case-02",
+      "goal": "Help students build a consistent study habit.",
+      "a": "Students have trouble finding study partners.",
+      "b": "People stay motivated through short daily challenges.",
+      "relationship": "extends",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": "daily challenges help more people motivated???"
+    },
+    {
+      "caseId": "case-03",
+      "goal": "Help students build a consistent study habit.",
+      "a": "Gamification.",
+      "b": "Make it fun.",
+      "relationship": "extends",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-04",
+      "goal": "Help first-year students find a hackathon team.",
+      "a": "Assign every participant to a team one day before the event so nobody arrives without one.",
+      "b": "Let students pick their teammates freely until the event starts.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-05",
+      "goal": "Help students build a consistent study habit.",
+      "a": "A shared Google Sheet where students log their study hours each day.",
+      "b": "A Notion template where students track study hours per subject.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-06",
+      "goal": "Reduce food waste in the university canteen.",
+      "a": "Let students pre-order lunch the evening before so the kitchen cooks closer to real demand.",
+      "b": "Give kitchen staff a say in the weekly menu, since they know which dishes come back uneaten.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-07",
+      "goal": "Help students build a consistent study habit.",
+      "a": "Make study sessions social so nobody studies alone.",
+      "b": "Students focus better when they study alone in silence.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-08",
+      "goal": "Help students build a consistent study habit.",
+      "a": "Students have trouble finding study partners.",
+      "b": "The canteen throws away unsold pastries at closing time.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-09",
+      "goal": "Make public transit easier for students in Ho Chi Minh City.",
+      "a": "Một bot Zalo báo khi xe buýt sắp tới trạm, vì nhiều bạn không muốn cài thêm app riêng.",
+      "b": "Crowdsource bus arrival reports from students who are already on board.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-10",
+      "goal": "Reduce food waste in the university canteen.",
+      "a": "Use AI for the canteen.",
+      "b": "Track waste better.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-11",
+      "goal": "Giúp sinh viên quản lý chi tiêu hàng tháng.",
+      "a": "Nhắc sinh viên khi tiền ăn uống vượt 50% ngân sách tuần.",
+      "b": "Hiển thị biểu đồ chi tiêu theo từng danh mục mỗi tháng.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-12",
+      "goal": "Help students build a consistent study habit.",
+      "a": "Send a push notification every evening reminding students to study.",
+      "b": "Keep the app silent, with no notifications, so studying never feels like a chore.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-13",
+      "goal": "Reduce food waste in the university canteen.",
+      "a": "Compost the canteen's vegetable scraps for the campus garden.",
+      "b": "Tổ chức giải bóng đá giữa các khoa vào cuối tuần.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-14",
+      "goal": "Help first-year students find a hackathon team.",
+      "a": "An app that matches teammates by skill.",
+      "b": "Nhiều bạn năm nhất ngại bắt chuyện với người lạ, nên cần một hoạt động phá băng trực tiếp.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-15",
+      "goal": "Reduce food waste in the university canteen.",
+      "a": "Serve smaller default portions to cut plate waste.",
+      "b": "Students complain the portions are already too small and buy snacks afterward.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-16",
+      "goal": "Help first-year students find a hackathon team.",
+      "a": "Pair first-years with seniors in a mentoring program.",
+      "b": "Run a campus treasure hunt during orientation week.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-17",
+      "goal": "Help first-year students find a hackathon team.",
+      "a": "Let students filter the participant list by skill, such as design, backend, or pitching.",
+      "b": "Let students filter the participant list by the hours they can commit each week.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-18",
+      "goal": "Make public transit easier for students in Ho Chi Minh City.",
+      "a": "Hiển thị lộ trình nhanh nhất, kể cả khi phải đổi xe ba lần.",
+      "b": "Recommend routes with at most one transfer, since students often carry heavy bags.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-19",
+      "goal": "Giúp sinh viên quản lý chi tiêu hàng tháng.",
+      "a": "Ứng dụng giống Momo nhưng dành cho sinh viên.",
+      "b": "Tiết kiệm.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-20",
+      "goal": "Make public transit easier for students in Ho Chi Minh City.",
+      "a": "Show real-time seat availability on each bus.",
+      "b": "Offer a printing discount to students who submit assignments early.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-21",
+      "goal": "Giúp sinh viên quản lý chi tiêu hàng tháng.",
+      "a": "Khuyến khích sinh viên dùng tiền mặt để thấy rõ mình đã tiêu bao nhiêu.",
+      "b": "Automatically categorize every transaction from the student's bank app.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-22",
+      "goal": "Giúp sinh viên quản lý chi tiêu hàng tháng.",
+      "a": "Show students how much they spent this week compared with last week.",
+      "b": "Let roommates split shared bills such as rent and electricity in the app.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-23",
+      "goal": "Help students build a consistent study habit.",
+      "a": "Students spend about 40 minutes a day on the bus.",
+      "b": "Flashcards tiếng Anh, mỗi ngày học 10 từ mới.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    },
+    {
+      "caseId": "case-24",
+      "goal": "Reduce food waste in the university canteen.",
+      "a": "Let students pre-order lunch the evening before so the kitchen cooks closer to real demand.",
+      "b": "Sell leftover portions at half price in the last 30 minutes before closing.",
+      "relationship": "",
+      "from": "",
+      "condition": "",
+      "question": "",
+      "note": ""
+    }
+  ]
+}

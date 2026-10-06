@@ -6,14 +6,14 @@ What's built, what's verified, and the five-day plan to the Forgehack submission
 
 Done:
 
-- Local canvas with example notes, editing, dragging, multi-select, and a board goal
+- Local canvas at `/` with sample ideas, adding, editing, deleting, pinning, typed relationships created by dragging one idea into another, and physics people can turn off. Board data resets on refresh.
 - Merge endpoint with Zod validation and Gemini structured output
-- Proposal preview, keep/discard, editable merged notes, parent edges, and source snapshots
-- Shared boards with guest authorization, note and goal sync, and a collaborator count
+- Liveblocks guest authorization route
 - Shared server-only Gemini module with one retry, optional generation and embedding fallbacks, output validation, and cause-specific errors
 
 Verified:
 
+- On 2026-10-06, before the canvas replaced the merge UI, its two board-model tests, lint, typecheck, and production build passed. A headless Chrome check at 1280×720 confirmed the board renders, a connection drag shows its preview and chooser, confirmation adds a link without moving its source, a pinned idea stays fixed, and direct dragging works with physics on.
 - Lint, typecheck, and production build pass
 - A Chromium smoke test covers selection, missing-key feedback, accepting a merge (using a mocked response), ancestry, editing, adding notes, and mobile width
 - A live Gemini merge returned a valid proposal
@@ -25,9 +25,12 @@ Verified:
 
 Not yet verified: two browsers syncing the same board. Production retry, fallback, and forced timeout behavior remain unverified. The deployed commit configures the merge function for 95 seconds; its live merge completed within the first 30-second attempt.
 
+The browser checks above that mention merging, ancestry, or shared boards ran against the previous merge UI, which the local canvas replaced on 2026-10-06. The merge proposal preview, parent edges, and the `/board/[id]` shared board are no longer reachable from the UI.
+
 Known gaps:
 
-- Undo and card deletion.
+- Connecting the canvas to the merge, similarity, and Liveblocks routes.
+- Undo.
 - Local persistence.
 - Display names and card authors.
 - Editing or regenerating a proposal before keeping it.
