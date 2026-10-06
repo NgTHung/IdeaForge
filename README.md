@@ -41,9 +41,14 @@ Without keys, you get a local canvas that resets on reload. Add the keys below t
 | --- | --- | --- |
 | `GEMINI_API_KEY` | AI merging | Get one at https://aistudio.google.com/apikey |
 | `GEMINI_MODEL` | AI merging | Defaults to `gemini-2.5-flash`; use any model your API project can access |
+| `GEMINI_FALLBACK_MODEL` | Optional AI fallback | Used once after the primary model fails twice with overload or timeout |
+| `GEMINI_EMBEDDING_MODEL` | Embedding calls | Defaults to `gemini-embedding-001`; the similarity endpoint is planned |
+| `GEMINI_EMBEDDING_FALLBACK_MODEL` | Optional embedding fallback | Must be an embedding model; generation fallback is never used for embeddings |
 | `LIVEBLOCKS_SECRET_KEY` | Shared boards | Get one at https://liveblocks.io/dashboard. Enables **New shared board** |
 
 All keys stay on the server. `.env.local` is git-ignored.
+
+Each Gemini attempt has a 30-second timeout. On overload, quota exhaustion, or timeout, the server waits one second and retries once. If that attempt fails for the same causes, it calls the configured fallback once. Other errors stop immediately. A merge can take about 91 seconds across all three attempts; the browser waits 96 seconds. The UI shows the cause of a failed request, and manual editing stays available.
 
 ## Scripts
 
@@ -52,6 +57,7 @@ All keys stay on the server. `.env.local` is git-ignored.
 | `npm run dev` | Start the development server |
 | `npm run build` / `npm start` | Production build and server |
 | `npm run lint` | ESLint |
+| `npm test` | AI retry, fallback, validation, and error tests with mocked provider responses |
 | `npm run typecheck` | Generate route types and run `tsc` |
 
 ## Project structure
@@ -65,6 +71,7 @@ src/components/board.tsx         Canvas and merge-proposal UI
 src/components/local-board.tsx   In-memory board state
 src/components/shared-board.tsx  Liveblocks-backed board state
 src/lib/ideas.ts                 Types, schemas, example notes
+src/lib/ai.ts                    Server-only Gemini calls, validation, and error responses
 src/liveblocks.config.ts         Shared storage types
 ```
 
