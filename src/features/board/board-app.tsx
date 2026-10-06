@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { ReactFlow, Background, BackgroundVariant, MarkerType, type Edge, type NodeChange, type ReactFlowInstance } from "@xyflow/react";
 import Link from "next/link";
 import { createIdeaId } from "./id";
@@ -13,11 +13,57 @@ import { AccountMenu } from "./account-menu";
 import { ActiveMembers } from "./active-members";
 import { useConnectDrag } from "./use-connect-drag";
 import { usePhysics, type Contact } from "./use-physics";
+import { clusterAssignmentResponseSchema, clusterNamesResponseSchema, clusterResponseSchema, type ClusterCard, type ClusterNamesRequest } from "@/lib/cluster-contract";
+import { layoutClusters, placeNewNote } from "./cluster-layout";
+import { appendClusterAssignment, memberFingerprint, renameClusterGroup } from "./cluster-state";
 import "./board.css";
 
 type Tool = "select" | "hand" | "add" | "connect";
 type Selection = { kind: "idea" | "relationship"; id: string } | null;
 const nodeTypes = { idea: Bubble };
+const AUTO_PLACE_KEY = "ideaforge-auto-place-new-notes";
+const AUTO_PLACE_EVENT = "ideaforge-auto-place-preference-change";
+
+function getAutoPlacePreference() { return window.localStorage.getItem(AUTO_PLACE_KEY) === "true"; }
+function subscribeAutoPlacePreference(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(AUTO_PLACE_EVENT, callback);
+  return () => { window.removeEventListener("storage", callback); window.removeEventListener(AUTO_PLACE_EVENT, callback); };
+}
+function saveAutoPlacePreference(enabled: boolean) {
+  window.localStorage.setItem(AUTO_PLACE_KEY, String(enabled));
+  window.dispatchEvent(new Event(AUTO_PLACE_EVENT));
+}
+
+function clusterText(idea: Idea): string | null {
+  const title = idea.title.trim();
+  const content = idea.content.trim();
+  if (!content && title.toLowerCase() === "new idea") return null;
+  return [title, content].filter(Boolean).join("\n\n") || null;
+}
+
+function clusterNamingPayload(ideas: Idea[], snapshot: NonNullable<Board["clusterSnapshot"]>): ClusterNamesRequest | null {
+  const ideaById = new Map(ideas.map((idea) => [idea.id, idea]));
+  const groups = snapshot.result.groups.map((group) => {
+    const noteIds = [group.representativeNoteId, ...group.noteIds.filter((id) => id !== group.representativeNoteId).sort((left, right) => left.localeCompare(right))];
+    const notes = noteIds.flatMap((id) => {
+      const idea = ideaById.get(id);
+      const text = idea && clusterText(idea);
+      return text ? [{ id, text }] : [];
+    });
+    return { id: group.id, representativeNoteId: group.representativeNoteId, notes };
+  });
+  if (groups.some((group) => group.notes.length !== snapshot.result.groups.find((candidate) => candidate.id === group.id)?.size)) return null;
+  return { revision: snapshot.revision, groups };
+}
+
+function boardFingerprint(ideas: Idea[]): string {
+  return JSON.stringify([...ideas].sort((left, right) => left.id.localeCompare(right.id)).map(({ id, title, content, pinned }) => ({ id, title, content, pinned })));
+}
+
+function positionFingerprint(ideas: Idea[]): string {
+  return JSON.stringify([...ideas].sort((left, right) => left.id.localeCompare(right.id)).map(({ id, position }) => ({ id, x: position.x, y: position.y })));
+}
 
 type BoardAppProps = {
   sharedBoard?: Board;
@@ -63,12 +109,41 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   const [squashes, setSquashes] = useState<Record<string, { axis: "x" | "y"; token: number }>>({});
   const [spaceDown, setSpaceDown] = useState(false);
   const [nodeLayouts, setNodeLayouts] = useState<Record<string, Pick<IdeaNode, "measured" | "dragging">>>({});
+  const [organizeOpen, setOrganizeOpen] = useState(false);
+  const [clusterCount, setClusterCount] = useState(sharedBoard?.clusterSnapshot?.result.clusterCount ?? 2);
+  const [clusterBusy, setClusterBusy] = useState(false);
+  const [assignmentBusy, setAssignmentBusy] = useState(false);
+  const [assignmentRetryId, setAssignmentRetryId] = useState<string | null>(null);
+  const [clusterError, setClusterError] = useState("");
+  const [editingGroupName, setEditingGroupName] = useState<{ id: string; value: string } | null>(null);
+  const [clusterNamesState, setClusterNamesState] = useState<"idle" | "pending" | "ready" | "error">("idle");
+  const [clusterNamesError, setClusterNamesError] = useState("");
+  const autoPlaceNewNotes = useSyncExternalStore(subscribeAutoPlacePreference, getAutoPlacePreference, () => false);
+  const [clusterNotice, setClusterNotice] = useState("");
+  const [undoPositions, setUndoPositions] = useState<Map<string, { x: number; y: number }> | null>(null);
+  const [undoSnapshot, setUndoSnapshot] = useState<Board["clusterSnapshot"]>(null);
+  const [undoAfterFingerprint, setUndoAfterFingerprint] = useState<string | null>(null);
+  const [assignmentUndo, setAssignmentUndo] = useState<{ id: string; position: Idea["position"]; after: Idea["position"]; snapshot: Board["clusterSnapshot"]; appliedRevision: string } | null>(null);
   const flow = useRef<ReactFlowInstance<IdeaNode> | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const titleInput = useRef<HTMLInputElement>(null);
   const boardRef = useRef(board);
   const squashTimers = useRef(new Map<string, number>());
   const squashSequence = useRef(0);
+  const clusterRequestSequence = useRef(0);
+  const clusterRequestFingerprint = useRef<string | null>(null);
+  const clusterNamesSequence = useRef(0);
+  const clusterNamesController = useRef<AbortController | null>(null);
+  const clusterNamesContext = useRef<{ revision: string; sourceFingerprint: string } | null>(null);
+  const manuallyNamedGroups = useRef(new Set<string>());
+  const manualNameRevision = useRef<string | null>(null);
+  const assignmentRequestSequence = useRef(0);
+  const assignmentController = useRef<AbortController | null>(null);
+  const activeAssignmentId = useRef<string | null>(null);
+  const draftIdeaId = useRef<string | null>(null);
+  const dragRevisions = useRef(new Map<string, number>());
+  const autoPlacePreference = useRef(autoPlaceNewNotes);
+  autoPlacePreference.current = autoPlaceNewNotes;
   useEffect(() => { boardRef.current = board; }, [board]);
   useEffect(() => () => {
     for (const timer of squashTimers.current.values()) window.clearTimeout(timer);
@@ -80,6 +155,12 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     return () => window.cancelAnimationFrame(frame);
   }, []);
   useEffect(() => { window.localStorage.setItem("ideaforge-theme", theme); }, [theme]);
+  useEffect(() => {
+    if (!clusterNotice) return;
+    const timer = window.setTimeout(() => setClusterNotice(""), 5000);
+    return () => window.clearTimeout(timer);
+  }, [clusterNotice]);
+  useEffect(() => () => { assignmentController.current?.abort(); clusterNamesController.current?.abort(); }, []);
   const connectDrag = useConnectDrag(canvas, {
     onStart: (id) => { setSourceId(id); setSelection({ kind: "idea", id }); },
     onDrop: (source, target) => { setLinkDraft({ source, target }); setRelationshipType("synergy"); setExplanation(""); setLinkError(""); },
@@ -114,9 +195,47 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     }
   }, []);
   const physics = usePhysics(board, physicsEnabled, frozenId, applyPositions, applyContacts);
+  const currentBoardFingerprint = useMemo(() => boardFingerprint(board.ideas), [board.ideas]);
+  const clusterSnapshot = board.clusterSnapshot ?? null;
+  const clusterResult = clusterSnapshot?.result ?? null;
+  const clusterInput = useMemo(() => {
+    const cards: ClusterCard[] = [];
+    const tooLong: string[] = [];
+    for (const idea of board.ideas) {
+      const text = clusterText(idea);
+      if (!text) continue;
+      if (text.length > 4000) { tooLong.push(idea.id); continue; }
+      cards.push({ id: idea.id, text });
+    }
+    return { cards, tooLongCount: tooLong.length, emptyCount: board.ideas.length - cards.length - tooLong.length };
+  }, [board.ideas]);
+  const clusterStale = Boolean(clusterSnapshot?.stale || clusterSnapshot && !clusterSnapshot.result.notePairs);
+  const clusterLabels = useMemo(() => new Map(clusterResult?.assignments.map((assignment) => [assignment.noteId, clusterResult.groups.find((group) => group.id === assignment.clusterId)?.label ?? ""])), [clusterResult]);
+  const clusterColors = useMemo(() => new Map(clusterResult?.groups.flatMap((group, index) => group.noteIds.map((id) => [id, index % 5] as const))), [clusterResult]);
   const chosenIdea = selection?.kind === "idea" ? board.ideas.find((idea) => idea.id === selection.id) : undefined;
   const chosenLink = selection?.kind === "relationship" ? board.relationships.find((link) => link.id === selection.id) : undefined;
 
+  useEffect(() => {
+    if (clusterBusy && clusterRequestFingerprint.current && clusterRequestFingerprint.current !== currentBoardFingerprint) {
+      clusterRequestSequence.current += 1;
+      clusterRequestFingerprint.current = null;
+      setClusterBusy(false);
+      setClusterError("The board changed; organize again.");
+    }
+  }, [clusterBusy, currentBoardFingerprint]);
+  useEffect(() => {
+    const context = clusterNamesContext.current;
+    if (!context || !clusterNamesController.current) return;
+    const currentSnapshot = board.clusterSnapshot;
+    if (currentSnapshot && !currentSnapshot.stale && currentSnapshot.revision === context.revision &&
+      memberFingerprint(board.ideas, currentSnapshot) === context.sourceFingerprint) return;
+    clusterNamesController.current.abort();
+    clusterNamesController.current = null;
+    clusterNamesContext.current = null;
+    clusterNamesSequence.current += 1;
+    setClusterNamesState("idle");
+    setClusterNamesError("");
+  }, [board.clusterSnapshot, board.ideas]);
   function changeTitle(nextTitle: string) {
     if (onTitleChange) onTitleChange(nextTitle);
     else setLocalTitle(nextTitle);
@@ -134,9 +253,10 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   function openEditor(idea: Idea) { setSelection({ kind: "idea", id: idea.id }); setEditor({ id: idea.id, title: idea.title, content: idea.content }); setEditError(""); }
   const editingId = editor?.id;
   useEffect(() => { if (editingId) titleInput.current?.focus(); }, [editingId]);
-  function cancelInteraction() { connectDrag.cancel(); setEditor(null); setLinkDraft(null); setSourceId(null); setLinkError(""); setTool("select"); }
+  function cancelInteraction() { connectDrag.cancel(); setEditor(null); setLinkDraft(null); setSourceId(null); setLinkError(""); setOrganizeOpen(false); setTool("select"); }
   function removeSelection() {
     if (!selection) return;
+    if (selection.kind === "idea") { setUndoPositions(null); setAssignmentUndo(null); }
     if (selection.kind === "idea") setBoard((current) => deleteIdea(current, selection.id));
     else setBoard((current) => deleteRelationship(current, selection.id));
     setSelection(null); setEditor(null); setLinkDraft(null); setSourceId(null);
@@ -158,6 +278,8 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
 
   function makeIdea(position: { x: number; y: number }) {
     const idea: Idea = { id: createIdeaId(), title: "New idea", content: "", position, pinned: false, parentIds: [] };
+    draftIdeaId.current = idea.id;
+    setUndoPositions(null);
     setBoard((current) => createIdea(current, idea)); setTool("select"); openEditor(idea); physics.reheat();
   }
   function addAtCenter() {
@@ -191,8 +313,389 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   function saveEdit(event: FormEvent) {
     event.preventDefault(); if (!editor) return;
     if (!editor.title.trim()) { setEditError("Give this idea a title before saving."); titleInput.current?.focus(); return; }
-    setBoard((current) => updateIdea(current, editor.id, { title: editor.title.trim(), content: editor.content.trim() }));
+    const isNewIdea = draftIdeaId.current === editor.id;
+    const updatedIdea = { ...boardRef.current.ideas.find((idea) => idea.id === editor.id)!, title: editor.title.trim(), content: editor.content.trim() };
+    const updatedBoard = updateIdea(boardRef.current, editor.id, { title: updatedIdea.title, content: updatedIdea.content });
+    setUndoPositions(null);
+    setAssignmentUndo(null);
+    setBoard(updatedBoard);
+    boardRef.current = updatedBoard;
     setEditor(null);
+    if (isNewIdea) {
+      draftIdeaId.current = null;
+      if (autoPlaceNewNotes && clusterText(updatedIdea)) void assignNewNote(updatedBoard, updatedIdea);
+    }
+  }
+
+  function openOrganize() {
+    setClusterError("");
+    if (!organizeOpen && !clusterSnapshot) setClusterCount(clusterInput.cards.length > 5 ? 3 : 2);
+    setOrganizeOpen(!organizeOpen);
+  }
+
+  function saveGroupName(event: FormEvent) {
+    event.preventDefault();
+    if (!editingGroupName) return;
+    const label = editingGroupName.value.trim();
+    if (!label || [...label].length > 40) {
+      setClusterError("Group names must be 1 to 40 characters.");
+      return;
+    }
+    const current = boardRef.current;
+    const snapshot = current.clusterSnapshot;
+    if (!snapshot || !snapshot.result.groups.some((group) => group.id === editingGroupName.id)) {
+      setEditingGroupName(null);
+      setClusterError("This group is no longer available. Organize the canvas again.");
+      return;
+    }
+    const updatedBoard = { ...current, clusterSnapshot: renameClusterGroup(snapshot, editingGroupName.id, label) };
+    if (manualNameRevision.current !== snapshot.revision) {
+      manualNameRevision.current = snapshot.revision;
+      manuallyNamedGroups.current.clear();
+    }
+    manuallyNamedGroups.current.add(editingGroupName.id);
+    setBoard(updatedBoard);
+    boardRef.current = updatedBoard;
+    setEditingGroupName(null);
+    setClusterError("");
+    setClusterNotice("Group name saved.");
+  }
+
+  async function suggestNamesForSnapshot(snapshot: NonNullable<Board["clusterSnapshot"]>, ideas: Idea[]) {
+    const payload = clusterNamingPayload(ideas, snapshot);
+    if (!payload) {
+      setClusterNamesState("error");
+      setClusterNamesError("Names are unavailable because one or more group notes have changed. Organize the canvas again.");
+      return;
+    }
+    clusterNamesController.current?.abort();
+    const controller = new AbortController();
+    clusterNamesController.current = controller;
+    const requestId = ++clusterNamesSequence.current;
+    const sourceFingerprint = memberFingerprint(ideas, snapshot);
+    clusterNamesContext.current = { revision: snapshot.revision, sourceFingerprint };
+    if (manualNameRevision.current !== snapshot.revision) {
+      manualNameRevision.current = snapshot.revision;
+      manuallyNamedGroups.current.clear();
+    }
+    setClusterNamesState("pending");
+    setClusterNamesError("");
+    try {
+      const response = await fetch("/api/similarity/clusters/names", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal: controller.signal,
+      });
+      const result: unknown = await response.json().catch(() => null);
+      if (requestId !== clusterNamesSequence.current) return;
+      if (!response.ok) {
+        const message = typeof result === "object" && result !== null && "error" in result && typeof result.error === "string"
+          ? result.error : "Gemini could not suggest group names. Try again.";
+        throw new Error(message);
+      }
+      const parsed = clusterNamesResponseSchema.safeParse(result);
+      if (!parsed.success || parsed.data.revision !== snapshot.revision ||
+        parsed.data.names.length !== snapshot.result.groups.length ||
+        new Set(parsed.data.names.map((item) => item.groupId)).size !== snapshot.result.groups.length ||
+        snapshot.result.groups.some((group) => !parsed.data.names.some((item) => item.groupId === group.id))) {
+        throw new Error("Gemini returned invalid group names. Try again.");
+      }
+      const latest = boardRef.current;
+      const latestSnapshot = latest.clusterSnapshot;
+      if (!latestSnapshot || latestSnapshot.stale || latestSnapshot.revision !== snapshot.revision ||
+        memberFingerprint(latest.ideas, latestSnapshot) !== sourceFingerprint) return;
+      let namedSnapshot = latestSnapshot;
+      const manualIds = manualNameRevision.current === snapshot.revision ? manuallyNamedGroups.current : new Set<string>();
+      for (const item of parsed.data.names) {
+        if (item.suggestedName && !manualIds.has(item.groupId) && namedSnapshot.result.groups.some((group) => group.id === item.groupId)) {
+          namedSnapshot = renameClusterGroup(namedSnapshot, item.groupId, item.suggestedName);
+        }
+      }
+      if (namedSnapshot !== latestSnapshot) {
+        const namedBoard = { ...latest, clusterSnapshot: namedSnapshot };
+        setBoard(namedBoard);
+        boardRef.current = namedBoard;
+      }
+      clusterNamesContext.current = null;
+      clusterNamesController.current = null;
+      setClusterNamesState("ready");
+      setClusterNamesError("");
+    } catch (error) {
+      if (requestId !== clusterNamesSequence.current || controller.signal.aborted) return;
+      clusterNamesContext.current = null;
+      clusterNamesController.current = null;
+      setClusterNamesState("error");
+      setClusterNamesError(error instanceof Error ? error.message : "Gemini could not suggest group names. Try again.");
+    }
+  }
+
+  function retryClusterNames() {
+    const current = boardRef.current;
+    if (current.clusterSnapshot && !current.clusterSnapshot.stale) void suggestNamesForSnapshot(current.clusterSnapshot, current.ideas);
+  }
+
+  async function organizeBoard() {
+    const current = boardRef.current;
+    const input = current.ideas.flatMap((idea) => {
+      const text = clusterText(idea);
+      return text && text.length <= 4000 ? [{ id: idea.id, text }] : [];
+    });
+    if (input.length < 2) { setClusterError("Add at least two notes with text before organizing."); return; }
+    if (input.length > 50) { setClusterError("Organize supports up to 50 notes at a time."); return; }
+    if (current.ideas.some((idea) => (clusterText(idea)?.length ?? 0) > 4000)) {
+      setClusterError("Shorten note text to 4,000 characters or fewer before organizing."); return;
+    }
+    const count = Math.min(Math.max(2, clusterCount), 10, input.length);
+    const submittedFingerprint = boardFingerprint(current.ideas);
+    const requestId = ++clusterRequestSequence.current;
+    clusterNamesController.current?.abort();
+    clusterNamesController.current = null;
+    clusterNamesContext.current = null;
+    clusterNamesSequence.current += 1;
+    setClusterNamesState("idle");
+    setClusterNamesError("");
+    manualNameRevision.current = null;
+    manuallyNamedGroups.current.clear();
+    clusterRequestFingerprint.current = submittedFingerprint;
+    setClusterBusy(true);
+    setClusterError("");
+    setClusterNotice("");
+    setEditingGroupName(null);
+    try {
+      const response = await fetch("/api/similarity/clusters", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cards: input, clusterCount: count }),
+      });
+      const payload: unknown = await response.json().catch(() => null);
+      if (requestId !== clusterRequestSequence.current) return;
+      if (!response.ok) {
+        const message = typeof payload === "object" && payload !== null && "error" in payload && typeof payload.error === "string"
+          ? payload.error : "Clustering failed. Try again.";
+        throw new Error(message);
+      }
+      const parsed = clusterResponseSchema.safeParse(payload);
+      if (!parsed.success) throw new Error("The clustering service returned an invalid result. Try again.");
+      if (boardFingerprint(boardRef.current.ideas) !== submittedFingerprint) {
+        setClusterError("The board changed; organize again."); return;
+      }
+
+      const latestBoard = boardRef.current;
+      const measured = Object.fromEntries(Object.entries(nodeLayouts).flatMap(([id, layout]) => {
+        const size = layout.measured;
+        return size?.width && size.height ? [[id, { width: size.width, height: size.height }]] : [];
+      }));
+      const layout = layoutClusters(latestBoard.ideas, parsed.data, measured);
+      const nextSnapshot = { revision: crypto.randomUUID(), stale: false, result: parsed.data, bubbles: layout.bubbles };
+      const previousPositions = new Map(latestBoard.ideas.map((idea) => [idea.id, { ...idea.position }]));
+      const updatePositions = (currentBoard: Board): Board => {
+        if (boardFingerprint(currentBoard.ideas) !== submittedFingerprint) return currentBoard;
+        return { ...currentBoard, ideas: currentBoard.ideas.map((idea) => {
+          const position = layout.positions.get(idea.id);
+          return position && !idea.pinned ? { ...idea, position } : idea;
+        }), clusterSnapshot: nextSnapshot };
+      };
+      let committedBoard = updatePositions(latestBoard);
+      setUndoAfterFingerprint(positionFingerprint(updatePositions(latestBoard).ideas));
+      setUndoSnapshot(latestBoard.clusterSnapshot ?? null);
+      physics.stop();
+      physics.syncPositions(layout.positions);
+      setPhysicsEnabled(false);
+      if (onBoardChange) {
+        let committed = false;
+        onBoardChange((currentBoard) => {
+          if (boardFingerprint(currentBoard.ideas) !== submittedFingerprint) return currentBoard;
+          committed = true;
+          committedBoard = updatePositions(currentBoard);
+          return committedBoard;
+        });
+        if (!committed) { setClusterError("The board changed; organize again."); return; }
+      } else {
+        setLocalBoard(committedBoard);
+      }
+      boardRef.current = committedBoard;
+      setUndoPositions(previousPositions);
+      setAssignmentUndo(null);
+      setClusterCount(count);
+      setOrganizeOpen(false);
+      setClusterNotice(`Grouped ${parsed.data.noteCount} notes into ${parsed.data.clusterCount} groups using ${parsed.data.scoreMethod}.`);
+      void suggestNamesForSnapshot(nextSnapshot, committedBoard.ideas);
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+        void flow.current?.fitView({ padding: 0.2, duration: 300 });
+      }));
+    } catch (error) {
+      if (requestId === clusterRequestSequence.current) setClusterError(error instanceof Error ? error.message : "Clustering failed. Try again.");
+    } finally {
+      if (requestId === clusterRequestSequence.current) {
+        clusterRequestFingerprint.current = null;
+        setClusterBusy(false);
+      }
+    }
+  }
+
+  async function assignNewNote(savedBoard: Board, savedIdea: Idea) {
+    const snapshot = savedBoard.clusterSnapshot;
+    const noteText = clusterText(savedIdea);
+    if (!snapshot || snapshot.stale || !snapshot.result.notePairs || !noteText) {
+      setClusterNotice("Organize the canvas first to create current groups.");
+      return;
+    }
+    if (snapshot.result.noteCount >= 50) {
+      setClusterNotice("Auto placement supports up to 50 grouped notes. Use Organize canvas to rebuild.");
+      return;
+    }
+    if (noteText.length > 4000) {
+      setClusterError("Shorten this note to 4,000 characters before automatic placement.");
+      setAssignmentRetryId(savedIdea.id);
+      return;
+    }
+    const requestGroups = snapshot.result.groups.map((group) => ({
+      id: group.id,
+      representativeNoteId: group.representativeNoteId,
+      cards: group.noteIds.flatMap((id) => {
+        const idea = savedBoard.ideas.find((candidate) => candidate.id === id);
+        const text = idea && clusterText(idea);
+        return idea && text ? [{ id, text }] : [];
+      }),
+    }));
+    if (requestGroups.some((group) => group.cards.length === 0) || requestGroups.flatMap((group) => group.cards).length !== snapshot.result.noteCount) {
+      setClusterNotice("A grouped note changed. Use Organize canvas to refresh the groups.");
+      return;
+    }
+    const sourceFingerprint = memberFingerprint(savedBoard.ideas, snapshot);
+    const dragRevision = dragRevisions.current.get(savedIdea.id) ?? 0;
+    assignmentController.current?.abort();
+    const controller = new AbortController();
+    assignmentController.current = controller;
+    activeAssignmentId.current = savedIdea.id;
+    const requestId = ++assignmentRequestSequence.current;
+    setAssignmentBusy(true);
+    setAssignmentRetryId(null);
+    setClusterError("");
+    setClusterNotice("");
+    physics.stop();
+    setPhysicsEnabled(false);
+    try {
+      const response = await fetch("/api/similarity/clusters/assign", {
+        method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
+        body: JSON.stringify({ newCard: { id: savedIdea.id, text: noteText }, groups: requestGroups, revision: snapshot.revision }),
+      });
+      const payload: unknown = await response.json().catch(() => null);
+      if (requestId !== assignmentRequestSequence.current) return;
+      if (!response.ok) {
+        const message = typeof payload === "object" && payload !== null && "error" in payload && typeof payload.error === "string"
+          ? payload.error : "Could not place this note. Try again.";
+        throw new Error(message);
+      }
+      const parsed = clusterAssignmentResponseSchema.safeParse(payload);
+      const expectedIds = new Set([savedIdea.id, ...requestGroups.flatMap((group) => group.cards.map((card) => card.id))]);
+      if (!parsed.success || parsed.data.revision !== snapshot.revision || parsed.data.newNoteId !== savedIdea.id ||
+        parsed.data.noteCount !== expectedIds.size || parsed.data.notePairs.some((pair) => !expectedIds.has(pair.sourceId) || !expectedIds.has(pair.targetId))) {
+        throw new Error("The assignment service returned an invalid result. Try again.");
+      }
+      const latest = boardRef.current;
+      const latestIdea = latest.ideas.find((idea) => idea.id === savedIdea.id);
+      if (!latest.clusterSnapshot || latest.clusterSnapshot.stale || latest.clusterSnapshot.revision !== snapshot.revision ||
+        memberFingerprint(latest.ideas, latest.clusterSnapshot) !== sourceFingerprint || !latestIdea || clusterText(latestIdea) !== noteText ||
+        (dragRevisions.current.get(savedIdea.id) ?? 0) !== dragRevision || !autoPlacePreference.current) {
+        setAssignmentRetryId(savedIdea.id);
+        setClusterNotice("The board changed before placement finished. Try placing this note again.");
+        return;
+      }
+      const chosenGroup = latest.clusterSnapshot.result.groups.find((group) => group.id === parsed.data.chosenGroupId);
+      const chosenBubble = latest.clusterSnapshot.bubbles.find((bubble) => bubble.clusterId === parsed.data.chosenGroupId);
+      if (!chosenGroup || !chosenBubble) throw new Error("The current group could not be found. Use Organize canvas and try again.");
+      const measured = Object.fromEntries(Object.entries(nodeLayouts).flatMap(([id, layout]) => {
+        const size = layout.measured;
+        return size?.width && size.height ? [[id, { width: size.width, height: size.height }]] : [];
+      }));
+      const placement = latestIdea.pinned ? null : placeNewNote(latestIdea, parsed.data.chosenGroupId, chosenGroup.noteIds, parsed.data, chosenBubble, latest.ideas, measured, latest.clusterSnapshot.bubbles);
+      const nextSnapshot = appendClusterAssignment(latest.clusterSnapshot, latestIdea, parsed.data, placement?.bubble ?? null, crypto.randomUUID());
+      const nextPosition = placement?.position ?? latestIdea.position;
+      let committed = false;
+      const commit = (current: Board): Board => {
+        const currentIdea = current.ideas.find((idea) => idea.id === savedIdea.id);
+        if (!current.clusterSnapshot || current.clusterSnapshot.stale || current.clusterSnapshot.revision !== snapshot.revision ||
+          memberFingerprint(current.ideas, current.clusterSnapshot) !== sourceFingerprint || !currentIdea || clusterText(currentIdea) !== noteText ||
+          (dragRevisions.current.get(savedIdea.id) ?? 0) !== dragRevision || !autoPlacePreference.current) return current;
+        committed = true;
+        return {
+          ...current,
+          clusterSnapshot: nextSnapshot,
+          ideas: current.ideas.map((idea) => idea.id === savedIdea.id ? { ...idea, position: nextPosition } : idea),
+        };
+      };
+      if (onBoardChange) onBoardChange(commit);
+      else setLocalBoard(commit);
+      if (!committed) {
+        setAssignmentRetryId(savedIdea.id);
+        setClusterNotice("The board changed before placement finished. Try placing this note again.");
+        return;
+      }
+      const moved = nextPosition.x !== latestIdea.position.x || nextPosition.y !== latestIdea.position.y;
+      if (moved) {
+        physics.syncPositions(new Map([[savedIdea.id, nextPosition]]));
+        setAssignmentUndo({ id: savedIdea.id, position: latestIdea.position, after: nextPosition, snapshot: latest.clusterSnapshot, appliedRevision: nextSnapshot.revision });
+      } else setAssignmentUndo(null);
+      setClusterNotice(placement ? `Placed in ${chosenGroup.label} · ${parsed.data.scoreMethod.replaceAll("_", " ")} score ${parsed.data.groups.find((group) => group.groupId === chosenGroup.id)?.meanSimilarity.toFixed(2)}.` :
+        latestIdea.pinned ? `Added to ${chosenGroup.label}. The note is pinned, so it stayed in place.` :
+          `Added to ${chosenGroup.label}, but there is no free space nearby. Use Organize canvas to rebuild the layout.`);
+    } catch (error) {
+      if (requestId === assignmentRequestSequence.current && !controller.signal.aborted) {
+        setAssignmentRetryId(savedIdea.id);
+        setClusterError(error instanceof Error ? error.message : "Could not place this note. Try again.");
+      }
+    } finally {
+      if (requestId === assignmentRequestSequence.current) {
+        assignmentController.current = null;
+        activeAssignmentId.current = null;
+        setAssignmentBusy(false);
+      }
+    }
+  }
+
+  function undoOrganize() {
+    if (!undoPositions) return;
+    if (undoAfterFingerprint !== positionFingerprint(boardRef.current.ideas)) {
+      setUndoPositions(null);
+      setUndoAfterFingerprint(null);
+      setClusterNotice("Board positions changed; organize again before undoing.");
+      return;
+    }
+    const restore = (current: Board): Board => ({ ...current, clusterSnapshot: undoSnapshot ?? null, ideas: current.ideas.map((idea) => {
+      const position = undoPositions.get(idea.id);
+      return position && !idea.pinned ? { ...idea, position } : idea;
+    }) });
+    physics.stop();
+    physics.syncPositions(undoPositions);
+    if (onBoardChange) onBoardChange(restore);
+    else setLocalBoard(restore);
+    setUndoPositions(null);
+    setUndoSnapshot(null);
+    setUndoAfterFingerprint(null);
+    setAssignmentUndo(null);
+    setClusterNotice("Previous layout restored.");
+  }
+
+  function undoAutomaticPlacement() {
+    if (!assignmentUndo) return;
+    const restore = (current: Board): Board => {
+      const idea = current.ideas.find((item) => item.id === assignmentUndo.id);
+      if (!idea || current.clusterSnapshot?.stale || current.clusterSnapshot?.revision !== assignmentUndo.appliedRevision || idea.position.x !== assignmentUndo.after.x || idea.position.y !== assignmentUndo.after.y) return current;
+      return {
+        ...current,
+        clusterSnapshot: assignmentUndo.snapshot ?? null,
+        ideas: current.ideas.map((item) => item.id === assignmentUndo.id ? { ...item, position: assignmentUndo.position } : item),
+      };
+    };
+    const latest = boardRef.current;
+    const currentIdea = latest.ideas.find((idea) => idea.id === assignmentUndo.id);
+    if (!currentIdea || latest.clusterSnapshot?.stale || latest.clusterSnapshot?.revision !== assignmentUndo.appliedRevision || currentIdea.position.x !== assignmentUndo.after.x || currentIdea.position.y !== assignmentUndo.after.y) {
+      setAssignmentUndo(null);
+      return;
+    }
+    physics.syncPositions(new Map([[assignmentUndo.id, assignmentUndo.position]]));
+    if (onBoardChange) onBoardChange(restore);
+    else setLocalBoard(restore);
+    setAssignmentUndo(null);
+    setClusterNotice("The new note returned to its previous position.");
   }
 
   const nodes = useMemo<IdeaNode[]>(() => board.ideas.map((idea) => ({
@@ -201,8 +704,9 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     className: chosenLink && (chosenLink.source === idea.id || chosenLink.target === idea.id) ? "is-related" : undefined,
     draggable: tool !== "connect" && editor?.id !== idea.id,
     data: { idea, connecting: tool === "connect", source: sourceId === idea.id, editing: editor?.id === idea.id, squash: squashes[idea.id] ?? null,
+      clusterLabel: clusterLabels.get(idea.id), clusterColor: clusterColors.get(idea.id),
       onEdit: () => openEditor(idea), onStartConnection: (event) => startConnectDrag(idea.id, event) },
-  })), [board.ideas, selection, chosenLink, tool, sourceId, editor?.id, nodeLayouts, startConnectDrag, squashes]);
+  })), [board.ideas, selection, chosenLink, tool, sourceId, editor?.id, nodeLayouts, startConnectDrag, squashes, clusterLabels, clusterColors]);
   function onNodesChange(changes: NodeChange<IdeaNode>[]) {
     setNodeLayouts((current) => {
       let next = current;
@@ -220,6 +724,9 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
       return next;
     });
   }
+  const undoPlacementAvailable = Boolean(assignmentUndo && !clusterSnapshot?.stale && clusterSnapshot?.revision === assignmentUndo.appliedRevision &&
+    board.ideas.find((idea) => idea.id === assignmentUndo.id)?.position.x === assignmentUndo.after.x &&
+    board.ideas.find((idea) => idea.id === assignmentUndo.id)?.position.y === assignmentUndo.after.y);
   const edges = useMemo<Edge[]>(() => board.relationships.map((link) => {
     const source = board.ideas.find((idea) => idea.id === link.source);
     const target = board.ideas.find((idea) => idea.id === link.target);
@@ -251,9 +758,13 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
             else { setSelection(null); if (tool === "connect") { setSourceId(null); setLinkDraft(null); setTool("select"); } } }}
           onNodeClick={(_, node) => { if (tool !== "connect") setSelection({ kind: "idea", id: node.id }); }}
           onEdgeClick={(_, edge) => { setSelection({ kind: "relationship", id: edge.id }); setTool("select"); }}
-          onNodeDragStart={(_, node) => physics.dragStart(node.id)}
+          onNodeDragStart={(_, node) => {
+            dragRevisions.current.set(node.id, (dragRevisions.current.get(node.id) ?? 0) + 1);
+            if (node.id === activeAssignmentId.current) assignmentController.current?.abort();
+            physics.dragStart(node.id);
+          }}
           onNodeDrag={(_, node) => { physics.drag(node.id, node.position); setBoard((current) => moveIdea(current, node.id, node.position)); }}
-          onNodeDragStop={(_, node) => { setBoard((current) => moveIdea(current, node.id, node.position)); physics.dragStop(node.id, node.position, Boolean(boardRef.current.ideas.find((idea) => idea.id === node.id)?.pinned)); }}
+          onNodeDragStop={(_, node) => { setBoard((current) => moveIdea(current, node.id, node.position)); physics.dragStop(node.id, node.position, Boolean(boardRef.current.ideas.find((idea) => idea.id === node.id)?.pinned)); setUndoPositions(null); setAssignmentUndo(null); }}
           panOnDrag={tool === "hand" || spaceDown} nodesDraggable={tool !== "hand" && !spaceDown && tool !== "connect"}
           nodesConnectable={false} elementsSelectable={true} zoomOnDoubleClick={false} minZoom={0.15} maxZoom={1.8} defaultViewport={{ x: 185, y: 180, zoom: 0.72 }}>
           <Background variant={BackgroundVariant.Dots} gap={23} size={1.3} color={theme === "dark" ? "#354c49" : "#cad7d2"} />
@@ -271,11 +782,59 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
           <ToolButton label="Add idea" active={tool === "add"} onClick={() => selectTool("add")}>＋</ToolButton>
           <ToolButton label="Connect" active={tool === "connect"} title={tool === "connect" ? "Connect is active. Drag from one idea into another." : "Connect ideas by dragging from one bubble into another"} onClick={() => selectTool("connect")}>⌁</ToolButton>
           <div className="board-tool-rule" />
+          <ToolButton label={clusterResult ? "Organize again" : "Organize"} active={organizeOpen} disabled={clusterBusy || assignmentBusy || clusterInput.cards.length < 2 || clusterInput.cards.length > 50 || clusterInput.tooLongCount > 0} title={clusterInput.tooLongCount ? "Shorten note text to 4,000 characters before organizing" : "Group related notes and arrange the canvas"} onClick={openOrganize}>▦</ToolButton>
           <ToolButton label="Physics" active={physicsEnabled} disabled={Boolean(onBoardChange)} title={onBoardChange ? "Physics is available on the local demo" : "Physics"} onClick={() => setPhysicsEnabled((value) => !value)}>◉</ToolButton>
         </nav></div>
+        {organizeOpen && <section className="board-organize-panel" aria-label="Organize notes">
+          <div className="board-organize-head"><div><span className="board-eyebrow">CANVAS LAYOUT</span><h2>Organize notes</h2></div><button type="button" className="board-icon-button" aria-label="Close organize panel" onClick={() => setOrganizeOpen(false)}>×</button></div>
+          <p>Group notes by embedding similarity. Gemini suggests concise group names; you can rename any group. The add-note switch places only a new note into an existing group.</p>
+          <label className="board-organize-count">Number of groups<select value={Math.min(clusterCount, Math.max(2, Math.min(10, clusterInput.cards.length)))} onChange={(event) => setClusterCount(Number(event.target.value))} disabled={clusterBusy || clusterInput.cards.length < 2}>
+            {Array.from({ length: Math.max(0, Math.min(10, clusterInput.cards.length) - 1) }, (_, index) => index + 2).map((count) => <option key={count} value={count}>{count} groups</option>)}
+          </select></label>
+          <div className="board-organize-count-note"><span>{clusterInput.cards.length} notes ready</span><span>{clusterInput.emptyCount} empty notes skipped</span></div>
+          {clusterInput.cards.length > 50 && <p className="board-error" role="alert">Organize supports up to 50 notes at a time.</p>}
+          {clusterInput.tooLongCount > 0 && <p className="board-error" role="alert">{clusterInput.tooLongCount} note(s) exceed the 4,000 character limit. Shorten them before organizing.</p>}
+          {clusterError && <p className="board-error" role="alert">{clusterError}</p>}
+          {clusterStale && <p className="board-organize-stale" role="status">Notes changed since this layout. Organize again to refresh the groups.</p>}
+          {clusterBusy && <p className="board-organize-progress" role="status">Finding groups…</p>}
+          {assignmentBusy && <p className="board-organize-progress" role="status">Finding a group for the new note…</p>}
+          {clusterNamesState === "pending" && <p className="board-organize-progress" role="status">Naming groups with Gemini…</p>}
+          {clusterNamesState === "error" && <div className="board-cluster-names-error" role="status"><span>Names unavailable. {clusterNamesError}</span><button type="button" onClick={retryClusterNames} disabled={clusterStale || assignmentBusy}>Retry names</button></div>}
+          {clusterNamesState === "ready" && <p className="board-cluster-names-hint">Gemini suggestions · Rename any group to edit.</p>}
+          {clusterResult?.groupPairs.length ? <p className="board-cluster-legend">Note spacing uses {clusterResult.notePairs?.length ?? 0} pairwise similarity scores; group badges show membership. Score method: {clusterResult.scoreMethod.replaceAll("_", " ")}.</p> : null}
+          {clusterResult && <div className="board-organize-results" aria-label="Group results">
+            <span className="board-organize-method">{clusterResult.scoreMethod.replaceAll("_", " ")} · {clusterResult.embeddingModel}</span>
+            {clusterResult.groups.map((group) => <div className="board-organize-result" key={group.id}>
+              <div className="board-organize-result-main">
+                {editingGroupName?.id === group.id ? <form className="board-cluster-name-form" onSubmit={saveGroupName}>
+                  <input aria-label={`Name for ${group.label}`} maxLength={80} value={editingGroupName.value} onChange={(event) => setEditingGroupName({ id: group.id, value: event.target.value })} autoFocus />
+                  <button type="submit" disabled={clusterBusy || assignmentBusy}>Save</button>
+                  <button type="button" onClick={() => setEditingGroupName(null)}>Cancel</button>
+                </form> : <>
+                  <span>{group.label}<small>{group.size} notes</small></span>
+                  <button type="button" className="board-cluster-rename" aria-label={`Rename ${group.label}`} onClick={() => { setClusterError(""); setEditingGroupName({ id: group.id, value: group.label }); }} disabled={clusterBusy || assignmentBusy}>Rename</button>
+                </>}
+              </div>
+              <small>{group.meanPairSimilarity === null ? "Single note" : `mean pair score ${group.meanPairSimilarity.toFixed(2)}`}</small>
+            </div>)}
+          </div>}
+          {clusterNotice && <p className="board-organize-notice" role="status">{clusterNotice}</p>}
+          <div className="board-organize-actions"><button type="button" onClick={() => setOrganizeOpen(false)}>Close</button><button type="button" className="primary" onClick={() => void organizeBoard()} disabled={clusterBusy || assignmentBusy || clusterInput.cards.length < 2 || clusterInput.cards.length > 50 || clusterInput.tooLongCount > 0}>{clusterBusy ? "Grouping…" : "Organize canvas"}</button></div>
+          {undoPositions && !clusterStale && undoAfterFingerprint === positionFingerprint(board.ideas) && <button type="button" className="board-organize-undo" onClick={undoOrganize}>Undo layout</button>}
+        </section>}
+        {(clusterNotice || clusterError || assignmentBusy || clusterNamesState === "pending" || clusterNamesState === "error") && <aside className="board-layout-status" role={clusterError ? "alert" : "status"}>
+          <span>{assignmentBusy ? "Finding a group for the new note…" : clusterNamesState === "pending" ? "Naming groups with Gemini…" : clusterNamesState === "error" ? `Group names unavailable. ${clusterNamesError}` : clusterError || clusterNotice}</span>
+          {clusterNamesState === "error" && <button type="button" onClick={() => setOrganizeOpen(true)}>Review names</button>}
+          {assignmentRetryId && !assignmentBusy && <button type="button" onClick={() => {
+            const current = boardRef.current;
+            const idea = current.ideas.find((item) => item.id === assignmentRetryId);
+            if (idea) void assignNewNote(current, idea);
+          }}>Retry placement</button>}
+          {undoPlacementAvailable && <button type="button" onClick={undoAutomaticPlacement}>Undo placement</button>}
+        </aside>}
         {board.ideas.length === 0 && <div className="board-empty"><span>✳</span><h2>Your board is ready</h2><p>Start with one thought. You can connect it to others as your map grows.</p><button onClick={addAtCenter}>＋ Add your first idea</button></div>}
         {(chosenIdea || chosenLink) && <div className="board-selection-bar">
-          {chosenIdea ? <><strong>{chosenIdea.title}</strong><button onClick={() => openEditor(chosenIdea)}>Edit</button><button onClick={() => { setBoard((current) => setIdeaPinned(current, chosenIdea.id, !chosenIdea.pinned)); if (chosenIdea.pinned) physics.reheat(); }}>{chosenIdea.pinned ? "Unpin" : "Pin"}</button></> : <><strong>{chosenLink && relationshipLabels[chosenLink.type]}</strong>{chosenLink?.explanation && <span title={chosenLink.explanation}>{chosenLink.explanation}</span>}</>}
+          {chosenIdea ? <><strong>{chosenIdea.title}</strong><button onClick={() => openEditor(chosenIdea)}>Edit</button><button onClick={() => { setUndoPositions(null); setBoard((current) => setIdeaPinned(current, chosenIdea.id, !chosenIdea.pinned)); if (chosenIdea.pinned) physics.reheat(); }}>{chosenIdea.pinned ? "Unpin" : "Pin"}</button></> : <><strong>{chosenLink && relationshipLabels[chosenLink.type]}</strong>{chosenLink?.explanation && <span title={chosenLink.explanation}>{chosenLink.explanation}</span>}</>}
           <button className="danger" onClick={removeSelection}>Delete</button></div>}
         <div className="board-zoom"><button aria-label="Zoom out" title="Zoom out" onClick={() => flow.current?.zoomOut({ duration: 180 })}>−</button><button aria-label="Fit ideas" title="Fit ideas" onClick={() => { void fitBoard(); }}>⤢</button><ZoomReadout zoom={zoom} /><button aria-label="Zoom in" title="Zoom in" onClick={() => flow.current?.zoomIn({ duration: 180 })}>＋</button></div>
       </div>
@@ -284,6 +843,17 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     {editor && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditor(null); }}><form className="board-dialog" onSubmit={saveEdit} aria-label="Edit idea">
       <span className="board-eyebrow">IDEA DETAILS</span><h2>Edit idea</h2><label>Title<input ref={titleInput} value={editor.title} maxLength={120} onChange={(event) => { setEditor({ ...editor, title: event.target.value }); setEditError(""); }} /></label>
       <label>Content<textarea value={editor.content} maxLength={4000} rows={6} onChange={(event) => setEditor({ ...editor, content: event.target.value })} placeholder="What makes this idea useful?" /></label>
+      {draftIdeaId.current === editor.id && <label className="board-auto-place-toggle"><input type="checkbox" checked={autoPlaceNewNotes} disabled={!clusterSnapshot || clusterStale || assignmentBusy} onChange={(event) => {
+        const enabled = event.target.checked;
+        autoPlacePreference.current = enabled;
+        saveAutoPlacePreference(enabled);
+        if (!enabled) {
+          assignmentController.current?.abort();
+          assignmentRequestSequence.current += 1;
+          activeAssignmentId.current = null;
+          setAssignmentBusy(false);
+        }
+      }} /><span><strong>Place new notes in an existing group</strong><small>{clusterStale ? "Organize the canvas again before auto placement." : clusterSnapshot ? "Applies to new notes created from this browser." : "Organize the canvas first to create groups."}</small></span></label>}
       {editError && <p className="board-error" role="alert">{editError}</p>}<div className="board-dialog-actions"><button type="button" onClick={() => setEditor(null)}>Cancel</button><button className="primary" type="submit">Save idea</button></div></form></div>}
     {linkDraft && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) cancelInteraction(); }}><form className="board-dialog" onSubmit={confirmLink} aria-label="Choose relationship">
       <span className="board-eyebrow">CONNECT IDEAS</span><h2>How are they related?</h2><p className="board-link-direction">{board.ideas.find((idea) => idea.id === linkDraft.source)?.title} → {board.ideas.find((idea) => idea.id === linkDraft.target)?.title}</p>

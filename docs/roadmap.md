@@ -9,6 +9,8 @@ Done:
 - Landing screen at `/` with actions to create a shared board or join by URL or UUID.
 - Guest lobby at `/board/<uuid>` that asks for a display name before connecting to Liveblocks and remembers the name in that browser.
 - Shared canvas at `/board/<uuid>` with seeded Liveblocks Storage, live board mutations, saved room state, and a share-link button.
+- Organize on the canvas with a chosen group count, separated rectangular notes, a score for each note pair, and optional placement of only newly saved notes. Group snapshots persist with shared boards.
+- Gemini suggested group names, with manual rename controls; labels save in the cluster snapshot and update matching canvas badges.
 - Shared-board header with active connection avatars and count; the member list shows connected names and Editor or Viewer access.
 - Account popover on the landing screen and shared boards, with the signed-in user's name and sign-out action.
 - Merge endpoint with Zod validation and Gemini structured output
@@ -19,6 +21,8 @@ Verified:
 
 - On 2026-10-06, before the canvas replaced the merge UI, its two board-model tests, lint, typecheck, and production build passed. A headless Chrome check at 1280×720 confirmed the board renders, a connection drag shows its preview and chooser, confirmation adds a link without moving its source, a pinned idea stays fixed, and direct dragging works with physics on.
 - Lint, typecheck, and production build pass
+- On 2026-10-06, average-linkage clustering tests cover request validation, deterministic groups, response score summaries, and a successful mocked endpoint call. Layout tests cover pinned and excluded notes and card separation. A local browser smoke test grouped the five sample ideas, displayed method and group summaries, paused Physics, and restored the prior positions with Undo layout.
+- On 2026-10-07, 53 repository tests passed, including complete note-pair response validation, score-based rectangle spacing, deterministic new-note assignment, snapshot invalidation after edits and deletions, and mocked clustering endpoints. Lint, typecheck, and production build pass; lint reports only three unused-variable warnings in the bundled `.venv-clustering` scikit-learn file. Live localhost requests returned 3 of 3 note-pair scores from full clustering and 6 of 6 from incremental assignment. A browser check grouped the five sample ideas into two separated sets without bubble outlines; after saving one new note with auto placement enabled, only that new note moved and gained a Group 1 badge. Two-browser shared snapshot sync still needs verification.
 - A Chromium smoke test covers selection, missing-key feedback, accepting a merge (using a mocked response), ancestry, editing, adding notes, and mobile width
 - A live Gemini merge returned a valid proposal
 - On 2026-10-06, 34 mocked tests cover AI generation, embeddings, retry and fallback attempt counts, SDK timeouts, output validation, safe errors, and merge-route contracts. Lint, typecheck, and production build pass.
@@ -31,16 +35,16 @@ Verified:
 
 Not yet verified: active member names across two deployed browsers, goal changes, and kept merges syncing and surviving reload on the deployed shared board. The current canvas does not expose board-goal editing or the merge flow. Production retry, fallback, and forced timeout behavior remain unverified. The deployed commit configures the merge function for 95 seconds; its live merge completed within the first 30-second attempt.
 
-The browser checks above that mention merging or ancestry ran against the previous merge UI. The current landing screen links to the shared board at `/board/<uuid>`, but merge proposals and ancestry are not connected to the current canvas.
+The browser checks above that mention merging or ancestry ran against the previous merge UI. The current landing screen links to the shared board at `/board/<uuid>`. Merge proposals and ancestry are not connected to the current canvas.
 
 Known gaps:
 
-- Connecting the canvas to the merge and similarity routes.
+- Connecting the canvas to the merge and connection-suggestion routes.
+- Verifying shared-board Organize positions and group snapshots sync across browsers and survive reload.
 - Verifying goal changes and kept merges across two deployed browsers and reloads.
 - Recording idea and relationship creators and last editors.
 - Reverting a participant's latest operation when no later edit has changed its affected values.
 - Persisting the MongoDB board directory record with its owner and Liveblocks room ID. Separate membership and share-grant collections are out of scope for the hackathon.
-- Recording authors on ideas and relationships.
 - Editing or regenerating a proposal before keeping it.
 - A policy for two people typing in one note.
 

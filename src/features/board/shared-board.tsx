@@ -5,6 +5,7 @@ import { useCallback } from "react";
 import { initialBoard } from "./fixtures";
 import { BoardApp } from "./board-app";
 import type { Board, Idea, Relationship } from "./model";
+import type { ClusterSnapshot } from "@/lib/cluster-contract";
 import { createBoardStorage, RoomProvider, useMutation, useStorage } from "@/lib/liveblocks";
 
 const initialTitle = "Student collaboration ideas";
@@ -22,13 +23,16 @@ function SharedBoardContent() {
     title: root.title,
     ideas: Object.values(root.ideas),
     relationships: Object.values(root.relationships),
+    clusterSnapshot: root.clusterSnapshot as ClusterSnapshot | undefined,
   }));
   const updateBoard = useMutation(({ storage }, update: (board: Board) => Board) => {
     const ideas = storage.get("ideas");
     const relationships = storage.get("relationships");
+    const savedClusterSnapshot = storage.get("clusterSnapshot");
     const current: Board = {
       ideas: [...ideas.entries()].map(([, idea]) => idea.toJSON() as Idea),
       relationships: [...relationships.entries()].map(([, link]) => link.toJSON() as Relationship),
+      clusterSnapshot: savedClusterSnapshot?.toJSON() as ClusterSnapshot | undefined,
     };
     const next = update(current);
     const nextIdeas = new Map(next.ideas.map((idea) => [idea.id, idea]));
@@ -53,6 +57,9 @@ function SharedBoardContent() {
       }
     }
     for (const link of nextRelationships.values()) relationships.set(link.id, new LiveObject(link));
+    if (JSON.stringify(next.clusterSnapshot ?? null) !== JSON.stringify(current.clusterSnapshot ?? null)) {
+      storage.set("clusterSnapshot", next.clusterSnapshot ? new LiveObject(next.clusterSnapshot) : null);
+    }
   }, []);
   const updateTitle = useMutation(({ storage }, title: string) => storage.set("title", title), []);
   const changeBoard = useCallback((update: (board: Board) => Board) => updateBoard(update), [updateBoard]);
@@ -60,7 +67,7 @@ function SharedBoardContent() {
   if (!snapshot) return <main className="board-connection-state" aria-live="polite">Connecting to shared board…</main>;
 
   return <BoardApp
-    sharedBoard={{ ideas: snapshot.ideas as Idea[], relationships: snapshot.relationships as Relationship[] }}
+    sharedBoard={{ ideas: snapshot.ideas as Idea[], relationships: snapshot.relationships as Relationship[], clusterSnapshot: snapshot.clusterSnapshot ?? null }}
     sharedTitle={snapshot.title}
     onBoardChange={changeBoard}
     onTitleChange={updateTitle}

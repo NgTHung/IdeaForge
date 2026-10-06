@@ -128,6 +128,17 @@ export function usePhysics(board: Board, enabled: boolean, frozenId: string | nu
   }, [enabled]);
 
   return {
+    stop() { simulation.current?.stop(); },
+    syncPositions(positions: Map<string, { x: number; y: number }>) {
+      for (const [id, position] of positions) {
+        const node = particles.current.get(id);
+        if (!node) continue;
+        node.x = position.x + CARD_CENTER.x;
+        node.y = position.y + CARD_CENTER.y;
+        if (node.pinned) { node.fx = node.x; node.fy = node.y; }
+      }
+      checkContacts();
+    },
     dragStart(id: string) {
       dragging.current = id;
       const node = particles.current.get(id);
