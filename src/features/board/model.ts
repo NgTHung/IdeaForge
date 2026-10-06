@@ -1,3 +1,5 @@
+import type { ClusterSnapshot } from "@/lib/cluster-contract";
+
 export type Idea = {
   id: string;
   title: string;
@@ -16,7 +18,7 @@ export type Relationship = {
   type: RelationshipType;
   explanation: string;
 };
-export type Board = { ideas: Idea[]; relationships: Relationship[] };
+export type Board = { ideas: Idea[]; relationships: Relationship[]; clusterSnapshot?: ClusterSnapshot | null };
 
 export const IDEA_CARD_SIZE = { width: 272, height: 148 } as const;
 
@@ -30,10 +32,22 @@ export function createIdea(board: Board, idea: Idea): Board {
   return { ...board, ideas: [...board.ideas, idea] };
 }
 export function updateIdea(board: Board, id: string, patch: Partial<Idea>): Board {
-  return { ...board, ideas: board.ideas.map((idea) => idea.id === id ? { ...idea, ...patch } : idea) };
+  const changesGroupSource = patch.title !== undefined || patch.content !== undefined || patch.pinned !== undefined;
+  const isGrouped = board.clusterSnapshot?.result.groups.some((group) => group.noteIds.includes(id));
+  return {
+    ...board,
+    ...(changesGroupSource && isGrouped && board.clusterSnapshot ? { clusterSnapshot: { ...board.clusterSnapshot, stale: true } } : {}),
+    ideas: board.ideas.map((idea) => idea.id === id ? { ...idea, ...patch } : idea),
+  };
 }
 export function deleteIdea(board: Board, id: string): Board {
-  return { ideas: board.ideas.filter((idea) => idea.id !== id), relationships: board.relationships.filter((link) => link.source !== id && link.target !== id) };
+  const isGrouped = board.clusterSnapshot?.result.groups.some((group) => group.noteIds.includes(id));
+  return {
+    ...board,
+    ...(isGrouped && board.clusterSnapshot ? { clusterSnapshot: { ...board.clusterSnapshot, stale: true } } : {}),
+    ideas: board.ideas.filter((idea) => idea.id !== id),
+    relationships: board.relationships.filter((link) => link.source !== id && link.target !== id),
+  };
 }
 export function moveIdea(board: Board, id: string, position: Idea["position"]): Board {
   return updateIdea(board, id, { position });

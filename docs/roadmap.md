@@ -6,7 +6,7 @@ What's built, what's verified, and the five-day plan to the Forgehack submission
 
 Done:
 
-- Local canvas at `/` with sample ideas, adding, editing, deleting, pinning, typed relationships created by dragging one idea into another, and physics people can turn off. Board data resets on refresh.
+- Local canvas at `/` with sample ideas, adding, editing, deleting, pinning, typed relationships, full clustering, separated rectangular note groups, and optional incremental placement for new notes. Full Organize pauses Physics and supports undo. Local board data resets on refresh.
 - Shared canvas at `/board/<uuid>` with seeded Liveblocks Storage, live board mutations, saved room state, and a share-link button.
 - Merge endpoint with Zod validation and Gemini structured output
 - Liveblocks guest authorization route
@@ -16,6 +16,8 @@ Verified:
 
 - On 2026-10-06, before the canvas replaced the merge UI, its two board-model tests, lint, typecheck, and production build passed. A headless Chrome check at 1280×720 confirmed the board renders, a connection drag shows its preview and chooser, confirmation adds a link without moving its source, a pinned idea stays fixed, and direct dragging works with physics on.
 - Lint, typecheck, and production build pass
+- On 2026-10-06, average-linkage clustering tests cover request validation, deterministic groups, response score summaries, and a successful mocked endpoint call. Layout tests cover pinned and excluded notes and card separation. A local browser smoke test grouped the five sample ideas, displayed method and group summaries, paused Physics, and restored the prior positions with Undo layout.
+- On 2026-10-07, 53 repository tests passed, including complete note-pair response validation, score-based rectangle spacing, deterministic new-note assignment, snapshot invalidation after edits and deletions, and mocked clustering endpoints. Lint, typecheck, and production build pass; lint reports only three unused-variable warnings in the bundled `.venv-clustering` scikit-learn file. Live localhost requests returned 3 of 3 note-pair scores from full clustering and 6 of 6 from incremental assignment. A browser check grouped the five sample ideas into two separated sets without bubble outlines; after saving one new note with auto placement enabled, only that new note moved and gained a Group 1 badge. Two-browser shared snapshot sync still needs verification.
 - A Chromium smoke test covers selection, missing-key feedback, accepting a merge (using a mocked response), ancestry, editing, adding notes, and mobile width
 - A live Gemini merge returned a valid proposal
 - On 2026-10-06, 34 mocked tests cover AI generation, embeddings, retry and fallback attempt counts, SDK timeouts, output validation, safe errors, and merge-route contracts. Lint, typecheck, and production build pass.
@@ -27,13 +29,13 @@ Verified:
 
 Not yet verified: two browsers syncing the same board. Production retry, fallback, and forced timeout behavior remain unverified. The deployed commit configures the merge function for 95 seconds; its live merge completed within the first 30-second attempt.
 
-The browser checks above that mention merging, ancestry, or shared boards ran against the previous merge UI, which the local canvas replaced on 2026-10-06. The merge proposal preview, parent edges, and the `/board/[id]` shared board are no longer reachable from the UI.
+Browser evidence for merging and ancestry used the previous merge UI. The current canvas restores local and shared boards, but merge proposals and parent edges are not reachable from the UI. Two-browser shared-board sync still needs verification.
 
 Known gaps:
 
-- Connecting the canvas to the merge and similarity routes.
+- Connecting the canvas to the merge and connection-suggestion routes.
 - Verifying two-browser sync on a shared board.
-- Undo.
+- Verifying shared-board Organize positions persist and sync across browsers.
 - Local persistence.
 - Display names and card authors.
 - Editing or regenerating a proposal before keeping it.
