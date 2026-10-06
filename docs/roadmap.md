@@ -10,12 +10,15 @@ Done:
 - Merge endpoint with Zod validation and Gemini structured output
 - Proposal preview, keep/discard, editable merged notes, parent edges, and source snapshots
 - Shared boards with guest authorization, note and goal sync, and a collaborator count
+- Shared server-only Gemini module with one retry, optional generation and embedding fallbacks, output validation, and cause-specific errors
 
 Verified:
 
 - Lint, typecheck, and production build pass
 - A Chromium smoke test covers selection, missing-key feedback, accepting a merge (using a mocked response), ancestry, editing, adding notes, and mobile width
 - A live Gemini merge returned a valid proposal
+- On 2026-10-06, 34 mocked tests cover AI generation, embeddings, retry and fallback attempt counts, SDK timeouts, output validation, safe errors, and merge-route contracts. Lint, typecheck, and production build pass.
+- On 2026-10-06, live Gemini calls through the shared module returned a valid merge in 8.4 seconds and two 768-dimensional embeddings in 0.7 seconds. The production browser, reached through Tailscale, showed the missing-key message and allowed editing and adding notes after the failed request. A live browser merge could be kept, leaving both originals and two ancestry edges. The Gemini key and SDK were absent from client chunks, and the server-only import guard passed.
 - Liveblocks authorization returned a token and a secure guest cookie
 - On 2026-10-05, live tests measured embedding similarity and merge latency across Gemini models. The results are in [Similarity](decisions.md#similarity) and [AI reliability](decisions.md#ai-reliability).
 
@@ -29,7 +32,7 @@ Known gaps:
 - Editing or regenerating a proposal before keeping it.
 - A policy for two people typing in one note.
 
-The merge route also reports every provider error with the same message. To regenerate a proposal today, discard it and merge again.
+To regenerate a proposal today, discard it and merge again. Retry and fallback failures were tested with mocked provider responses; live overload and fallback behavior remain unverified. Liveblocks behavior was not retested for WORK-011.
 
 ## Team
 

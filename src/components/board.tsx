@@ -7,6 +7,7 @@ import {
 } from "@xyflow/react";
 import { mergeResultSchema, type Idea, type MergeResult, type Source } from "@/lib/ideas";
 import { createIdeaId } from "@/lib/id";
+import { AI_REQUEST_TIMEOUT_MS } from "@/lib/ai-policy";
 
 type IdeaNode = Node<{ idea: Idea; onEdit: (text: string) => void }, "idea">;
 type NodeLayout = Pick<IdeaNode, "measured" | "dragging">;
@@ -105,7 +106,7 @@ export function Board({ ideas, goal, onGoalChange, onAdd, onUpdate, status, onSh
     try {
       const response = await fetch("/api/merge", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goal, sources }), signal: AbortSignal.timeout(35000),
+        body: JSON.stringify({ goal, sources }), signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not merge these notes.");
