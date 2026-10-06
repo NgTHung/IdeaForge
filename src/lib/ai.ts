@@ -110,7 +110,9 @@ export async function embedTexts(
     process.env.GEMINI_EMBEDDING_MODEL?.trim() || "gemini-embedding-001",
     process.env.GEMINI_EMBEDDING_FALLBACK_MODEL?.trim(),
     async (ai, model) => {
-      const response = await ai.models.embedContent({ model, contents: texts, config: { ...config, httpOptions } });
+      // Explicit contents keep embedding-2 from combining all strings into one note.
+      const contents = texts.map((text) => ({ parts: [{ text }] }));
+      const response = await ai.models.embedContent({ model, contents, config: { ...config, httpOptions } });
       const parsed = embeddingResponseSchema.safeParse(response);
       if (!parsed.success) throw new AiError("invalid_output");
       const vectors = parsed.data.embeddings.map((embedding) => embedding.values);

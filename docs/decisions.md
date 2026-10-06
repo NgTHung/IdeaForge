@@ -12,7 +12,7 @@ Differentiator: Miro AI already generates, clusters, and summarizes sticky notes
 
 ### Core journey
 
-A participant opens a board link and enters a display name. The team adds idea cards and clicks **Organize** to group related cards. They select a card, click **Suggest connections**, and review the suggested links. They merge two cards into a concept preview, keep it, and generate a short concept brief from it.
+A participant opens a board link and enters a display name. The team adds idea cards and clicks **Organize** to group related cards. The board automatically suggests relationships after idea text settles, and participants review the suggested links. They merge two cards into a concept preview, keep it, and generate a short concept brief from it.
 
 ### Relationships
 
@@ -29,7 +29,8 @@ A link records how two ideas relate. Each link has a type, an explanation, and a
 - Similarity isn't agreement. Two cards on the same topic can propose opposite approaches, so closeness on the canvas never creates a link.
 - When asked for connections, the AI can answer that no useful relationship exists, or that a relationship needs clarification and what question would settle it.
 - AI suggestions are provisional. Nothing is saved until a person accepts a suggestion, optionally after editing its type or explanation.
-- A request returns at most three suggestions. Candidates include the card's nearest neighbors and a few cards from other groups, because combining ideas across themes is part of the creativity hypothesis.
+- A request returns at most three suggestions across the board. For each card, candidates include four nearest neighbors and up to three diverse cards selected by their lowest maximum similarity to the cards already chosen. Boards do not store semantic groups yet; this diversity rule is a provisional way to reach other themes. The counts still need evaluation on real notes.
+- Each browser requests suggestions after two seconds without saved text or board-title changes. Moving cards, accepting links, and dismissing suggestions do not trigger generation. Existing links are excluded. People can pause automatic suggestions or retry manually. Previews stay local until accepted.
 - Anyone can link or merge any two cards, however far apart they are.
 
 ### Merge rules
@@ -143,6 +144,8 @@ For Organize, the browser that clicks the button gets similarity scores from the
 - The merge route exports `maxDuration = 95` to cover three 30-second AI attempts and the retry delay. Keep Fluid compute enabled when deploying; its duration limits support this budget. See [Vercel function duration](https://vercel.com/docs/functions/configuring-functions/duration).
 
 ## Log
+
+- **2026-10-06: automatic relationship suggestions requested.** Suggestions cover the whole board instead of a selected card. The canvas uses its title as the goal until a separate goal field exists. Each request returns at most three provisional links, no useful relationship, or a clarification question. Candidate selection reuses embedding similarity, then Gemini classifies the candidate pairs. Source text is checked again inside the accepting mutation. The route allows 285 seconds for up to two embedding batches when cached models differ, then generation, including each call's retry and fallback policy. WORK-009 reuses the existing `createRelationship` mutation and shared adapter; it does not require the remaining author and manual-link editing work in WORK-004.
 
 - **2026-10-06: board assistant design recorded.** [Board assistant](assistant.md) specifies the stretch assistant. It sends the whole board on every message, labels cards with per-request aliases so the model can't garble IDs, and returns cited paragraphs with up to three create, edit, link, or merge actions. Actions are browser-only previews until someone accepts them through the manual mutations and staleness check. An accepted created idea keeps its cited cards as parents with source snapshots, like a kept merge. A merge action opens the existing merge flow instead of generating a concept itself. Retrieval stays out of scope until boards exceed the route's size limits. The epic is `work:WORK-021`, with tasks `work:WORK-024` through `work:WORK-028`, and work still starts only after the Day 3 milestone.
 - **2026-10-06: local canvas replaces the merge UI.** The canvas from the `initial-ui` branch is now the app at `/`. It adds, edits, pins, deletes, and connects idea bubbles with typed relationships, using drag-to-connect and a mild d3-force simulation that people can turn off. That simulation is continuous layout physics, which the scope above deferred; it encodes no meaning. The previous `Board`, `LocalBoard`, and `SharedBoard` components, the `/board/[id]` route, and the Liveblocks client configuration were removed. The merge, similarity, and Liveblocks authorization routes, the shared AI module, and their tests remain. The canvas isn't connected to them yet, so AI merging and shared boards are unavailable in the UI until it is. The `initial-ui` branch also rewrote this document for a local-only product with no backend; that rewrite was not adopted, because the account, database, and shared AI decisions above came later.

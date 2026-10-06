@@ -53,6 +53,14 @@ function models() {
   return requests.map(({ url }) => url.match(/models\/([^:/]+)/)[1]);
 }
 
+test("embedding-2 sends each note as a separate content", async (t) => {
+  process.env.GEMINI_EMBEDDING_MODEL = "gemini-embedding-2";
+  mockProvider(t, [{ embeddings: [{ values: [1, 0] }, { values: [0, 1] }] }]);
+  const result = await embedTexts(["First note", "Second note"], { outputDimensionality: 2 });
+  assert.deepEqual(result.vectors, [[1, 0], [0, 1]]);
+  assert.deepEqual(requests[0].body.requests.map((request) => request.content.parts), [[{ text: "First note" }], [{ text: "Second note" }]]);
+});
+
 async function expectFailure(operation, code, attempts) {
   await assert.rejects(operation, (error) => error instanceof AiError && error.code === code);
   assert.equal(requests.length, attempts);
