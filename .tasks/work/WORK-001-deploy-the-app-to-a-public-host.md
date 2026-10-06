@@ -1,13 +1,13 @@
 ---
 id: "WORK-001"
 title: "Deploy the app to a public host"
-status: "To Do"
+status: In Progress
 priority: "High"
 type: "Feature"
 milestone: "day-1"
 impact: "Adds a hosting target and production environment variables."
 tags: ["enhancement", "ready-for-human"]
-last_updated: "2026-10-05"
+last_updated: 2026-10-06
 ---
 
 ## Summary
