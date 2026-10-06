@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "next dev",
+    "cluster:dev": "python -m uvicorn services.clustering.app:app --reload --host 127.0.0.1 --port 8000",
     "api:dev": "tsx watch src/server/index.ts",
     "api:start": "tsx src/server/index.ts",
     "build": "next build",

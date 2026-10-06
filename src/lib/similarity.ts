@@ -156,6 +156,10 @@ async function embeddingsFor(texts: string[]): Promise<{ vectors: number[][]; mo
   return { vectors: vectorsForTexts(texts, uniqueTexts, freshEntries), model: freshEntries[0].model };
 }
 
+export async function embedSimilarityCards(cards: SimilarityCard[]): Promise<{ vectors: number[][]; model: string }> {
+  return embeddingsFor(cards.map(({ text }) => text));
+}
+
 function cosine(left: number[], right: number[]): number {
   let dot = 0;
   let leftNorm = 0;

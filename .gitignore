@@ -23,6 +23,9 @@
 # local operations
 /ops/
 /AGENTS.local.md
+/.venv-clustering/
+__pycache__/
+*.py[cod]
 
 # misc
 .DS_Store

@@ -10,6 +10,7 @@ Done:
 - Merge endpoint with Zod validation and Gemini structured output
 - Liveblocks guest authorization route
 - Shared server-only Gemini module with one retry, optional generation and embedding fallbacks, output validation, and cause-specific errors
+- Development-only Similarity Lab cluster-count controls and a Next.js-to-FastAPI K-means grouping path for the 40-note dataset
 
 Verified:
 
@@ -22,6 +23,7 @@ Verified:
 - Liveblocks authorization returned a token and a secure guest cookie
 - On 2026-10-06, the Vercel production app at [idea-forge-wine.vercel.app](https://idea-forge-wine.vercel.app) served the local and shared boards over HTTPS. A real browser merge returned a valid proposal in 26.3 seconds; keeping it preserved both originals, their source snapshots, and two ancestry edges. A fresh shared board connected to Liveblocks with a secure HTTP-only guest cookie. Ten loaded client chunks contained no known provider keys, credential patterns, or Gemini SDK code.
 - On 2026-10-05, live tests measured embedding similarity and merge latency across Gemini models. The results are in [Similarity](decisions.md#similarity) and [AI reliability](decisions.md#ai-reliability).
+- On 2026-10-06, FastAPI `/health` and `/clusters` passed a synthetic HTTP smoke check for raw and mean-centered vectors, returning two groups and one assignment per note. The Next.js-to-Gemini-to-FastAPI browser flow and real-note grouping quality remain unverified.
 - On 2026-10-06, a one-request synthetic 40-note similarity pilot compared raw and mean-centered top-two neighbors. Theme agreement was 47.5% raw and 55.0% centered. These generated notes are a pipeline check, not real-note or human-review evidence; see [Similarity evaluation](similarity-evaluation.md). WORK-006 still needs real notes and a team member's judgments before its settings can be finalized.
 
 Not yet verified: two browsers syncing the same board. Production retry, fallback, and forced timeout behavior remain unverified. The deployed commit configures the merge function for 95 seconds; its live merge completed within the first 30-second attempt.
