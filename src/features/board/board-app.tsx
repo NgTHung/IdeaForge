@@ -9,7 +9,7 @@ import { createIdea, createRelationship, deleteIdea, deleteRelationship, IDEA_CA
 import { Bubble, type IdeaNode } from "./bubble";
 import { ChatSidebar } from "./chat-sidebar";
 import { useConnectDrag } from "./use-connect-drag";
-import { usePhysics } from "./use-physics";
+import { usePhysics, type Contact } from "./use-physics";
 import "./board.css";
 
 type Tool = "select" | "hand" | "add" | "connect";
@@ -43,13 +43,19 @@ export function BoardApp() {
   const [chatOpen, setChatOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [zoom, setZoom] = useState(0.72);
+  const [squashes, setSquashes] = useState<Record<string, { axis: "x" | "y"; token: number }>>({});
   const [spaceDown, setSpaceDown] = useState(false);
   const [nodeLayouts, setNodeLayouts] = useState<Record<string, Pick<IdeaNode, "measured" | "dragging">>>({});
   const flow = useRef<ReactFlowInstance<IdeaNode> | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const titleInput = useRef<HTMLInputElement>(null);
   const boardRef = useRef(board);
+  const squashTimers = useRef(new Map<string, number>());
+  const squashSequence = useRef(0);
   useEffect(() => { boardRef.current = board; }, [board]);
+  useEffect(() => () => {
+    for (const timer of squashTimers.current.values()) window.clearTimeout(timer);
+  }, []);
   useEffect(() => {
     const savedTheme = window.localStorage.getItem("ideaforge-theme");
     if (savedTheme !== "light" && savedTheme !== "dark") return;
@@ -70,8 +76,32 @@ export function BoardApp() {
       const position = positions.get(idea.id);
       return position && !idea.pinned && idea.id !== frozenId ? { ...idea, position } : idea;
     }) }));
+<<<<<<< Updated upstream
   }, [frozenId]);
   const physics = usePhysics(board, physicsEnabled, frozenId, applyPositions);
+=======
+  }, [frozenId, setBoard]);
+  const applyContacts = useCallback((contacts: Contact[]) => {
+    for (const contact of contacts) {
+      for (const id of [contact.first, contact.second]) {
+        const token = ++squashSequence.current;
+        setSquashes((current) => ({ ...current, [id]: { axis: contact.axis, token } }));
+        const previousTimer = squashTimers.current.get(id);
+        if (previousTimer !== undefined) window.clearTimeout(previousTimer);
+        squashTimers.current.set(id, window.setTimeout(() => {
+          setSquashes((current) => {
+            if (current[id]?.token !== token) return current;
+            const next = { ...current };
+            delete next[id];
+            return next;
+          });
+          squashTimers.current.delete(id);
+        }, 440));
+      }
+    }
+  }, []);
+  const physics = usePhysics(board, physicsEnabled, frozenId, applyPositions, applyContacts);
+>>>>>>> Stashed changes
   const chosenIdea = selection?.kind === "idea" ? board.ideas.find((idea) => idea.id === selection.id) : undefined;
   const chosenLink = selection?.kind === "relationship" ? board.relationships.find((link) => link.id === selection.id) : undefined;
 
@@ -144,9 +174,9 @@ export function BoardApp() {
     id: idea.id, type: "idea", position: idea.position, selected: selection?.kind === "idea" && selection.id === idea.id,
     className: chosenLink && (chosenLink.source === idea.id || chosenLink.target === idea.id) ? "is-related" : undefined,
     draggable: tool !== "connect" && editor?.id !== idea.id,
-    data: { idea, connecting: tool === "connect", source: sourceId === idea.id, editing: editor?.id === idea.id,
+    data: { idea, connecting: tool === "connect", source: sourceId === idea.id, editing: editor?.id === idea.id, squash: squashes[idea.id] ?? null,
       onEdit: () => openEditor(idea), onStartConnection: (event) => startConnectDrag(idea.id, event) },
-  })), [board.ideas, selection, chosenLink, tool, sourceId, editor?.id, nodeLayouts, startConnectDrag]);
+  })), [board.ideas, selection, chosenLink, tool, sourceId, editor?.id, nodeLayouts, startConnectDrag, squashes]);
   function onNodesChange(changes: NodeChange<IdeaNode>[]) {
     setNodeLayouts((current) => {
       let next = current;
