@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "IdeaForge — Brainstorming canvas",
+  title: "IdeaForge",
   description: "A local canvas for capturing and connecting ideas.",
 };
 

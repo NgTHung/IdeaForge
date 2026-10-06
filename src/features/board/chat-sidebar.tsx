@@ -16,13 +16,15 @@ export function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () =>
     ]);
     setDraft("");
   }
-  return <aside className={`board-chat ${open ? "open" : "closed"}`} aria-label="IdeaForge Assistant">
-    <div className="board-chat-head"><div className="board-chat-mark">✳</div>{open && <div><strong>IdeaForge Assistant</strong><small>Demo — AI not connected</small></div>}
-      <button className="board-icon-button" aria-label={open ? "Collapse assistant" : "Expand assistant"} title={open ? "Collapse assistant" : "Expand assistant"} onClick={onToggle}>{open ? "›" : "‹"}</button></div>
-    {open && <><div className="board-chat-messages"><div className="board-assistant-message"><strong>Welcome to your idea space</strong><p>Capture a thought, connect it to another, and see where your team could take it.</p></div>
+  return <>
+    {open && <aside className="board-chat open" aria-label="IdeaForge Assistant">
+      <div className="board-chat-head"><div className="board-chat-mark" aria-hidden="true">✳</div><div><strong>IdeaForge Assistant</strong><small>Demo · AI not connected</small></div>
+        <button className="board-icon-button" aria-label="Close AI helper" title="Close AI helper" onClick={onToggle}>×</button></div>
+      <div className="board-chat-messages"><div className="board-assistant-message"><strong>Welcome to your idea space</strong><p>Capture a thought, connect it to another, and see where your team could take it.</p></div>
       <p className="board-chat-caption">TRY A PROMPT</p><div className="board-prompts">{prompts.map((prompt) => <button key={prompt} onClick={() => setDraft(prompt)}>{prompt}</button>)}</div>
       {messages.map((message) => <div key={message.id} className={`board-message ${message.from}`}>{message.text}</div>)}</div>
       <form className="board-chat-compose" onSubmit={send}><textarea aria-label="Message the demo assistant" placeholder="Ask the assistant…" value={draft} onChange={(event) => setDraft(event.target.value)} rows={3} />
-        <div><span>Local placeholder</span><button type="submit" disabled={!draft.trim()}>Send ↑</button></div></form></>}
-  </aside>;
+        <div><span>Local placeholder</span><button type="submit" disabled={!draft.trim()}>Send ↑</button></div></form>
+    </aside>}
+  </>;
 }

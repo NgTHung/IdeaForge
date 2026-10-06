@@ -18,6 +18,8 @@ export type Relationship = {
 };
 export type Board = { ideas: Idea[]; relationships: Relationship[] };
 
+export const IDEA_CARD_SIZE = { width: 272, height: 148 } as const;
+
 export const relationshipLabels: Record<RelationshipType, string> = {
   synergy: "Works well together",
   conflict: "Conflicts with",
