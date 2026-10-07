@@ -152,6 +152,7 @@ For Organize, the browser sends eligible note text and the selected group count 
 
 ## Log
 
+- **2026-10-07: PR #18 rebuilt on main, and overlap resolution keeps pinned cards fixed.** PR #18 committed unresolved stash conflicts on an outdated base, so `work:WORK-032` rebuilt its changes on `main` and kept main's merge preview, auto-place toggle, and cluster request guards. The overlap resolver now treats pinned cards like the card being placed, so it never moves them; two pinned cards may still overlap. Opening a shared board resolves overlaps on the board read from Liveblocks Storage, so the write keeps edits another participant saved in the meantime.
 - **2026-10-07: toolbar controls refined.** The Physics toggle was removed from the toolbar. A Merge mode now sits below Connect and selects two ideas with successive clicks. Opening the AI helper minimizes Suggested connections and places the helper beneath its header.
 - **2026-10-07: suggested links simplified.** Suggested Links starts minimized and automatic generation starts off. Canvas previews use the same line style and label as saved links. The explanation field is hidden; people request an AI explanation before accepting a suggested link.
 - **2026-10-07: accepting a suggested link no longer requires an AI explanation.** Jev returns a relationship label without generated text. A person can accept that label directly; the saved link has an empty explanation unless one was requested. Conflicts still require a stated condition.
