@@ -17,12 +17,12 @@ const { POST: EXPLAIN } = await import('../src/app/api/connections/explain/route
 const payload = connectionRequestSchema.parse({ goal: 'Help students study', cards: [{ id: 'a', text: 'Study partners' }, { id: 'b', text: 'Daily challenges' }] });
 const explanationInput = { goal: payload.goal, sources: payload.cards, type: 'synergy' };
 const explanation = { supported: true, explanation: 'Mocked explanation', condition: null };
-const variables = ['TYPESAFE_API_KEY', 'JEV_MODEL', 'GEMINI_API_KEY', 'GEMINI_MODEL', 'GEMINI_FALLBACK_MODEL'];
+const variables = ['TYPESAFE_API_KEY', 'JEV_MODEL', 'FEATHERLESS_API_KEY', 'FEATHERLESS_MODEL', 'FEATHERLESS_FALLBACK_MODEL'];
 let saved, values, reservations, calls;
 beforeEach((t) => {
   saved = Object.fromEntries(variables.map((key) => [key, process.env[key]]));
   variables.forEach((key) => delete process.env[key]);
-  process.env.TYPESAFE_API_KEY = 'jev-test-secret'; process.env.GEMINI_API_KEY = 'gemini-test-secret';
+  process.env.TYPESAFE_API_KEY = 'jev-test-secret'; process.env.FEATHERLESS_API_KEY = 'featherless-test-secret';
   values = new Map(); reservations = []; calls = [];
   t.mock.method(connectionStore, 'get', async (keys) => new Map(keys.filter((key) => values.has(key)).map((key) => [key, values.get(key)])));
   t.mock.method(connectionStore, 'put', async (entries) => { entries.forEach(({ key, value }) => values.set(key, value)); });
@@ -49,11 +49,11 @@ function jev(t, relation = 'synergy', usefulness = 0.9, mutate = (value) => valu
     return Response.json(mutate(decisionResponse(body, relation, usefulness)));
   });
 }
-function gemini(t, result = explanation, status = 200) {
+function generation(t, result = explanation, status = 200) {
   t.mock.method(globalThis, 'fetch', async (url, init) => {
-    assert.ok(String(url).includes('generateContent'));
+    assert.equal(String(url), 'https://api.featherless.ai/v1/chat/completions');
     calls.push(JSON.parse(init.body));
-    return status === 200 ? Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(result) }] } }] }) : Response.json({ error: { code: status, message: 'secret-provider-detail' } }, { status });
+    return status === 200 ? Response.json({ choices: [{ message: { content: JSON.stringify(result) } }] }) : Response.json({ error: { code: status, message: 'secret-provider-detail' } }, { status });
   });
 }
 
@@ -82,7 +82,7 @@ test('automatic suggestions call Jev only, return ungenerated explanations, and 
   assert.ok(validConnectionReferences(result, [{ sourceId: 'a', targetId: 'b' }]));
 });
 
-test('missing Jev key never falls back to Gemini', async (t) => {
+test('missing Jev key never falls back to the generation model', async (t) => {
   delete process.env.TYPESAFE_API_KEY;
   t.mock.method(globalThis, 'fetch', () => assert.fail('No provider calls without Jev key'));
   const response = await POST(request(payload));
@@ -174,17 +174,17 @@ test('budget rejection happens before provider access and communicates retry tim
   assert.equal(response.status, 429); assert.equal(response.headers.get('Retry-After'), '120');
 });
 
-test('explicit explanation calls Gemini once and reuses its cached answer', async (t) => {
-  gemini(t);
+test('explicit explanation calls the generation model once and reuses its cached answer', async (t) => {
+  generation(t);
   const response = await EXPLAIN(request(explanationInput));
   assert.equal(response.status, 200); assert.deepEqual((await response.json()).result, explanation);
   await explainConnection(explanationInput);
   assert.equal(calls.length, 1); assert.deepEqual(reservations.map(([kind]) => kind), ['explanation']);
-  assert.equal(calls[0].generationConfig.maxOutputTokens, 1500);
+  assert.equal(calls[0].max_tokens, 1500);
 });
 
 test('explanation cache respects source text, goal, type and direction', async (t) => {
-  gemini(t);
+  generation(t);
   await explainConnection(explanationInput);
   for (const input of [
     { ...explanationInput, goal: 'Changed' },
@@ -195,16 +195,16 @@ test('explanation cache respects source text, goal, type and direction', async (
   assert.equal(calls.length, 5);
 });
 
-test('explanation overload makes one attempt despite a configured Gemini fallback', async (t) => {
-  process.env.GEMINI_FALLBACK_MODEL = 'fallback'; gemini(t, explanation, 503);
+test('explanation overload makes one attempt despite a configured generation fallback', async (t) => {
+  process.env.FEATHERLESS_FALLBACK_MODEL = 'fallback'; generation(t, explanation, 503);
   const response = await EXPLAIN(request(explanationInput));
   assert.equal(response.status, 503); assert.equal(calls.length, 1); assert.equal(reservations.length, 1);
 });
 
-test('Gemini can reject a wrong classification and conflicts require a supported condition', async (t) => {
-  gemini(t, { supported: false, explanation: 'These notes do not support a conflict.', condition: null });
+test('the generation model can reject a wrong classification and conflicts require a supported condition', async (t) => {
+  generation(t, { supported: false, explanation: 'These notes do not support a conflict.', condition: null });
   assert.equal((await explainConnection({ ...explanationInput, type: 'conflict' })).supported, false);
-  values.clear(); gemini(t, explanation);
+  values.clear(); generation(t, explanation);
   assert.equal((await EXPLAIN(request({ ...explanationInput, type: 'conflict' }))).status, 502);
 });
 

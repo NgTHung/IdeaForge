@@ -5,9 +5,9 @@ import { AiError, aiErrorResponse, embedTexts, generateJson } from "../src/lib/a
 import { AI_ATTEMPT_TIMEOUT_MS, AI_REQUEST_TIMEOUT_MS, AI_RETRY_DELAY_MS } from "../src/lib/ai-policy.ts";
 
 const schema = z.object({ title: z.string().min(1) });
-const request = { contents: "Test notes", config: { systemInstruction: "Test instruction" } };
+const request = { system: "Test instruction", prompt: "Test notes" };
 const result = { title: "Mocked concept" };
-const variables = ["GEMINI_API_KEY", "GEMINI_MODEL", "GEMINI_FALLBACK_MODEL", "GEMINI_EMBEDDING_MODEL", "GEMINI_EMBEDDING_FALLBACK_MODEL"];
+const variables = ["FEATHERLESS_API_KEY", "FEATHERLESS_MODEL", "FEATHERLESS_FALLBACK_MODEL", "FEATHERLESS_REASONING_EFFORT", "GEMINI_API_KEY", "GEMINI_EMBEDDING_MODEL", "GEMINI_EMBEDDING_FALLBACK_MODEL"];
 let savedEnv;
 let requests;
 let logs;
@@ -15,6 +15,7 @@ let logs;
 beforeEach((t) => {
   savedEnv = Object.fromEntries(variables.map((key) => [key, process.env[key]]));
   variables.forEach((key) => delete process.env[key]);
+  process.env.FEATHERLESS_API_KEY = "test-only-secret";
   process.env.GEMINI_API_KEY = "test-only-secret";
   requests = [];
   logs = [];
@@ -46,11 +47,15 @@ function mockProvider(t, outcomes) {
 }
 
 function generated(value = result) {
-  return { candidates: [{ content: { parts: [{ text: JSON.stringify(value) }] } }] };
+  return chat(JSON.stringify(value));
+}
+
+function chat(content) {
+  return { choices: [{ message: { content } }] };
 }
 
 function models() {
-  return requests.map(({ url }) => url.match(/models\/([^:/]+)/)[1]);
+  return requests.map(({ url, body }) => url.includes("featherless") ? body.model : url.match(/models\/([^:/]+)/)[1]);
 }
 
 test("embedding-2 sends each note as a separate content", async (t) => {
@@ -68,41 +73,66 @@ async function expectFailure(operation, code, attempts) {
 }
 
 test("generation preserves request, validates output, and uses the configured primary", async (t) => {
-  process.env.GEMINI_MODEL = "test-primary";
+  process.env.FEATHERLESS_MODEL = "test-primary";
   mockProvider(t, [generated()]);
-  assert.deepEqual(await generateJson(request, schema), result);
+  assert.deepEqual(await generateJson({ ...request, maxOutputTokens: 512 }, schema), result);
   assert.deepEqual(models(), ["test-primary"]);
-  assert.equal(requests[0].body.systemInstruction.parts[0].text, request.config.systemInstruction);
-  assert.equal(requests[0].body.generationConfig.responseMimeType, "application/json");
-  assert.ok(requests[0].body.generationConfig.responseJsonSchema);
-  assert.equal(requests[0].init.headers.get("x-server-timeout"), "30");
+  const [{ url, body, init }] = requests;
+  assert.equal(url, "https://api.featherless.ai/v1/chat/completions");
+  assert.equal(init.headers.Authorization, "Bearer test-only-secret");
+  assert.equal(body.messages[0].role, "system");
+  assert.ok(body.messages[0].content.startsWith(request.system));
+  assert.ok(body.messages[0].content.includes(JSON.stringify(z.toJSONSchema(schema))));
+  assert.deepEqual(body.messages[1], { role: "user", content: request.prompt });
+  assert.deepEqual(body.response_format, { type: "json_object" });
+  assert.equal(body.reasoning_effort, "low");
+  assert.equal(body.max_tokens, 512);
   assert.equal(logs.length, 0);
 });
 
+test("generation defaults to GLM-5.3-Flash and omits an unset token limit", async (t) => {
+  process.env.FEATHERLESS_REASONING_EFFORT = "high";
+  mockProvider(t, [generated()]);
+  await generateJson(request, schema);
+  assert.deepEqual(models(), ["zai-org/GLM-5.3-Flash"]);
+  assert.equal(requests[0].body.reasoning_effort, "high");
+  assert.ok(!("max_tokens" in requests[0].body));
+});
+
+for (const [label, content] of [
+  ["a reasoning block", `<think>Plan the answer.</think>\n${JSON.stringify(result)}`],
+  ["a Markdown fence", `\`\`\`json\n${JSON.stringify(result)}\n\`\`\``],
+]) {
+  test(`generation accepts JSON wrapped in ${label}`, async (t) => {
+    mockProvider(t, [chat(content)]);
+    assert.deepEqual(await generateJson(request, schema), result);
+  });
+}
+
 test("malformed provider HTTP JSON reports invalid output without retry", async (t) => {
-  process.env.GEMINI_FALLBACK_MODEL = "test-fallback";
+  process.env.FEATHERLESS_FALLBACK_MODEL = "test-fallback";
   mockProvider(t, [() => new Response("not JSON", { status: 200 })]);
   await expectFailure(() => generateJson(request, schema), "invalid_output", 1);
 });
 
 test("overload retries the primary once and stops on success", async (t) => {
-  process.env.GEMINI_FALLBACK_MODEL = "test-fallback";
+  process.env.FEATHERLESS_FALLBACK_MODEL = "test-fallback";
   mockProvider(t, [503, generated()]);
   assert.deepEqual(await generateJson(request, schema), result);
-  assert.deepEqual(models(), ["gemini-2.5-flash", "gemini-2.5-flash"]);
-  assert.deepEqual(logs[0][1], { model: "gemini-2.5-flash", attempt: 1, code: "provider_overload", providerStatus: 503 });
+  assert.deepEqual(models(), ["zai-org/GLM-5.3-Flash", "zai-org/GLM-5.3-Flash"]);
+  assert.deepEqual(logs[0][1], { provider: "featherless", model: "zai-org/GLM-5.3-Flash", attempt: 1, code: "provider_overload", providerStatus: 503 });
 });
 
 test("two transient failures lead to one fallback with the same input and schema", async (t) => {
-  process.env.GEMINI_FALLBACK_MODEL = "test-fallback";
+  process.env.FEATHERLESS_FALLBACK_MODEL = "test-fallback";
   mockProvider(t, [503, 504, generated()]);
   assert.deepEqual(await generateJson(request, schema), result);
-  assert.deepEqual(models(), ["gemini-2.5-flash", "gemini-2.5-flash", "test-fallback"]);
-  assert.deepEqual(requests[0].body, requests[2].body);
+  assert.deepEqual(models(), ["zai-org/GLM-5.3-Flash", "zai-org/GLM-5.3-Flash", "test-fallback"]);
+  assert.deepEqual({ ...requests[0].body, model: "test-fallback" }, requests[2].body);
 });
 
 test("fallback failures stop after three attempts and report the final cause", async (t) => {
-  process.env.GEMINI_FALLBACK_MODEL = "test-fallback";
+  process.env.FEATHERLESS_FALLBACK_MODEL = "test-fallback";
   mockProvider(t, [503, 503, 504]);
   await expectFailure(() => generateJson(request, schema), "timeout", 3);
   assert.equal(logs[2][1].model, "test-fallback");
@@ -114,20 +144,20 @@ test("quota exhaustion without fallback stops after two attempts", async (t) => 
 });
 
 test("a fallback equal to the primary does not add a third attempt", async (t) => {
-  process.env.GEMINI_FALLBACK_MODEL = "gemini-2.5-flash";
+  process.env.FEATHERLESS_FALLBACK_MODEL = "zai-org/GLM-5.3-Flash";
   mockProvider(t, [503, 503]);
   await expectFailure(() => generateJson(request, schema), "provider_overload", 2);
 });
 
-test("SDK aborts and timeout errors retry and reach the fallback", async (t) => {
-  process.env.GEMINI_FALLBACK_MODEL = "test-fallback";
+test("aborts and timeout errors retry and reach the fallback", async (t) => {
+  process.env.FEATHERLESS_FALLBACK_MODEL = "test-fallback";
   mockProvider(t, [new DOMException("aborted", "AbortError"), new DOMException("timed out", "TimeoutError"), generated()]);
   assert.deepEqual(await generateJson(request, schema), result);
   assert.equal(requests.length, 3);
   assert.ok(logs.every((entry) => entry[1].code === "timeout"));
 });
 
-test("the SDK timeout aborts each hung fetch with a fresh signal", async (t) => {
+test("the attempt timeout aborts each hung fetch with a fresh signal", async (t) => {
   const originalSetTimeout = globalThis.setTimeout;
   const timeouts = [];
   t.mock.method(globalThis, "setTimeout", (callback, delay, ...args) => {
@@ -146,11 +176,12 @@ test("the SDK timeout aborts each hung fetch with a fresh signal", async (t) => 
 
 for (const [label, response] of [
   ["schema mismatch", generated({ title: "" })],
-  ["malformed JSON", { candidates: [{ content: { parts: [{ text: "not JSON" }] } }] }],
+  ["malformed JSON", chat("not JSON")],
   ["empty output", {}],
+  ["empty choices", { choices: [] }],
 ]) {
   test(`${label} reports invalid output without retry or fallback`, async (t) => {
-    process.env.GEMINI_FALLBACK_MODEL = "test-fallback";
+    process.env.FEATHERLESS_FALLBACK_MODEL = "test-fallback";
     mockProvider(t, [response]);
     await expectFailure(() => generateJson(request, schema), "invalid_output", 1);
   });
@@ -158,24 +189,35 @@ for (const [label, response] of [
 
 for (const status of [400, 401, 403, 404, 500]) {
   test(`HTTP ${status} stops immediately without leaking provider details`, async (t) => {
-    process.env.GEMINI_FALLBACK_MODEL = "test-fallback";
+    process.env.FEATHERLESS_FALLBACK_MODEL = "test-fallback";
     mockProvider(t, [status]);
     await expectFailure(() => generateJson(request, schema), "provider_error", 1);
   });
 }
 
-test("missing or blank key prevents generation and embedding calls", async (t) => {
+test("missing or blank keys prevent their provider's calls", async (t) => {
   mockProvider(t, []);
   for (const value of [undefined, "  "]) {
-    if (value === undefined) delete process.env.GEMINI_API_KEY;
-    else process.env.GEMINI_API_KEY = value;
+    for (const key of ["FEATHERLESS_API_KEY", "GEMINI_API_KEY"]) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
     await expectFailure(() => generateJson(request, schema), "missing_key", 0);
     await expectFailure(() => embedTexts(["Test note"]), "missing_key", 0);
   }
 });
 
+test("generation and embeddings use separate provider keys", async (t) => {
+  delete process.env.GEMINI_API_KEY;
+  mockProvider(t, [generated()]);
+  assert.deepEqual(await generateJson(request, schema), result);
+  process.env.GEMINI_API_KEY = "test-only-secret";
+  delete process.env.FEATHERLESS_API_KEY;
+  await expectFailure(() => generateJson(request, schema), "missing_key", 1);
+});
+
 test("embeddings retry and use only their configured embedding fallback", async (t) => {
-  process.env.GEMINI_FALLBACK_MODEL = "generation-only";
+  process.env.FEATHERLESS_FALLBACK_MODEL = "generation-only";
   process.env.GEMINI_EMBEDDING_MODEL = "test-embedding";
   process.env.GEMINI_EMBEDDING_FALLBACK_MODEL = "embedding-fallback";
   mockProvider(t, [503, 503, { embeddings: [{ values: [1, 2] }, { values: [3, 4] }] }]);
@@ -188,7 +230,7 @@ test("embeddings retry and use only their configured embedding fallback", async 
 });
 
 test("generation fallback is never used for embeddings", async (t) => {
-  process.env.GEMINI_FALLBACK_MODEL = "generation-only";
+  process.env.FEATHERLESS_FALLBACK_MODEL = "generation-only";
   mockProvider(t, [503, 503]);
   await expectFailure(() => embedTexts(["A"]), "provider_overload", 2);
   assert.deepEqual(models(), ["gemini-embedding-001", "gemini-embedding-001"]);

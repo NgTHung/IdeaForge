@@ -2,7 +2,7 @@ import { connectionPairKey, type ConnectionResult } from '../../lib/connections.
 import { createRelationship, type Board, type Idea, type Relationship } from './model.ts';
 
 export type IdeaSnapshot = Pick<Idea, 'id' | 'title' | 'content'>;
-export type ConnectionPreview = ConnectionResult['suggestions'][number] & { id: string; sources: IdeaSnapshot[]; explanationSource?: 'gemini' | 'user' };
+export type ConnectionPreview = ConnectionResult['suggestions'][number] & { id: string; sources: IdeaSnapshot[]; explanationSource?: 'ai' | 'user' };
 
 export function ideaSnapshotsMatch(sources: IdeaSnapshot[], ideas: Idea[]): boolean {
   return sources.every((source) => ideas.some((idea) => idea.id === source.id && idea.title === source.title && idea.content === source.content));

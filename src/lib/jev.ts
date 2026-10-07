@@ -52,7 +52,7 @@ export async function classifyPairs(goal: string, pairs: CandidatePair[]): Promi
   } catch (error) {
     throw new ConnectionError('jev_unavailable', error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name) ? 'Jev timed out. Try again later.' : 'Could not reach Jev. Try again later.');
   }
-  if (!response.ok) throw new ConnectionError('jev_provider_error', response.status === 429 ? 'Jev is rate limited. Try again later; Gemini was not called.' : response.status === 401 || response.status === 403 ? 'Check the server TypeSafe API key and account access.' : 'Jev could not complete this analysis. Try again later.');
+  if (!response.ok) throw new ConnectionError('jev_provider_error', response.status === 429 ? 'Jev is rate limited. Try again later.' : response.status === 401 || response.status === 403 ? 'Check the server TypeSafe API key and account access.' : 'Jev could not complete this analysis. Try again later.');
   try {
     const result = responseSchema.parse(await response.json());
     const expected = pairs.flatMap((_, index) => [`relation_${index}`, `useful_${index}`]);

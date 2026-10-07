@@ -390,10 +390,10 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
       });
       const payload: unknown = await response.json();
       if (sequence !== mergeRequestSequence.current) return;
-      if (!response.ok) throw new Error(typeof payload === "object" && payload && "error" in payload && typeof payload.error === "string" ? payload.error : "Gemini could not merge these ideas.");
-      if (!payload || typeof payload !== "object" || !("result" in payload) || !("model" in payload) || !("generatedAt" in payload)) throw new Error("Gemini returned an incomplete proposal.");
+      if (!response.ok) throw new Error(typeof payload === "object" && payload && "error" in payload && typeof payload.error === "string" ? payload.error : "The AI could not merge these ideas.");
+      if (!payload || typeof payload !== "object" || !("result" in payload) || !("model" in payload) || !("generatedAt" in payload)) throw new Error("The AI returned an incomplete proposal.");
       const parsed = mergeResultSchema.safeParse(payload.result);
-      if (!parsed.success || typeof payload.model !== "string" || typeof payload.generatedAt !== "string") throw new Error("Gemini returned an incomplete proposal.");
+      if (!parsed.success || typeof payload.model !== "string" || typeof payload.generatedAt !== "string") throw new Error("The AI returned an incomplete proposal.");
       if (mergeContext(boardRef.current, ids)?.fingerprint !== context.fingerprint) {
         setMergeError("The source notes or goal changed. Merge again to use the latest text."); return;
       }
@@ -401,7 +401,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
         title: parsed.data.title, concept: parsed.data.concept });
     } catch (error) {
       if (sequence !== mergeRequestSequence.current) return;
-      setMergeError(controller.signal.aborted ? "The merge timed out. Try again." : error instanceof Error ? error.message : "Gemini could not merge these ideas.");
+      setMergeError(controller.signal.aborted ? "The merge timed out. Try again." : error instanceof Error ? error.message : "The AI could not merge these ideas.");
     } finally {
       window.clearTimeout(timeout);
       if (sequence === mergeRequestSequence.current) { setMergeBusy(false); mergeController.current = null; }
@@ -501,7 +501,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
       if (requestId !== clusterNamesSequence.current) return;
       if (!response.ok) {
         const message = typeof result === "object" && result !== null && "error" in result && typeof result.error === "string"
-          ? result.error : "Gemini could not suggest group names. Try again.";
+          ? result.error : "The AI could not suggest group names. Try again.";
         throw new Error(message);
       }
       const parsed = clusterNamesResponseSchema.safeParse(result);
@@ -509,7 +509,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
         parsed.data.names.length !== snapshot.result.groups.length ||
         new Set(parsed.data.names.map((item) => item.groupId)).size !== snapshot.result.groups.length ||
         snapshot.result.groups.some((group) => !parsed.data.names.some((item) => item.groupId === group.id))) {
-        throw new Error("Gemini returned invalid group names. Try again.");
+        throw new Error("The AI returned invalid group names. Try again.");
       }
       const latest = boardRef.current;
       const latestSnapshot = latest.clusterSnapshot;
@@ -536,7 +536,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
       clusterNamesContext.current = null;
       clusterNamesController.current = null;
       setClusterNamesState("error");
-      setClusterNamesError(error instanceof Error ? error.message : "Gemini could not suggest group names. Try again.");
+      setClusterNamesError(error instanceof Error ? error.message : "The AI could not suggest group names. Try again.");
     }
   }
 
@@ -910,7 +910,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
         </nav></div>
         {organizeOpen && <section className="board-organize-panel" aria-label="Organize notes">
           <div className="board-organize-head"><div><span className="board-eyebrow">CANVAS LAYOUT</span><h2>Organize notes</h2></div><button type="button" className="board-icon-button" aria-label="Close organize panel" onClick={() => setOrganizeOpen(false)}>×</button></div>
-          <p>Group notes by embedding similarity. Gemini suggests concise group names; you can rename any group. The add-note switch places only a new note into an existing group.</p>
+          <p>Group notes by embedding similarity. An AI model suggests concise group names; you can rename any group. The add-note switch places only a new note into an existing group.</p>
           <label className="board-organize-count">Number of groups<select value={Math.min(clusterCount, Math.max(2, Math.min(10, clusterInput.cards.length)))} onChange={(event) => setClusterCount(Number(event.target.value))} disabled={clusterBusy || clusterInput.cards.length < 2}>
             {Array.from({ length: Math.max(0, Math.min(10, clusterInput.cards.length) - 1) }, (_, index) => index + 2).map((count) => <option key={count} value={count}>{count} groups</option>)}
           </select></label>
@@ -921,9 +921,9 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
           {clusterStale && <p className="board-organize-stale" role="status">Notes changed since this layout. Organize again to refresh the groups.</p>}
           {clusterBusy && <p className="board-organize-progress" role="status">Finding groups…</p>}
           {assignmentBusy && <p className="board-organize-progress" role="status">Finding a group for the new note…</p>}
-          {clusterNamesState === "pending" && <p className="board-organize-progress" role="status">Naming groups with Gemini…</p>}
+          {clusterNamesState === "pending" && <p className="board-organize-progress" role="status">Naming groups with AI…</p>}
           {clusterNamesState === "error" && <div className="board-cluster-names-error" role="status"><span>Names unavailable. {clusterNamesError}</span><button type="button" onClick={retryClusterNames} disabled={clusterStale || assignmentBusy}>Retry names</button></div>}
-          {clusterNamesState === "ready" && <p className="board-cluster-names-hint">Gemini suggestions · Rename any group to edit.</p>}
+          {clusterNamesState === "ready" && <p className="board-cluster-names-hint">AI suggestions · Rename any group to edit.</p>}
           {clusterResult?.groupPairs.length ? <p className="board-cluster-legend">Note spacing uses {clusterResult.notePairs?.length ?? 0} pairwise similarity scores; group badges show membership. Score method: {clusterResult.scoreMethod.replaceAll("_", " ")}.</p> : null}
           {clusterResult && <div className="board-organize-results" aria-label="Group results">
             <span className="board-organize-method">{clusterResult.scoreMethod.replaceAll("_", " ")} · {clusterResult.embeddingModel}</span>
@@ -946,7 +946,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
           {undoPositions && !clusterStale && undoAfterFingerprint === positionFingerprint(board.ideas) && <button type="button" className="board-organize-undo" onClick={undoOrganize}>Undo layout</button>}
         </section>}
         {(clusterNotice || clusterError || assignmentBusy || clusterNamesState === "pending" || clusterNamesState === "error") && <aside className="board-layout-status" role={clusterError ? "alert" : "status"}>
-          <span>{assignmentBusy ? "Finding a group for the new note…" : clusterNamesState === "pending" ? "Naming groups with Gemini…" : clusterNamesState === "error" ? `Group names unavailable. ${clusterNamesError}` : clusterError || clusterNotice}</span>
+          <span>{assignmentBusy ? "Finding a group for the new note…" : clusterNamesState === "pending" ? "Naming groups with AI…" : clusterNamesState === "error" ? `Group names unavailable. ${clusterNamesError}` : clusterError || clusterNotice}</span>
           {clusterNamesState === "error" && <button type="button" onClick={() => setOrganizeOpen(true)}>Review names</button>}
           {assignmentRetryId && !assignmentBusy && <button type="button" onClick={() => {
             const current = boardRef.current;
@@ -974,7 +974,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
       <ChatSidebar open={chatOpen} onToggle={() => setChatOpen((value) => !value)} />
     </div>
     {mergePreview && <div className="board-merge-panel" role="dialog" aria-modal="false" aria-label="Merged idea preview">
-      <div className="board-merge-panel-head"><div><span className="board-eyebrow">GEMINI PROPOSAL</span><h2>Merge preview</h2></div><button type="button" aria-label="Discard merge preview" onClick={discardMerge}>×</button></div>
+      <div className="board-merge-panel-head"><div><span className="board-eyebrow">AI PROPOSAL</span><h2>Merge preview</h2></div><button type="button" aria-label="Discard merge preview" onClick={discardMerge}>×</button></div>
       <p className="board-merge-sources">{mergePreview.ids.map((id, index) => `${index + 1}. ${board.ideas.find((idea) => idea.id === id)?.title || "Deleted idea"}`).join("  +  ")}</p>
       {previewContext?.relationship && <p className="board-merge-sources">Link: {relationshipLabels[previewContext.relationship.type]}{previewContext.relationship.explanation ? ` — ${previewContext.relationship.explanation}` : ""}</p>}
       {previewStale && <p className="board-error" role="alert">A source note, its link, or the goal changed. Regenerate before creating this idea.</p>}

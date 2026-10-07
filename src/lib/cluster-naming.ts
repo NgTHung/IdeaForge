@@ -40,11 +40,9 @@ export async function suggestClusterNames(input: unknown): Promise<ClusterNamesR
   if (!parsed.success) throw new TypeError("Invalid cluster naming request.");
   const groups = boundedGroups(parsed.data);
   const modelResult = await generateJson({
-    contents: JSON.stringify({ groups }),
-    config: {
-      systemInstruction: namingInstructions,
-      maxOutputTokens: 1024,
-    },
+    system: namingInstructions,
+    prompt: JSON.stringify({ groups }),
+    maxOutputTokens: 1024,
   }, modelNamesSchema);
 
   const requestedIds = groups.map((group) => group.id);

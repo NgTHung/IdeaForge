@@ -52,7 +52,7 @@ export function createConnectionStore(loadCollection: () => Promise<Collection<E
     const now = new Date();
     const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
     const resetSeconds = Math.ceil((tomorrow.getTime() - now.getTime()) / 1000);
-    const exhausted = () => new ConnectionError('budget_exhausted', `Today's ${kind === 'jev' ? 'automatic suggestion' : 'Gemini explanation'} allowance is used up. You can still write connections manually.`, 429, resetSeconds);
+    const exhausted = () => new ConnectionError('budget_exhausted', `Today's ${kind === 'jev' ? 'automatic suggestion' : 'AI explanation'} allowance is used up. You can still write connections manually.`, 429, resetSeconds);
     if (!limit) throw exhausted();
     const table = await loadCollection();
     try {

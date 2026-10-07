@@ -32,7 +32,7 @@ export function ConnectionSuggestionsPanel({ board, suggestions, onBoardChange }
       {previews.map((preview, index) => <ConnectionSuggestionCard key={preview.id} preview={preview} index={index} board={board} goal={suggestions.goal} boardId={suggestions.boardId} onUpdate={suggestions.update} onAccept={accept} onDismiss={suggestions.dismiss} />)}
       {suggestions.result?.status === 'suggestions' && !previews.length && <p>No suggestions left to review.</p>}
       {Boolean(suggestions.result?.remainingPairs) && <p className="connection-suggestions-hint">{suggestions.result?.reviewedPairs} candidate pairs reviewed. Additional pairs are deferred until the board changes.</p>}
-      <p className="connection-suggestions-hint">Automatic analysis uses Jev. Gemini runs only when you request an explanation here.</p>
+      <p className="connection-suggestions-hint">Automatic analysis uses Jev. The AI explains a relationship only when you request it here.</p>
       <p className="connection-suggestions-hint">AI suggestions need your review. Only accepted connections are saved.</p>
     </div>}
   </aside>;
