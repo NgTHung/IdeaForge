@@ -45,13 +45,16 @@ test("missing key response identifies the cause", async (t) => {
 test("merge returns the validated result from a mocked provider", async (t) => {
   process.env.GEMINI_API_KEY = "test-only-secret";
   const result = {
-    title: "Mocked concept", concept: "Mocked concept text", contributionA: "A contributes",
-    contributionB: "B contributes", tension: "Mocked tension", nextExperiment: "Mocked experiment",
+    status: "useful", reason: "", title: "Mocked concept", concept: "Mocked concept text", contributionA: "A contributes",
+    contributionB: "B contributes", bridge: "A enables B", tension: "Mocked tension", assumptions: ["Mocked assumption"], nextExperiment: "Mocked experiment",
   };
   t.mock.method(globalThis, "fetch", async () => Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(result) }] } }] }));
   const response = await POST(mergeRequest(payload));
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { result });
+  const body = await response.json();
+  assert.deepEqual(body.result, result);
+  assert.equal(typeof body.model, "string");
+  assert.ok(!Number.isNaN(Date.parse(body.generatedAt)));
 });
 
 test("merge reports invalid provider output with a safe error", async (t) => {

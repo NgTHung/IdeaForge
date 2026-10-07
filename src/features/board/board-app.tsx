@@ -16,10 +16,13 @@ import { usePhysics, type Contact } from "./use-physics";
 import { clusterAssignmentResponseSchema, clusterNamesResponseSchema, clusterResponseSchema, type ClusterCard, type ClusterNamesRequest } from "@/lib/cluster-contract";
 import { layoutClusters, placeNewNote } from "./cluster-layout";
 import { appendClusterAssignment, memberFingerprint, renameClusterGroup } from "./cluster-state";
+import { addMergedIdea, mergeContext, mergeText } from "./merge-board";
+import { mergeResultSchema, type MergeResult } from "@/lib/ideas";
 import "./board.css";
 
 type Tool = "select" | "hand" | "add" | "connect";
 type Selection = { kind: "idea" | "relationship"; id: string } | null;
+type MergePreview = { ids: [string, string]; fingerprint: string; result: MergeResult; model: string; generatedAt: string; title: string; concept: string };
 const nodeTypes = { idea: Bubble };
 const AUTO_PLACE_KEY = "ideaforge-auto-place-new-notes";
 const AUTO_PLACE_EVENT = "ideaforge-auto-place-preference-change";
@@ -68,8 +71,9 @@ function positionFingerprint(ideas: Idea[]): string {
 type BoardAppProps = {
   sharedBoard?: Board;
   sharedTitle?: string;
-  onBoardChange?: (update: (board: Board) => Board) => void;
+  onBoardChange?: (update: (board: Board) => Board) => boolean;
   onTitleChange?: (title: string) => void;
+  authorName?: string;
 };
 
 function ZoomReadout({ zoom }: { zoom: number }) {
@@ -83,7 +87,7 @@ function ToolButton({ label, active, disabled, title, onClick, children }: {
     title={title || label} disabled={disabled} onClick={onClick}><span className="board-tool-icon" aria-hidden="true">{children}</span></button>;
 }
 
-export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChange }: BoardAppProps) {
+export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChange, authorName }: BoardAppProps) {
   const [localBoard, setLocalBoard] = useState<Board>(initialBoard);
   const board = sharedBoard ?? localBoard;
   const setBoard = useCallback<Dispatch<SetStateAction<Board>>>((update) => {
@@ -95,6 +99,12 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   const [shareNotice, setShareNotice] = useState("");
   const [tool, setTool] = useState<Tool>("select");
   const [selection, setSelection] = useState<Selection>(null);
+  const [mergeIds, setMergeIds] = useState<string[]>([]);
+  const [mergeBusy, setMergeBusy] = useState(false);
+  const [mergeError, setMergeError] = useState("");
+  const [mergePreview, setMergePreview] = useState<MergePreview | null>(null);
+  const [mergeDetailsId, setMergeDetailsId] = useState<string | null>(null);
+  const [mergeSaving, setMergeSaving] = useState(false);
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [linkDraft, setLinkDraft] = useState<{ source: string; target: string } | null>(null);
   const [relationshipType, setRelationshipType] = useState<RelationshipType>("synergy");
@@ -141,6 +151,9 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   const assignmentController = useRef<AbortController | null>(null);
   const activeAssignmentId = useRef<string | null>(null);
   const draftIdeaId = useRef<string | null>(null);
+  const mergeController = useRef<AbortController | null>(null);
+  const mergeRequestSequence = useRef(0);
+  const mergeSaveLock = useRef(false);
   const dragRevisions = useRef(new Map<string, number>());
   const autoPlacePreference = useRef(autoPlaceNewNotes);
   autoPlacePreference.current = autoPlaceNewNotes;
@@ -160,7 +173,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     const timer = window.setTimeout(() => setClusterNotice(""), 5000);
     return () => window.clearTimeout(timer);
   }, [clusterNotice]);
-  useEffect(() => () => { assignmentController.current?.abort(); clusterNamesController.current?.abort(); }, []);
+  useEffect(() => () => { assignmentController.current?.abort(); clusterNamesController.current?.abort(); mergeController.current?.abort(); }, []);
   const connectDrag = useConnectDrag(canvas, {
     onStart: (id) => { setSourceId(id); setSelection({ kind: "idea", id }); },
     onDrop: (source, target) => { setLinkDraft({ source, target }); setRelationshipType("synergy"); setExplanation(""); setLinkError(""); },
@@ -214,6 +227,11 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   const clusterColors = useMemo(() => new Map(clusterResult?.groups.flatMap((group, index) => group.noteIds.map((id) => [id, index % 5] as const))), [clusterResult]);
   const chosenIdea = selection?.kind === "idea" ? board.ideas.find((idea) => idea.id === selection.id) : undefined;
   const chosenLink = selection?.kind === "relationship" ? board.relationships.find((link) => link.id === selection.id) : undefined;
+  const selectedPair = mergeIds.length === 2 ? mergeContext(board, mergeIds as [string, string]) : null;
+  const previewContext = mergePreview ? mergeContext(board, mergePreview.ids) : null;
+  const previewStale = Boolean(mergePreview && previewContext?.fingerprint !== mergePreview.fingerprint);
+  const selectedMergeIdea = mergeDetailsId ? board.ideas.find((idea) => idea.id === mergeDetailsId && idea.merge) : undefined;
+
 
   useEffect(() => {
     if (clusterBusy && clusterRequestFingerprint.current && clusterRequestFingerprint.current !== currentBoardFingerprint) {
@@ -250,10 +268,10 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     window.setTimeout(() => setShareNotice(""), 2500);
   }
 
-  function openEditor(idea: Idea) { setSelection({ kind: "idea", id: idea.id }); setEditor({ id: idea.id, title: idea.title, content: idea.content }); setEditError(""); }
+  function openEditor(idea: Idea) { setMergeIds([]); setSelection({ kind: "idea", id: idea.id }); setEditor({ id: idea.id, title: idea.title, content: idea.content }); setEditError(""); }
   const editingId = editor?.id;
   useEffect(() => { if (editingId) titleInput.current?.focus(); }, [editingId]);
-  function cancelInteraction() { connectDrag.cancel(); setEditor(null); setLinkDraft(null); setSourceId(null); setLinkError(""); setOrganizeOpen(false); setTool("select"); }
+  function cancelInteraction() { connectDrag.cancel(); setEditor(null); setLinkDraft(null); setSourceId(null); setLinkError(""); setOrganizeOpen(false); setMergePreview(null); setMergeDetailsId(null); setMergeIds([]); setMergeError(""); mergeRequestSequence.current += 1; mergeController.current?.abort(); setMergeBusy(false); setTool("select"); }
   function removeSelection() {
     if (!selection) return;
     if (selection.kind === "idea") { setUndoPositions(null); setAssignmentUndo(null); }
@@ -277,7 +295,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   });
 
   function makeIdea(position: { x: number; y: number }) {
-    const idea: Idea = { id: createIdeaId(), title: "New idea", content: "", position, pinned: false, parentIds: [] };
+    const idea: Idea = { id: createIdeaId(), title: "New idea", content: "", position, pinned: false, parentIds: [], author: authorName || "Unknown contributor" };
     draftIdeaId.current = idea.id;
     setUndoPositions(null);
     setBoard((current) => createIdea(current, idea)); setTool("select"); openEditor(idea); physics.reheat();
@@ -288,7 +306,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     const point = flow.current.screenToFlowPosition({ x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 });
     makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 });
   }
-  function selectTool(next: Tool) { connectDrag.cancel(); setTool(next); setSourceId(null); setLinkDraft(null); setSelection(null); }
+  function selectTool(next: Tool) { connectDrag.cancel(); setTool(next); setSourceId(null); setLinkDraft(null); setSelection(null); setMergeIds([]); }
   async function fitBoard() {
     if (!flow.current || !canvas.current || board.ideas.length === 0) return;
     const minX = Math.min(...board.ideas.map((idea) => idea.position.x));
@@ -325,6 +343,97 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
       draftIdeaId.current = null;
       if (autoPlaceNewNotes && clusterText(updatedIdea)) void assignNewNote(updatedBoard, updatedIdea);
     }
+  }
+
+  function selectMergeNote(id: string, additive: boolean) {
+    setMergeError("");
+    if (additive) {
+      const first = mergeIds.find((candidate) => boardRef.current.ideas.some((idea) => idea.id === candidate)) ?? (selection?.kind === "idea" ? selection.id : null);
+      if (first && first !== id) { setMergeIds([first, id]); setSelection(null); return; }
+      setMergeIds([id]); setSelection(null); return;
+    }
+    setMergeIds([]);
+    setSelection({ kind: "idea", id });
+  }
+
+  function discardMerge() {
+    mergeRequestSequence.current += 1;
+    mergeController.current?.abort();
+    mergeController.current = null;
+    setMergeBusy(false); setMergePreview(null); setMergeError("");
+  }
+
+  async function generateMerge() {
+    const ids = mergePreview?.ids ?? (mergeIds.length === 2 ? mergeIds as [string, string] : null);
+    if (mergeBusy || !ids) return;
+    const context = mergeContext(boardRef.current, ids);
+    if (!context?.goal || context.sources.some((idea) => !mergeText(idea) || mergeText(idea).length > 4000)) {
+      setMergeError("Set a board goal and choose two notes with text under 4,000 characters."); return;
+    }
+    mergeController.current?.abort();
+    const controller = new AbortController();
+    mergeController.current = controller;
+    const sequence = ++mergeRequestSequence.current;
+    const timeout = window.setTimeout(() => controller.abort(), 96_000);
+    setMergeIds([...ids]);
+    setMergeBusy(true); setMergeError(""); setMergePreview(null);
+    try {
+      const response = await fetch("/api/merge", {
+        method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
+        body: JSON.stringify({ goal: context.goal, sources: context.sources.map((idea) => ({ id: idea.id, text: mergeText(idea) })),
+          relationship: context.relationship ? { type: context.relationship.type, explanation: context.relationship.explanation,
+            sourceId: context.relationship.source, targetId: context.relationship.target } : undefined }),
+      });
+      const payload: unknown = await response.json();
+      if (sequence !== mergeRequestSequence.current) return;
+      if (!response.ok) throw new Error(typeof payload === "object" && payload && "error" in payload && typeof payload.error === "string" ? payload.error : "Gemini could not merge these ideas.");
+      if (!payload || typeof payload !== "object" || !("result" in payload) || !("model" in payload) || !("generatedAt" in payload)) throw new Error("Gemini returned an incomplete proposal.");
+      const parsed = mergeResultSchema.safeParse(payload.result);
+      if (!parsed.success || typeof payload.model !== "string" || typeof payload.generatedAt !== "string") throw new Error("Gemini returned an incomplete proposal.");
+      if (mergeContext(boardRef.current, ids)?.fingerprint !== context.fingerprint) {
+        setMergeError("The source notes or goal changed. Merge again to use the latest text."); return;
+      }
+      setMergePreview({ ids, fingerprint: context.fingerprint, result: parsed.data, model: payload.model, generatedAt: payload.generatedAt,
+        title: parsed.data.title, concept: parsed.data.concept });
+    } catch (error) {
+      if (sequence !== mergeRequestSequence.current) return;
+      setMergeError(controller.signal.aborted ? "The merge timed out. Try again." : error instanceof Error ? error.message : "Gemini could not merge these ideas.");
+    } finally {
+      window.clearTimeout(timeout);
+      if (sequence === mergeRequestSequence.current) { setMergeBusy(false); mergeController.current = null; }
+    }
+  }
+
+  function keepMerge() {
+    if (!mergePreview || mergeSaveLock.current || mergePreview.result.status !== "useful") return;
+    const context = mergeContext(boardRef.current, mergePreview.ids);
+    if (!context || context.fingerprint !== mergePreview.fingerprint) { setMergeError("The source notes or goal changed. Regenerate before creating the idea."); return; }
+    const title = mergePreview.title.trim();
+    const concept = mergePreview.concept.trim();
+    if (!title || !concept) { setMergeError("Give the merged idea a title and description."); return; }
+    mergeSaveLock.current = true; setMergeSaving(true);
+    const id = createIdeaId();
+    const record = {
+      sources: context.sources.map((idea) => ({ id: idea.id, title: idea.title, content: idea.content, author: idea.author || "Unknown contributor" })) as [
+        { id: string; title: string; content: string; author: string }, { id: string; title: string; content: string; author: string }],
+      goal: context.goal,
+      relationship: context.relationship ? { type: context.relationship.type, explanation: context.relationship.explanation,
+        sourceId: context.relationship.source, targetId: context.relationship.target } : undefined,
+      proposal: mergePreview.result, model: mergePreview.model, generatedAt: mergePreview.generatedAt,
+    };
+    const apply = (current: Board) => mergeContext(current, mergePreview.ids)?.fingerprint === mergePreview.fingerprint ?
+      addMergedIdea(current, id, title, concept, record, authorName || "Unknown contributor") : current;
+    const committed = onBoardChange ? onBoardChange(apply) : (setLocalBoard(apply), true);
+    if (!committed) {
+      mergeSaveLock.current = false; setMergeSaving(false);
+      setMergeError("The source notes or goal changed. Regenerate before creating the idea.");
+      return;
+    }
+    setPhysicsEnabled(false); physics.stop();
+    setMergePreview(null); setMergeIds([]); setSelection({ kind: "idea", id }); setMergeError("");
+    setUndoPositions(null); setAssignmentUndo(null);
+    mergeSaveLock.current = false; setMergeSaving(false);
+    window.requestAnimationFrame(() => { void flow.current?.fitView({ nodes: [{ id: mergePreview.ids[0] }, { id: mergePreview.ids[1] }, { id }], padding: 0.28, duration: 350, maxZoom: 0.9 }); });
   }
 
   function openOrganize() {
@@ -698,15 +807,17 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     setClusterNotice("The new note returned to its previous position.");
   }
 
-  const nodes = useMemo<IdeaNode[]>(() => board.ideas.map((idea) => ({
+  const nodes: IdeaNode[] = board.ideas.map((idea) => ({
     ...nodeLayouts[idea.id],
-    id: idea.id, type: "idea", position: idea.position, selected: selection?.kind === "idea" && selection.id === idea.id,
+    id: idea.id, type: "idea", position: idea.position, selected: selection?.kind === "idea" && selection.id === idea.id || mergeIds.includes(idea.id),
     className: chosenLink && (chosenLink.source === idea.id || chosenLink.target === idea.id) ? "is-related" : undefined,
     draggable: tool !== "connect" && editor?.id !== idea.id,
     data: { idea, connecting: tool === "connect", source: sourceId === idea.id, editing: editor?.id === idea.id, squash: squashes[idea.id] ?? null,
+      mergeIndex: mergeIds.indexOf(idea.id) + 1, onMergeDetails: idea.merge ? () => setMergeDetailsId(idea.id) : undefined,
+      onSelect: (additive) => selectMergeNote(idea.id, additive || mergeIds.length === 1),
       clusterLabel: clusterLabels.get(idea.id), clusterColor: clusterColors.get(idea.id),
       onEdit: () => openEditor(idea), onStartConnection: (event) => startConnectDrag(idea.id, event) },
-  })), [board.ideas, selection, chosenLink, tool, sourceId, editor?.id, nodeLayouts, startConnectDrag, squashes, clusterLabels, clusterColors]);
+  }));
   function onNodesChange(changes: NodeChange<IdeaNode>[]) {
     setNodeLayouts((current) => {
       let next = current;
@@ -727,7 +838,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   const undoPlacementAvailable = Boolean(assignmentUndo && !clusterSnapshot?.stale && clusterSnapshot?.revision === assignmentUndo.appliedRevision &&
     board.ideas.find((idea) => idea.id === assignmentUndo.id)?.position.x === assignmentUndo.after.x &&
     board.ideas.find((idea) => idea.id === assignmentUndo.id)?.position.y === assignmentUndo.after.y);
-  const edges = useMemo<Edge[]>(() => board.relationships.map((link) => {
+  const edges = useMemo<Edge[]>(() => [...board.relationships.map((link) => {
     const source = board.ideas.find((idea) => idea.id === link.source);
     const target = board.ideas.find((idea) => idea.id === link.target);
     const pointsRight = !source || !target || source.position.x <= target.position.x;
@@ -740,12 +851,18 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     labelStyle: { fontSize: 12, fontWeight: 700, fill: theme === "dark" ? "#dce8e3" : "#3c5260" },
     labelBgStyle: { fill: theme === "dark" ? "#21312f" : "#fff", fillOpacity: 0.96 }, labelBgPadding: [8, 5] as [number, number], labelBgBorderRadius: 6,
     interactionWidth: 24,
-  }; }), [board.relationships, board.ideas, selection, theme]);
+  }; }), ...board.ideas.flatMap((idea) => idea.merge ? idea.merge.sources.filter((source) => board.ideas.some((candidate) => candidate.id === source.id)).map((source) => ({
+    id: `ancestry:${source.id}:${idea.id}`, source: source.id, target: idea.id,
+    sourceHandle: "source-bottom", targetHandle: "target-top", type: "default", selectable: false,
+    style: { stroke: theme === "dark" ? "#83c7ac" : "#5b9c82", strokeWidth: 2.4 },
+  } as Edge)) : [])], [board.relationships, board.ideas, selection, theme]);
 
   return <main className="board-shell" data-theme={theme}>
     <header className="board-topbar" aria-label="Board controls"><div className="board-brand">
       <Link href="/" className="board-brand-home" aria-label="IdeaForge home" title="IdeaForge home"><span className="board-brand-symbol" aria-hidden="true">✳</span></Link>
       <input aria-label="Board title" value={title} maxLength={80} onChange={(event) => changeTitle(event.target.value)} /></div>
+      <label className="board-goal-field"><span>Board goal</span><textarea aria-label="Board goal" rows={2} value={board.goal ?? "Help students build a consistent study habit."} maxLength={500}
+        onChange={(event) => setBoard((current) => ({ ...current, goal: event.target.value }))} /></label>
       <div className="board-top-actions">{onBoardChange && <><ActiveMembers /><button className="board-share-button" type="button" onClick={() => void copyBoardLink()}>Share</button></>}
         <AccountMenu />
         <button className="board-theme-toggle" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} aria-pressed={theme === "dark"} onClick={() => setTheme((value) => value === "dark" ? "light" : "dark")}>{theme === "dark" ? "☼" : "◐"}</button></div>
@@ -755,9 +872,9 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
       <div ref={canvas} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""}`}>
         <ReactFlow<IdeaNode> nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onInit={(instance) => { flow.current = instance; setZoom(instance.getZoom()); }} onMove={(_, viewport) => setZoom(viewport.zoom)}
           onPaneClick={(event) => { if (tool === "add" && flow.current) { const point = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }); makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 }); }
-            else { setSelection(null); if (tool === "connect") { setSourceId(null); setLinkDraft(null); setTool("select"); } } }}
-          onNodeClick={(_, node) => { if (tool !== "connect") setSelection({ kind: "idea", id: node.id }); }}
-          onEdgeClick={(_, edge) => { setSelection({ kind: "relationship", id: edge.id }); setTool("select"); }}
+            else { setSelection(null); setMergeIds([]); if (tool === "connect") { setSourceId(null); setLinkDraft(null); setTool("select"); } } }}
+          onNodeClick={(event, node) => { if (tool !== "connect") selectMergeNote(node.id, event.shiftKey || mergeIds.length === 1); }}
+          onEdgeClick={(_, edge) => { if (edge.id.startsWith("ancestry:")) return; setMergeIds([]); setSelection({ kind: "relationship", id: edge.id }); setTool("select"); }}
           onNodeDragStart={(_, node) => {
             dragRevisions.current.set(node.id, (dragRevisions.current.get(node.id) ?? 0) + 1);
             if (node.id === activeAssignmentId.current) assignmentController.current?.abort();
@@ -833,13 +950,49 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
           {undoPlacementAvailable && <button type="button" onClick={undoAutomaticPlacement}>Undo placement</button>}
         </aside>}
         {board.ideas.length === 0 && <div className="board-empty"><span>✳</span><h2>Your board is ready</h2><p>Start with one thought. You can connect it to others as your map grows.</p><button onClick={addAtCenter}>＋ Add your first idea</button></div>}
+        {mergeIds.length > 0 && mergeIds.every((id) => board.ideas.some((idea) => idea.id === id)) && !mergePreview && <div className="board-merge-tray" role="region" aria-label="Merge selected ideas">
+          <div><strong>{mergeIds.length === 1 ? "Choose a second idea" : "Two ideas selected"}</strong>
+            <span>{mergeIds.map((id, index) => `${index + 1}. ${board.ideas.find((idea) => idea.id === id)?.title || "Idea"}`).join("  +  ")}</span>
+            {selectedPair?.relationship && <span>Using link: {relationshipLabels[selectedPair.relationship.type]}{selectedPair.relationship.explanation ? ` — ${selectedPair.relationship.explanation}` : ""}</span>}</div>
+          {mergeIds.length === 1 && <span className="board-merge-hint">Shift-click another note, or tap it on touch.</span>}
+          {mergeError && <span className="board-error" role="alert">{mergeError}</span>}
+          <button type="button" onClick={() => { discardMerge(); setMergeIds([]); }}>Clear</button>
+          {mergeIds.length === 2 && <button type="button" className="primary" disabled={mergeBusy || !selectedPair?.goal || selectedPair.sources.some((idea) => !mergeText(idea) || mergeText(idea).length > 4000)} onClick={() => void generateMerge()}>{mergeBusy ? "Generating…" : "Merge ideas"}</button>}
+        </div>}
         {(chosenIdea || chosenLink) && <div className="board-selection-bar">
-          {chosenIdea ? <><strong>{chosenIdea.title}</strong><button onClick={() => openEditor(chosenIdea)}>Edit</button><button onClick={() => { setUndoPositions(null); setBoard((current) => setIdeaPinned(current, chosenIdea.id, !chosenIdea.pinned)); if (chosenIdea.pinned) physics.reheat(); }}>{chosenIdea.pinned ? "Unpin" : "Pin"}</button></> : <><strong>{chosenLink && relationshipLabels[chosenLink.type]}</strong>{chosenLink?.explanation && <span title={chosenLink.explanation}>{chosenLink.explanation}</span>}</>}
+          {chosenIdea ? <><strong>{chosenIdea.title}</strong><button onClick={() => openEditor(chosenIdea)}>Edit</button><button onClick={() => { setMergeIds([chosenIdea.id]); setSelection(null); }}>Add to merge</button><button onClick={() => { setUndoPositions(null); setBoard((current) => setIdeaPinned(current, chosenIdea.id, !chosenIdea.pinned)); if (chosenIdea.pinned) physics.reheat(); }}>{chosenIdea.pinned ? "Unpin" : "Pin"}</button>{chosenIdea.merge && <button onClick={() => setMergeDetailsId(chosenIdea.id)}>How this idea was made</button>}</> : <><strong>{chosenLink && relationshipLabels[chosenLink.type]}</strong>{chosenLink?.explanation && <span title={chosenLink.explanation}>{chosenLink.explanation}</span>}</>}
           <button className="danger" onClick={removeSelection}>Delete</button></div>}
         <div className="board-zoom"><button aria-label="Zoom out" title="Zoom out" onClick={() => flow.current?.zoomOut({ duration: 180 })}>−</button><button aria-label="Fit ideas" title="Fit ideas" onClick={() => { void fitBoard(); }}>⤢</button><ZoomReadout zoom={zoom} /><button aria-label="Zoom in" title="Zoom in" onClick={() => flow.current?.zoomIn({ duration: 180 })}>＋</button></div>
       </div>
       <ChatSidebar open={chatOpen} onToggle={() => setChatOpen((value) => !value)} />
     </div>
+    {mergePreview && <div className="board-merge-panel" role="dialog" aria-modal="false" aria-label="Merged idea preview">
+      <div className="board-merge-panel-head"><div><span className="board-eyebrow">GEMINI PROPOSAL</span><h2>Merge preview</h2></div><button type="button" aria-label="Discard merge preview" onClick={discardMerge}>×</button></div>
+      <p className="board-merge-sources">{mergePreview.ids.map((id, index) => `${index + 1}. ${board.ideas.find((idea) => idea.id === id)?.title || "Deleted idea"}`).join("  +  ")}</p>
+      {previewContext?.relationship && <p className="board-merge-sources">Link: {relationshipLabels[previewContext.relationship.type]}{previewContext.relationship.explanation ? ` — ${previewContext.relationship.explanation}` : ""}</p>}
+      {previewStale && <p className="board-error" role="alert">A source note, its link, or the goal changed. Regenerate before creating this idea.</p>}
+      {mergePreview.result.status !== "useful" && <p className="board-merge-weak" role="status">{mergePreview.result.reason || "This pair needs a clearer connection before merging."}</p>}
+      <label>Title<input value={mergePreview.title} maxLength={120} disabled={mergePreview.result.status !== "useful"} onChange={(event) => setMergePreview({ ...mergePreview, title: event.target.value })} /></label>
+      <label>Concept<textarea value={mergePreview.concept} maxLength={2000} rows={5} disabled={mergePreview.result.status !== "useful"} onChange={(event) => setMergePreview({ ...mergePreview, concept: event.target.value })} /></label>
+      <div className="board-merge-reasoning"><p><strong>Idea 1 adds</strong> {mergePreview.result.contributionA}</p><p><strong>Idea 2 adds</strong> {mergePreview.result.contributionB}</p>
+        <p><strong>Bridge</strong> {mergePreview.result.bridge}</p><p><strong>Tension</strong> {mergePreview.result.tension}</p>
+        {mergePreview.result.assumptions.length > 0 && <p><strong>Assumptions</strong> {mergePreview.result.assumptions.join("; ")}</p>}
+        <p><strong>Try next</strong> {mergePreview.result.nextExperiment}</p></div>
+      {mergeError && <p className="board-error" role="alert">{mergeError}</p>}
+      <div className="board-merge-actions"><button type="button" onClick={discardMerge}>Discard</button><button type="button" disabled={mergeBusy} onClick={() => void generateMerge()}>{mergeBusy ? "Generating…" : "Regenerate"}</button>
+        <button type="button" className="primary" disabled={mergeSaving || mergeBusy || previewStale || mergePreview.result.status !== "useful" || !mergePreview.title.trim() || !mergePreview.concept.trim()} onClick={keepMerge}>Create merged idea</button></div>
+    </div>}
+    {selectedMergeIdea?.merge && <div className="board-merge-details" role="dialog" aria-modal="false" aria-label="How this idea was made"><div className="board-merge-panel-head"><h2>How this idea was made</h2><button type="button" aria-label="Close merge details" onClick={() => setMergeDetailsId(null)}>×</button></div>
+      <p>{selectedMergeIdea.merge.sources.map((source) => source.title || source.content).join(" + ")}</p>
+      {selectedMergeIdea.merge.sources.map((source, index) => <div className="board-merge-source" key={`${source.id}-${index}`}><strong>Idea {index + 1}: {source.title}</strong><span>By {source.author}</span><p>{source.content}</p></div>)}
+      <div className="board-merge-reasoning"><p><strong>Goal</strong> {selectedMergeIdea.merge.goal}</p>
+        <p><strong>Idea 1 adds</strong> {selectedMergeIdea.merge.proposal.contributionA}</p><p><strong>Idea 2 adds</strong> {selectedMergeIdea.merge.proposal.contributionB}</p>
+        {selectedMergeIdea.merge.relationship && <p><strong>Original link</strong> {relationshipLabels[selectedMergeIdea.merge.relationship.type]}: {selectedMergeIdea.merge.relationship.explanation || "No explanation"}</p>}
+        <p><strong>Bridge</strong> {selectedMergeIdea.merge.proposal.bridge}</p><p><strong>Tension</strong> {selectedMergeIdea.merge.proposal.tension}</p>
+        {selectedMergeIdea.merge.proposal.assumptions.length > 0 && <p><strong>Assumptions</strong> {selectedMergeIdea.merge.proposal.assumptions.join("; ")}</p>}
+        <p><strong>Try next</strong> {selectedMergeIdea.merge.proposal.nextExperiment}</p></div>
+      <small>Generated with {selectedMergeIdea.merge.model} on {new Date(selectedMergeIdea.merge.generatedAt).toLocaleString()}. The original proposal is saved with this idea.</small>
+    </div>}
     {editor && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditor(null); }}><form className="board-dialog" onSubmit={saveEdit} aria-label="Edit idea">
       <span className="board-eyebrow">IDEA DETAILS</span><h2>Edit idea</h2><label>Title<input ref={titleInput} value={editor.title} maxLength={120} onChange={(event) => { setEditor({ ...editor, title: event.target.value }); setEditError(""); }} /></label>
       <label>Content<textarea value={editor.content} maxLength={4000} rows={6} onChange={(event) => setEditor({ ...editor, content: event.target.value })} placeholder="What makes this idea useful?" /></label>

@@ -1,4 +1,15 @@
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
+import type { MergeResult } from "@/lib/ideas";
+
+export type MergeSourceSnapshot = { id: string; title: string; content: string; author: string };
+export type MergeRecord = {
+  sources: [MergeSourceSnapshot, MergeSourceSnapshot];
+  goal: string;
+  relationship?: { type: RelationshipType; explanation: string; sourceId: string; targetId: string };
+  proposal: MergeResult;
+  model: string;
+  generatedAt: string;
+};
 
 export type Idea = {
   id: string;
@@ -8,6 +19,8 @@ export type Idea = {
   pinned: boolean;
   color?: string;
   parentIds: string[];
+  author?: string;
+  merge?: MergeRecord;
 };
 
 export type RelationshipType = "synergy" | "conflict" | "extends";
@@ -18,7 +31,7 @@ export type Relationship = {
   type: RelationshipType;
   explanation: string;
 };
-export type Board = { ideas: Idea[]; relationships: Relationship[]; clusterSnapshot?: ClusterSnapshot | null };
+export type Board = { goal?: string; ideas: Idea[]; relationships: Relationship[]; clusterSnapshot?: ClusterSnapshot | null };
 
 export const IDEA_CARD_SIZE = { width: 272, height: 148 } as const;
 

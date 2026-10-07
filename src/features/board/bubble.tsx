@@ -10,6 +10,9 @@ export type IdeaNode = Node<{
   squash: { axis: "x" | "y"; token: number } | null;
   clusterLabel?: string;
   clusterColor?: number;
+  mergeIndex: number;
+  onMergeDetails?: () => void;
+  onSelect: (additive: boolean) => void;
   onEdit: () => void;
   onStartConnection: (event: PointerEvent<HTMLDivElement>) => void;
 }, "idea">;
@@ -31,17 +34,22 @@ export function Bubble({ data, selected, dragging }: NodeProps<IdeaNode>) {
   const squashing = data.squash ? `is-squashing-${data.squash.axis}` : "";
   return <div data-idea-id={idea.id}
     style={motionStyle(idea.id)}
-    className={`board-bubble ${selected ? "is-selected" : ""} ${data.source ? "is-source" : ""} ${data.editing ? "is-editing" : ""} ${dragging ? "is-dragging" : ""} ${data.clusterColor === undefined ? "" : `cluster-color-${data.clusterColor}`} ${squashing}`}
+    role="group" tabIndex={0} aria-label={`Idea: ${idea.title}. Press Enter to select.`}
+    className={`board-bubble ${selected ? "is-selected" : ""} ${data.source ? "is-source" : ""} ${data.editing ? "is-editing" : ""} ${dragging ? "is-dragging" : ""} ${data.mergeIndex ? "is-merge-source" : ""} ${idea.merge ? "is-merged" : ""} ${data.clusterColor === undefined ? "" : `cluster-color-${data.clusterColor}`} ${squashing}`}
+    onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); event.stopPropagation(); data.onSelect(event.shiftKey); } }}
     onPointerDown={data.connecting ? data.onStartConnection : undefined}
     onDoubleClick={(event) => { if (!data.connecting) { event.stopPropagation(); data.onEdit(); } }}>
     <Handle id="target-left" type="target" position={Position.Left} isConnectable={false} className="board-hidden-handle" />
     <Handle id="source-left" type="source" position={Position.Left} isConnectable={false} className="board-hidden-handle" />
+    <Handle id="target-top" type="target" position={Position.Top} isConnectable={false} className="board-hidden-handle" />
     <div className="board-bubble-float"><div key={data.squash?.token ?? "idle"} className="board-bubble-squash"><div className="board-bubble-surface">
-      <div className="board-bubble-top"><span className="board-bubble-kicker">IDEA</span><span className="board-bubble-badges">{data.clusterLabel && <span className="board-cluster-badge">{data.clusterLabel}</span>}{idea.pinned && <span className="board-pinned" title="Pinned idea">PINNED</span>}</span></div>
+      <div className="board-bubble-top"><span className="board-bubble-kicker">{idea.merge ? "COMBINED CONCEPT" : "IDEA"}</span><span className="board-bubble-badges">{data.mergeIndex > 0 && <span className="board-merge-index" aria-label={`Merge idea ${data.mergeIndex}`}>{data.mergeIndex}</span>}{data.clusterLabel && <span className="board-cluster-badge">{data.clusterLabel}</span>}{idea.pinned && <span className="board-pinned" title="Pinned idea">PINNED</span>}</span></div>
       <h3>{idea.title}</h3><p>{idea.content || "Add a few details to this idea."}</p>
+      {idea.merge && <button type="button" className="board-merge-details-button nodrag nopan" onClick={(event) => { event.stopPropagation(); data.onMergeDetails?.(); }}>How this idea was made</button>}
       {data.connecting && <span className="board-connect-dot" aria-hidden="true" />}
     </div></div></div>
     <Handle id="target-right" type="target" position={Position.Right} isConnectable={false} className="board-hidden-handle" />
     <Handle id="source-right" type="source" position={Position.Right} isConnectable={false} className="board-hidden-handle" />
+    <Handle id="source-bottom" type="source" position={Position.Bottom} isConnectable={false} className="board-hidden-handle" />
   </div>;
 }

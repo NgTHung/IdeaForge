@@ -6,7 +6,7 @@ import { initialBoard } from "./fixtures";
 import { BoardApp } from "./board-app";
 import type { Board, Idea, Relationship } from "./model";
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
-import { createBoardStorage, RoomProvider, useMutation, useStorage } from "@/lib/liveblocks";
+import { createBoardStorage, RoomProvider, useMutation, useSelf, useStorage } from "@/lib/liveblocks";
 
 const initialTitle = "Student collaboration ideas";
 
@@ -19,8 +19,10 @@ export function SharedBoardRoom({ boardId }: { boardId: string }) {
 }
 
 function SharedBoardContent() {
+  const self = useSelf();
   const snapshot = useStorage((root) => ({
     title: root.title,
+    goal: root.goal,
     ideas: Object.values(root.ideas),
     relationships: Object.values(root.relationships),
     clusterSnapshot: root.clusterSnapshot as ClusterSnapshot | undefined,
@@ -30,11 +32,14 @@ function SharedBoardContent() {
     const relationships = storage.get("relationships");
     const savedClusterSnapshot = storage.get("clusterSnapshot");
     const current: Board = {
+      goal: storage.get("goal"),
       ideas: [...ideas.entries()].map(([, idea]) => idea.toJSON() as Idea),
       relationships: [...relationships.entries()].map(([, link]) => link.toJSON() as Relationship),
       clusterSnapshot: savedClusterSnapshot?.toJSON() as ClusterSnapshot | undefined,
     };
     const next = update(current);
+    if (next === current) return false;
+    if (next.goal !== current.goal) storage.set("goal", next.goal || "Help students build a consistent study habit.");
     const nextIdeas = new Map(next.ideas.map((idea) => [idea.id, idea]));
     const nextRelationships = new Map(next.relationships.map((link) => [link.id, link]));
 
@@ -60,15 +65,17 @@ function SharedBoardContent() {
     if (JSON.stringify(next.clusterSnapshot ?? null) !== JSON.stringify(current.clusterSnapshot ?? null)) {
       storage.set("clusterSnapshot", next.clusterSnapshot ? new LiveObject(next.clusterSnapshot) : null);
     }
+    return next !== current;
   }, []);
   const updateTitle = useMutation(({ storage }, title: string) => storage.set("title", title), []);
-  const changeBoard = useCallback((update: (board: Board) => Board) => updateBoard(update), [updateBoard]);
+  const changeBoard = useCallback((update: (board: Board) => Board): boolean => updateBoard(update), [updateBoard]);
 
   if (!snapshot) return <main className="board-connection-state" aria-live="polite">Connecting to shared board…</main>;
 
   return <BoardApp
-    sharedBoard={{ ideas: snapshot.ideas as Idea[], relationships: snapshot.relationships as Relationship[], clusterSnapshot: snapshot.clusterSnapshot ?? null }}
+    sharedBoard={{ goal: snapshot.goal, ideas: snapshot.ideas as Idea[], relationships: snapshot.relationships as Relationship[], clusterSnapshot: snapshot.clusterSnapshot ?? null }}
     sharedTitle={snapshot.title}
+    authorName={self?.info?.name?.trim() || "Unknown contributor"}
     onBoardChange={changeBoard}
     onTitleChange={updateTitle}
   />;
