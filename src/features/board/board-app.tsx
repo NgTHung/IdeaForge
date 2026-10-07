@@ -182,8 +182,8 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   useEffect(() => {
     if (!sharedBoard || sharedLayoutInitialized.current) return;
     sharedLayoutInitialized.current = true;
-    const normalized = normalizeBoardLayout(sharedBoard, measuredSizes);
-    if (normalized !== sharedBoard) onBoardChange?.(() => normalized);
+    // Resolve against the stored board, not this render's snapshot, so edits another participant made since then are kept.
+    if (normalizeBoardLayout(sharedBoard, measuredSizes) !== sharedBoard) onBoardChange?.((current) => normalizeBoardLayout(current, measuredSizes));
   }, [sharedBoard, onBoardChange, measuredSizes]);
   useEffect(() => () => {
     for (const timer of squashTimers.current.values()) window.clearTimeout(timer);
