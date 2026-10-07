@@ -176,10 +176,16 @@
 .react-flow__node.is-assistant-preview .board-bubble-surface { border: 2px dashed #8c62a8; background: #f7f0fb; box-shadow: 0 10px 30px #62427c24; }
 .react-flow__node.is-assistant-preview .board-bubble-kicker { color: #80559a; }
 .board-merge-index { display: grid; place-items: center; width: 21px; height: 21px; border-radius: 50%; background: #8e672f; color: white; font-size: 11px; font-weight: 800; }
+.board-merge-count { padding: 3px 6px; border-radius: 999px; background: #d9efe1; color: #27684c; font-size: 10px; font-weight: 800; white-space: nowrap; }
 .board-merge-details-button { position: absolute; left: 20px; bottom: 11px; z-index: 2; border: 0; background: transparent; color: #196b51; font-size: 11px; font-weight: 700; padding: 3px 0; text-decoration: underline; }
 .board-bubble.is-merged p { -webkit-line-clamp: 2; }
 .board-merge-tray { position: absolute; z-index: 6; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; align-items: center; gap: 9px; max-width: min(760px, calc(100% - 40px)); padding: 10px 12px; border: 1px solid #d5e4d8; border-radius: 13px; background: #fff; box-shadow: 0 12px 35px #365b4829; }
 .board-merge-tray > div { display: flex; flex-direction: column; gap: 3px; min-width: 130px; max-width: 360px; }
+.board-merge-tray .board-merge-tray-copy { min-width: 220px; max-width: min(500px, 50vw); }
+.board-merge-chips { display: flex; flex-wrap: wrap; gap: 5px; max-height: 76px; overflow-y: auto; }
+.board-merge-tray .board-merge-chip { display: inline-flex; align-items: center; gap: 3px; max-width: 100%; padding: 3px 5px 3px 8px; border: 1px solid #d8e6dd; border-radius: 999px; background: #f4f8f4; color: #355b4a; }
+.board-merge-chip > span { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-merge-tray .board-merge-chip button { border: 0; padding: 0 3px; background: transparent; color: #547261; font-size: 16px; line-height: 1; }
 .board-merge-tray strong { font-size: 12px; }
 .board-merge-tray span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #5a7168; font-size: 11px; }
 .board-merge-tray button, .board-merge-actions button { border: 1px solid #d6e3da; border-radius: 8px; padding: 9px 11px; background: #fff; color: #306951; font-size: 12px; font-weight: 700; white-space: nowrap; }
@@ -203,9 +209,13 @@
 .board-merge-source strong, .board-merge-source span { display: block; }
 .board-merge-source span { margin-top: 4px; color: #658073; }
 .board-merge-details > small { display: block; margin-top: 12px; color: #667b70; line-height: 1.4; }
+.board-merge-show-sources { margin: 0 0 12px; padding: 8px 10px; border: 1px solid #cfe1d4; border-radius: 8px; background: #f4f8f4; color: #306951; font-size: 12px; font-weight: 700; }
 .board-shell[data-theme="dark"] .board-merge-panel, .board-shell[data-theme="dark"] .board-merge-details, .board-shell[data-theme="dark"] .board-merge-tray { background: #1d2c2a; border-color: #3d5950; color: #e0eae4; }
 .board-shell[data-theme="dark"] .board-merge-panel input, .board-shell[data-theme="dark"] .board-merge-panel textarea { background: #263633; border-color: #405650; color: #e0eae4; }
 .board-shell[data-theme="dark"] .board-merge-reasoning { background: #283d34; color: #c3dac9; }
+.board-shell[data-theme="dark"] .board-merge-count { background: #2f5743; color: #c1efd0; }
+.board-shell[data-theme="dark"] .board-merge-tray .board-merge-chip { background: #263633; border-color: #405650; color: #d3e6db; }
+.board-shell[data-theme="dark"] .board-merge-show-sources { background: #263633; border-color: #405650; color: #b4e2c7; }
 .board-shell[data-theme="dark"] .board-merge-reasoning strong { color: #b4e2c7; }
 .board-shell[data-theme="dark"] .board-bubble.is-merge-source .board-bubble-surface { background: #4d4128; border-color: #ac8c50; }
 .board-shell[data-theme="dark"] .board-bubble.is-merged .board-bubble-surface { background: #294638; border-color: #73af8c; }
@@ -218,7 +228,8 @@
 .board-shell[data-theme="dark"] .board-goal-field textarea { background: #263633; border-color: #405650; color: #dce8e3; }
 @media (max-width: 760px) {
   .board-merge-panel, .board-merge-details { top: 75px; right: 8px; bottom: 8px; width: min(370px, calc(100vw - 16px)); }
-  .board-merge-tray { bottom: 70px; left: 8px; right: 60px; max-width: none; transform: none; flex-wrap: wrap; }
+  .board-merge-tray { bottom: 70px; left: 8px; right: 60px; max-width: none; max-height: 35vh; overflow-y: auto; transform: none; flex-wrap: wrap; }
+  .board-merge-tray .board-merge-tray-copy { min-width: 0; max-width: 100%; flex: 1 1 100%; }
   .board-merge-hint { display: none; }
 }
 .board-chat-compose { border-top: 1px solid #e8eee9; padding: 14px 16px 17px; }

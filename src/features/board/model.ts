@@ -1,7 +1,14 @@
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
-import type { MergeResult } from "@/lib/ideas";
+import type { MergeProposal, MergeResult } from "@/lib/ideas";
 
 export type MergeSourceSnapshot = { id: string; title: string; content: string; author: string };
+export type MergeRelationshipSnapshot = {
+  type: RelationshipType;
+  explanation: string;
+  sourceId: string;
+  targetId: string;
+  condition?: string;
+};
 export type AssistantSourceSnapshot = MergeSourceSnapshot;
 export type AssistantIdeaRecord = {
   sources: AssistantSourceSnapshot[];
@@ -9,14 +16,25 @@ export type AssistantIdeaRecord = {
   model: string;
   generatedAt: string;
 };
-export type MergeRecord = {
+export type LegacyMergeRecord = {
+  version?: 1;
   sources: [MergeSourceSnapshot, MergeSourceSnapshot];
   goal: string;
-  relationship?: { type: RelationshipType; explanation: string; sourceId: string; targetId: string; condition?: string };
-  proposal: MergeResult;
+  relationship?: MergeRelationshipSnapshot;
+  proposal: Exclude<MergeResult, MergeProposal>;
   model: string;
   generatedAt: string;
 };
+export type MergeRecordV2 = {
+  version: 2;
+  sources: MergeSourceSnapshot[];
+  goal: string;
+  relationships: MergeRelationshipSnapshot[];
+  proposal: MergeProposal;
+  model: string;
+  generatedAt: string;
+};
+export type MergeRecord = LegacyMergeRecord | MergeRecordV2;
 
 export type Idea = {
   id: string;
