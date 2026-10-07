@@ -7,7 +7,7 @@ import { BoardApp } from "./board-app";
 import type { Board, ConnectionPair, Idea, Relationship } from "./model";
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
 import { connectionPairKey } from "@/lib/connections";
-import { createBoardStorage, RoomProvider, useMutation, useSelf, useStorage } from "@/lib/liveblocks";
+import { createBoardStorage, RoomProvider, useMutation, useOthers, useSelf, useStorage, useUpdateMyPresence } from "@/lib/liveblocks";
 
 const initialTitle = "Student collaboration ideas";
 
@@ -21,6 +21,13 @@ export function SharedBoardRoom({ boardId }: { boardId: string }) {
 
 function SharedBoardContent() {
   const self = useSelf();
+  const others = useOthers();
+  const updateMyPresence = useUpdateMyPresence();
+  const editingLocks = Object.fromEntries(others.flatMap((other) => {
+    const ideaId = other.presence.editingIdeaId;
+    return ideaId ? [[ideaId, other.info?.name?.trim() || "Another participant"]] : [];
+  }));
+  const updateEditingIdea = useCallback((editingIdeaId: string | null) => updateMyPresence({ editingIdeaId }), [updateMyPresence]);
   const snapshot = useStorage((root) => ({
     title: root.title,
     goal: root.goal,
@@ -61,6 +68,7 @@ function SharedBoardContent() {
       const updated = nextRelationships.get(id);
       if (!updated) relationships.delete(id);
       else {
+        if (updated.condition === undefined && link.get("condition") !== undefined) link.delete("condition");
         link.update(updated);
         nextRelationships.delete(id);
       }
@@ -88,6 +96,8 @@ function SharedBoardContent() {
     sharedBoard={{ goal: snapshot.goal, ideas: snapshot.ideas as Idea[], relationships: snapshot.relationships as Relationship[], dismissedConnections: snapshot.dismissedConnections as ConnectionPair[], clusterSnapshot: snapshot.clusterSnapshot ?? null }}
     sharedTitle={snapshot.title}
     authorName={self?.info?.name?.trim() || "Unknown contributor"}
+    editingLocks={editingLocks}
+    onEditingIdeaChange={updateEditingIdea}
     onBoardChange={changeBoard}
     onTitleChange={updateTitle}
   />;

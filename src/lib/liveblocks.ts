@@ -12,12 +12,12 @@ type BoardStorage = {
   dismissedConnections?: LiveMap<string, ConnectionPair>;
   clusterSnapshot: LiveObject<ClusterSnapshot> | null;
 };
-type BoardPresence = Record<string, never>;
+type BoardPresence = { editingIdeaId?: string | null };
 type BoardUserMeta = { id?: string; info?: { name?: string; avatar?: string } };
 
 const client = createClient({ authEndpoint: "/api/liveblocks-auth" });
 
-export const { RoomProvider, useMutation, useStatus, useStorage, useOthers, useSelf } =
+export const { RoomProvider, useMutation, useStatus, useStorage, useOthers, useSelf, useUpdateMyPresence } =
   createRoomContext<BoardPresence, BoardStorage, BoardUserMeta>(client);
 
 export function createBoardStorage(title: string, ideas: Idea[], relationships: Relationship[]) {

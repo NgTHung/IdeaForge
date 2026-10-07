@@ -30,7 +30,8 @@ function mergeRequest(body) {
 
 test("bad JSON and invalid sources fail before provider calls", async (t) => {
   t.mock.method(globalThis, "fetch", () => assert.fail("Invalid input must not reach the provider"));
-  for (const body of ["{", {}, { ...payload, sources: [payload.sources[0], payload.sources[0]] }]) {
+  const conflictWithoutCondition = { ...payload, relationship: { type: "conflict", explanation: "These approaches compete.", sourceId: "a", targetId: "b" } };
+  for (const body of ["{", {}, { ...payload, sources: [payload.sources[0], payload.sources[0]] }, conflictWithoutCondition]) {
     assert.equal((await POST(mergeRequest(body))).status, 400);
   }
 });
@@ -44,12 +45,20 @@ test("missing key response identifies the cause", async (t) => {
 
 test("merge returns the validated result from a mocked provider", async (t) => {
   process.env.FEATHERLESS_API_KEY = "test-only-secret";
+  const conflictPayload = { ...payload, relationship: {
+    type: "conflict", explanation: "A quiet room and group study compete.", condition: "When the room is shared during individual exams.", sourceId: "a", targetId: "b",
+  } };
   const result = {
     status: "useful", reason: "", title: "Mocked concept", concept: "Mocked concept text", contributionA: "A contributes",
     contributionB: "B contributes", bridge: "A enables B", tension: "Mocked tension", assumptions: ["Mocked assumption"], nextExperiment: "Mocked experiment",
   };
-  t.mock.method(globalThis, "fetch", async () => Response.json({ choices: [{ message: { content: JSON.stringify(result) } }] }));
-  const response = await POST(mergeRequest(payload));
+  t.mock.method(globalThis, "fetch", async (_url, init) => {
+    const request = JSON.parse(init.body);
+    assert.equal(JSON.parse(request.messages[1].content).relationship.condition, conflictPayload.relationship.condition);
+    assert.match(request.messages[0].content, /exact condition under which the notes conflict/);
+    return Response.json({ choices: [{ message: { content: JSON.stringify(result) } }] });
+  });
+  const response = await POST(mergeRequest(conflictPayload));
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.deepEqual(body.result, result);

@@ -4,6 +4,8 @@ import { IDEA_CARD_SIZE, type Idea } from "./model";
 
 export type IdeaNode = Node<{
   idea: Idea;
+  preview?: boolean;
+  editingBy?: string;
   connecting: boolean;
   source: boolean;
   editing: boolean;
@@ -12,10 +14,11 @@ export type IdeaNode = Node<{
   clusterColor?: number;
   mergeIndex: number;
   onMergeDetails?: () => void;
+  onAssistantDetails?: () => void;
   onSelect: (additive: boolean) => void;
   onEdit: () => void;
   onStartConnection: (event: PointerEvent<HTMLDivElement>) => void;
-}, "idea">;
+}, "idea" | "assistantPreview">;
 
 function motionStyle(id: string): CSSProperties {
   let hash = 0;
@@ -44,9 +47,11 @@ export function Bubble({ data, selected, dragging }: NodeProps<IdeaNode>) {
     <Handle id="target-top" type="target" position={Position.Top} isConnectable={false} className="board-hidden-handle" />
     <Handle id="source-top" type="source" position={Position.Top} isConnectable={false} className="board-hidden-handle" />
     <div className="board-bubble-float"><div key={data.squash?.token ?? "idle"} className="board-bubble-squash"><div className="board-bubble-surface">
-      <div className="board-bubble-top"><span className="board-bubble-kicker">{idea.merge ? "COMBINED CONCEPT" : "IDEA"}</span><span className="board-bubble-badges">{data.mergeIndex > 0 && <span className="board-merge-index" aria-label={`Merge idea ${data.mergeIndex}`}>{data.mergeIndex}</span>}{data.clusterLabel && <span className="board-cluster-badge">{data.clusterLabel}</span>}{idea.pinned && <span className="board-pinned" title="Pinned idea">PINNED</span>}</span></div>
-      <h3>{idea.title}</h3><p>{idea.content || "Add a few details to this idea."}</p>
+      <div className="board-bubble-top"><span className="board-bubble-kicker">{idea.assistant ? "ASSISTANT IDEA" : idea.merge ? "COMBINED CONCEPT" : "IDEA"}</span><span className="board-bubble-badges">{data.mergeIndex > 0 && <span className="board-merge-index" aria-label={`Merge idea ${data.mergeIndex}`}>{data.mergeIndex}</span>}{data.clusterLabel && <span className="board-cluster-badge">{data.clusterLabel}</span>}{idea.pinned && <span className="board-pinned" title="Pinned idea">PINNED</span>}</span></div>
+      {data.editingBy && <span className="board-card-editing-lock" title={`${data.editingBy} is editing this idea`}>{data.editingBy} editing</span>}
+      <h3>{idea.title}</h3>{idea.author && <small className="board-bubble-author">By {idea.author}</small>}<p>{idea.content || "Add a few details to this idea."}</p>
       {idea.merge && <button type="button" className="board-merge-details-button nodrag nopan" onClick={(event) => { event.stopPropagation(); data.onMergeDetails?.(); }}>How this idea was made</button>}
+      {idea.assistant && !data.preview && <button type="button" className="board-merge-details-button nodrag nopan" onClick={(event) => { event.stopPropagation(); data.onAssistantDetails?.(); }}>Show assistant sources</button>}
       {data.connecting && <span className="board-connect-dot" aria-hidden="true" />}
     </div></div></div>
     <Handle id="target-right" type="target" position={Position.Right} isConnectable={false} className="board-hidden-handle" />

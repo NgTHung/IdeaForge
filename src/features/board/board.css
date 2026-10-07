@@ -67,6 +67,8 @@
 .board-cluster-badge { padding: 4px 7px; border-radius: 999px; background: #e9efff; color: #4b5e9b; font-size: 9px; font-weight: 800; letter-spacing: .35px; }
 .board-bubble-kicker, .board-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 1.5px; color: #568371; }
 .board-bubble h3 { font-size: 17px; font-weight: 700; line-height: 1.3; margin: 11px 0 8px; color: #253f3b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-bubble-author { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: -5px 0 5px; color: #7a8e84; font-size: 9px; font-weight: 600; }
+.board-bubble-author + p { -webkit-line-clamp: 2; }
 .board-bubble p { margin: 0; font-size: 13px; font-weight: 500; line-height: 1.4; color: #657b76; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .board-connect-dot { position: absolute; right: -6px; top: 50%; width: 12px; height: 12px; border: 2px solid white; border-radius: 50%; background: #198365; box-shadow: 0 0 0 1px #198365; }
 .board-hidden-handle { width: 1px; height: 1px; border: 0; background: transparent; opacity: 0; }
@@ -137,8 +139,42 @@
 .board-goal-field { position: absolute; z-index: 12; top: calc(100% + 8px); left: 0; display: flex; flex-direction: column; gap: 7px; width: min(360px, calc(100vw - 24px)); padding: 12px; border: 1px solid #dce7e0; border-radius: 13px; background: #fff; box-shadow: 0 8px 24px #365b481c; color: #70847c; font-size: 11px; font-weight: 700; pointer-events: auto; }
 .board-goal-field textarea { width: 100%; min-width: 0; min-height: 76px; padding: 8px; border: 1px solid #d5e2da; border-radius: 7px; background: #fbfcfb; color: #465c5d; font: 600 12px/1.4 Arial, Helvetica, sans-serif; resize: vertical; }
 .board-goal-field textarea:focus { border-color: #91bba5; outline: 2px solid #d8ebe0; }
+.board-message.assistant { padding: 12px 14px; }
+.board-assistant-paragraph + .board-assistant-paragraph { margin-top: 12px; padding-top: 11px; border-top: 1px solid #dbe8df; }
+.board-assistant-paragraph p { margin: 0; }
+.board-citations { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.board-citation { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid #b8d9c7; border-radius: 999px; padding: 4px 8px; background: #fff; color: #27694f; font: 600 11px/1.25 Arial, Helvetica, sans-serif; cursor: pointer; }
+.board-citation:hover { background: #e4f4e9; }
+.board-citation.is-gone, .board-citation:disabled { border-color: #d4ded7; background: #edf1ee; color: #78877f; cursor: not-allowed; }
+.board-assistant-attribution { display: block; margin-top: 11px; color: #758b80; font-size: 10px; }
+.board-chat-status, .board-chat-error { margin: 12px 0 0; padding: 9px 11px; border-radius: 8px; font-size: 12px; line-height: 1.4; }
+.board-chat-status { background: #eef6f0; color: #4b6d5a; }
+.board-chat-error { background: #fff0ec; color: #963d32; }
+.board-chat[hidden] { display: none; }
+.board-assistant-action { margin-top: 11px; padding: 11px; border: 1px solid #d8e4dc; border-radius: 10px; background: #fff; color: #3b574b; }
+.board-assistant-action > strong { display: block; font-size: 12px; }
+.board-assistant-action > p { margin: 6px 0; font-size: 11px; line-height: 1.4; }
+.board-assistant-action label { display: block; margin-top: 8px; font-size: 10px; font-weight: 700; }
+.board-assistant-action input, .board-assistant-action textarea, .board-assistant-action select { display: block; width: 100%; margin-top: 4px; padding: 7px; border: 1px solid #d7e3dc; border-radius: 6px; background: #fff; color: #2f4940; font: 500 11px/1.4 Arial, Helvetica, sans-serif; }
+.board-assistant-action textarea { resize: vertical; }
+.board-assistant-action-sources { color: #446e58; font-weight: 700; }
+.board-assistant-direction { border: 0; padding: 2px 0; background: transparent; color: #326e53; font-size: 10px; text-decoration: underline; cursor: pointer; }
+.board-assistant-edit-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 8px 0; }
+.board-assistant-edit-compare > div { min-width: 0; padding: 7px; border-radius: 6px; background: #f2f6f3; }
+.board-assistant-edit-compare small, .board-assistant-edit-compare span { display: block; }
+.board-assistant-edit-compare small { color: #71877b; font-size: 9px; }
+.board-assistant-edit-compare span { margin-top: 3px; overflow-wrap: anywhere; font-size: 10px; font-weight: 700; }
+.board-assistant-edit-compare p { max-height: 70px; margin: 4px 0 0; overflow: auto; overflow-wrap: anywhere; font-size: 10px; line-height: 1.35; }
+.board-assistant-action-buttons { display: flex; gap: 5px; margin-top: 9px; }
+.board-assistant-action-buttons button { flex: 1; border: 1px solid #cdded3; border-radius: 6px; padding: 6px 3px; background: #fff; color: #32674e; font-size: 10px; font-weight: 700; }
+.board-assistant-action-buttons button:disabled { opacity: .45; }
+.board-assistant-action-status { color: #3f7658; font-size: 10px !important; font-weight: 700; }
 .board-bubble.is-merge-source .board-bubble-surface { background: #fff4cb; border-color: #d5ae61; }
 .board-bubble.is-merged .board-bubble-surface { background: #e6f4e9; border-color: #7dae94; }
+.board-card-editing-lock { position: absolute; right: 12px; bottom: 10px; z-index: 2; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 999px; padding: 3px 7px; background: #fff0d2; color: #79591f; font-size: 9px; font-weight: 700; }
+.board-bubble.is-locked-for-editing .board-bubble-surface { box-shadow: inset 0 0 0 2px #d8b568; }
+.react-flow__node.is-assistant-preview .board-bubble-surface { border: 2px dashed #8c62a8; background: #f7f0fb; box-shadow: 0 10px 30px #62427c24; }
+.react-flow__node.is-assistant-preview .board-bubble-kicker { color: #80559a; }
 .board-merge-index { display: grid; place-items: center; width: 21px; height: 21px; border-radius: 50%; background: #8e672f; color: white; font-size: 11px; font-weight: 800; }
 .board-merge-details-button { position: absolute; left: 20px; bottom: 11px; z-index: 2; border: 0; background: transparent; color: #196b51; font-size: 11px; font-weight: 700; padding: 3px 0; text-decoration: underline; }
 .board-bubble.is-merged p { -webkit-line-clamp: 2; }
@@ -173,6 +209,8 @@
 .board-shell[data-theme="dark"] .board-merge-reasoning strong { color: #b4e2c7; }
 .board-shell[data-theme="dark"] .board-bubble.is-merge-source .board-bubble-surface { background: #4d4128; border-color: #ac8c50; }
 .board-shell[data-theme="dark"] .board-bubble.is-merged .board-bubble-surface { background: #294638; border-color: #73af8c; }
+.board-shell[data-theme="dark"] .board-card-editing-lock { background: #514326; color: #f1d99d; }
+.board-shell[data-theme="dark"] .board-bubble.is-locked-for-editing .board-bubble-surface { box-shadow: inset 0 0 0 2px #ad9156; }
 .board-shell[data-theme="dark"] .board-merge-details-button { color: #a6e4bf; }
 .board-shell[data-theme="dark"] .board-goal-control summary { background: #263633; border-color: #405650; color: #c6d7ce; }
 .board-shell[data-theme="dark"] .board-goal-control summary:hover, .board-shell[data-theme="dark"] .board-goal-control summary:focus-visible { background: #2a403a; border-color: #527b6d; }
@@ -226,6 +264,7 @@
 .board-shell[data-theme="dark"] .board-chat-compose { border-color: #344744; }
 .board-shell[data-theme="dark"] .board-bubble-surface { background: #21312f; border-color: #405550; box-shadow: 0 9px 28px #07110f70; }
 .board-shell[data-theme="dark"] .board-bubble h3 { color: #e2eee8; }
+.board-shell[data-theme="dark"] .board-bubble-author { color: #9ab2a5; }
 .board-shell[data-theme="dark"] .board-bubble-kicker,
 .board-shell[data-theme="dark"] .board-eyebrow { color: #86c3a5; }
 .board-shell[data-theme="dark"] .board-bubble p,
@@ -252,6 +291,21 @@
 .board-shell[data-theme="dark"] .board-pinned { background: #29483a; color: #9cdbb8; }
 .board-shell[data-theme="dark"] .board-assistant-message,
 .board-shell[data-theme="dark"] .board-message.assistant { background: #283a35; color: #c9dbd1; }
+.board-shell[data-theme="dark"] .board-assistant-paragraph + .board-assistant-paragraph { border-color: #435a50; }
+.board-shell[data-theme="dark"] .board-citation { background: #1c3028; border-color: #456b56; color: #b5e4c4; }
+.board-shell[data-theme="dark"] .board-citation:hover { background: #284337; }
+.board-shell[data-theme="dark"] .board-citation.is-gone, .board-shell[data-theme="dark"] .board-citation:disabled { background: #303a35; border-color: #4e5c54; color: #a2afa7; }
+.board-shell[data-theme="dark"] .board-assistant-attribution { color: #96b1a2; }
+.board-shell[data-theme="dark"] .board-chat-status { background: #283d34; color: #bddac8; }
+.board-shell[data-theme="dark"] .board-chat-error { background: #4a2d29; color: #ffb9ad; }
+.board-shell[data-theme="dark"] .board-assistant-action { border-color: #3d5950; background: #1d2c2a; color: #d3e3d9; }
+.board-shell[data-theme="dark"] .board-assistant-action input, .board-shell[data-theme="dark"] .board-assistant-action textarea, .board-shell[data-theme="dark"] .board-assistant-action select { border-color: #405650; background: #263633; color: #e0eae4; }
+.board-shell[data-theme="dark"] .board-assistant-action-sources, .board-shell[data-theme="dark"] .board-assistant-direction, .board-shell[data-theme="dark"] .board-assistant-action-status { color: #b4e2c7; }
+.board-shell[data-theme="dark"] .board-assistant-edit-compare > div { background: #283d34; }
+.board-shell[data-theme="dark"] .board-assistant-edit-compare small { color: #a1b9ab; }
+.board-shell[data-theme="dark"] .board-assistant-action-buttons button { border-color: #456b56; background: #243731; color: #b5e4c4; }
+.board-shell[data-theme="dark"] .react-flow__node.is-assistant-preview .board-bubble-surface { border-color: #b696c8; background: #382c40; }
+.board-shell[data-theme="dark"] .react-flow__node.is-assistant-preview .board-bubble-kicker { color: #d2b5e1; }
 .board-shell[data-theme="dark"] .board-prompts button { background: #1b2a27; border-color: #40584f; color: #b7d7c6; }
 .board-shell[data-theme="dark"] .board-prompts button:hover { background: #294137; }
 .board-shell[data-theme="dark"] .board-chat-compose span { color: #8ba197; }
