@@ -8,7 +8,7 @@ Plan based on `main` at commit `1d8fd83` on 6 October 2026. This document descri
 
 `src/lib/similarity.ts` embeds 2 to 50 nonempty cards, caches vectors, and returns one symmetric score for every pair. It uses nearest-neighbor rank on small boards and mean-centered cosine on larger boards. `src/app/api/similarity/route.ts` exposes those scores and maps Gemini failures to safe API errors. Reuse that path so clustering uses the same score definition and does not call Gemini twice.
 
-`src/features/board/board-app.tsx` lets you add and edit cards, pin cards, drag them, and fit the view. It uses `src/features/board/model.ts` for card data and a single `setBoard` path for local and shared boards. Its local Physics toggle starts enabled. The accepted product decision in `docs/decisions.md` calls for an on-demand `Organize` action, fixed pinned cards, and one position update. The implementation must pause Physics before applying cluster positions so the cards stay grouped.
+`src/features/board/board-app.tsx` lets you add and edit cards, pin cards, drag them, and fit the view. It uses `src/features/board/model.ts` for card data and a single `setBoard` path for local and shared boards. Physics runs on local boards and stays off for shared boards. The accepted product decision in `docs/decisions.md` calls for an on-demand `Organize` action, fixed pinned cards, and one position update. The implementation must pause Physics before applying cluster positions so the cards stay grouped.
 
 There is no clustering API or working `Organize` control on `main`. Add this feature on `main` without depending on another branch or a Python service.
 

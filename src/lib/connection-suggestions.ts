@@ -61,7 +61,7 @@ async function analyze(request: ConnectionRequest, store: ConnectionStore) {
   const unclear = reviewed.some(({ judgment }) => judgment.relation === 'unclear' || judgment.confidence < 0.4);
   return connectionResultSchema.parse({
     status: suggestions.length ? 'suggestions' : unclear ? 'needs_clarification' : 'none',
-    explanation: suggestions.length ? 'Jev found possible relationships. Write an explanation or request one before accepting.' : unclear ? 'Some candidate pairs need more detail before a relationship can be suggested.' : pairs.length ? 'No useful relationship was identified among the pairs reviewed.' : 'Every pair is already linked, merged, or dismissed.',
+    explanation: suggestions.length ? 'Possible links found. Review each one before accepting.' : unclear ? 'Some candidate pairs need more detail before a relationship can be suggested.' : pairs.length ? 'No useful relationship was identified among the pairs reviewed.' : 'Every pair is already linked, merged, or dismissed.',
     question: !suggestions.length && unclear ? 'Review prompt: what would these ideas do, and what constraints must they satisfy?' : null,
     suggestions, reviewedPairs: reviewed.length, remainingPairs: pairs.length - reviewed.length,
   });

@@ -22,7 +22,7 @@ export type ClusterLayout = {
 type Size = { width: number; height: number };
 type Point = { x: number; y: number };
 type Rect = Point & Size;
-const CARD_GAP = 34;
+const CARD_GAP = 48;
 const GROUP_PADDING = 54;
 
 function overlaps(left: Rect, right: Rect) {
@@ -67,7 +67,8 @@ function noteRect(center: Point, size: Size): Rect {
   return { x: center.x - size.width / 2, y: center.y - size.height / 2, width: size.width, height: size.height };
 }
 
-function layoutGroup(group: ClusterResponse["groups"][number], ideas: Idea[], scores: Map<string, number>, measured: Record<string, Size | undefined>) {
+function layoutGroup(group: ClusterResponse["groups"][number], ideas: Idea[], scores: Map<string, number>,
+  measured: Record<string, Size | undefined>, connectedPairs: Set<string>) {
   const members = group.noteIds.map((id) => ideas.find((idea) => idea.id === id))
     .filter((idea): idea is Idea => Boolean(idea && !idea.pinned))
     .sort((left, right) => left.id.localeCompare(right.id));
@@ -88,6 +89,9 @@ function layoutGroup(group: ClusterResponse["groups"][number], ideas: Idea[], sc
   const target = (first: Idea, second: Idea) => {
     const a = sizes.get(first.id)!;
     const b = sizes.get(second.id)!;
+    if (connectedPairs.has([first.id, second.id].sort().join("\u0000"))) {
+      return Math.max((a.width + b.width) / 2, (a.height + b.height) / 2) + CARD_GAP;
+    }
     return Math.max((a.width + b.width) / 2, (a.height + b.height) / 2) + CARD_GAP +
       (1 - normalized(scoreFor(scores, first.id, second.id), minimum, maximum)) * 190;
   };
@@ -163,8 +167,19 @@ export function layoutClusters(
   ideas: Idea[],
   result: ClusterResponse,
   measured: Record<string, Size | undefined> = {},
+  connections: [string, string][] = [],
 ): ClusterLayout {
   const scores = noteScoreMap(result.notePairs);
+  const connectedPairs = new Set(connections.map(([first, second]) => [first, second].sort().join("\u0000")));
+  const groupForNote = new Map(result.assignments.map((assignment) => [assignment.noteId, assignment.clusterId]));
+  const groupLinks = new Map<string, number>();
+  for (const [first, second] of connections) {
+    const firstGroup = groupForNote.get(first);
+    const secondGroup = groupForNote.get(second);
+    if (!firstGroup || !secondGroup || firstGroup === secondGroup) continue;
+    const key = [firstGroup, secondGroup].sort().join("\u0000");
+    groupLinks.set(key, (groupLinks.get(key) ?? 0) + 1);
+  }
   const groupScore = new Map(result.groupPairs.map((pair) => [[pair.firstGroupId, pair.secondGroupId].sort().join("\u0000"), pair.meanCrossSimilarity]));
   const pairValues = result.groupPairs.map((pair) => pair.meanCrossSimilarity);
   const minimum = Math.min(...pairValues);
@@ -173,11 +188,11 @@ export function layoutClusters(
   while (ordered.length < result.groups.length) {
     const previous = ordered.at(-1)!;
     const next = result.groups.filter((group) => !ordered.includes(group)).sort((left, right) =>
-      (groupScore.get([previous.id, right.id].sort().join("\u0000")) ?? 0) -
-      (groupScore.get([previous.id, left.id].sort().join("\u0000")) ?? 0) || left.id.localeCompare(right.id))[0];
+      ((groupLinks.get([previous.id, right.id].sort().join("\u0000")) ?? 0) * 10 + (groupScore.get([previous.id, right.id].sort().join("\u0000")) ?? 0)) -
+      ((groupLinks.get([previous.id, left.id].sort().join("\u0000")) ?? 0) * 10 + (groupScore.get([previous.id, left.id].sort().join("\u0000")) ?? 0)) || left.id.localeCompare(right.id))[0];
     ordered.push(next);
   }
-  const groupLayouts = ordered.map((group) => layoutGroup(group, ideas, scores, measured));
+  const groupLayouts = ordered.map((group) => layoutGroup(group, ideas, scores, measured, connectedPairs));
   const assignedIds = new Set(result.assignments.map((item) => item.noteId));
   const fixed = ideas.filter((idea) => idea.pinned || !assignedIds.has(idea.id)).map((idea) => ({
     id: idea.id, ...idea.position, ...(measured[idea.id] ?? IDEA_CARD_SIZE),
@@ -197,7 +212,8 @@ export function layoutClusters(
       previousInRow = null;
     }
     const similarity = previousInRow ? groupScore.get([previousInRow.groupId, layout.group.id].sort().join("\u0000")) ?? 0 : 0;
-    const gap = 220 + (1 - normalized(similarity, minimum, maximum)) * 150;
+    const linkedGroupCount = previousInRow ? groupLinks.get([previousInRow.groupId, layout.group.id].sort().join("\u0000")) ?? 0 : 0;
+    const gap = linkedGroupCount ? 120 : 220 + (1 - normalized(similarity, minimum, maximum)) * 150;
     const planned: Point = layout.anchor ? {
       x: layout.anchor.x - layout.width / 2,
       y: layout.anchor.y - layout.height / 2,

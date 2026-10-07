@@ -29,9 +29,11 @@ test('concurrent acceptance of the same pair cannot create duplicate links', () 
   assert.equal(acceptConnection(accepted, { ...preview, id: 'other-browser', sourceId: 'b', targetId: 'a' }), accepted);
 });
 
-test('conflicts require a condition and every suggestion requires an explanation', () => {
+test('conflicts require a condition but can be accepted without an explanation', () => {
   assert.equal(canAcceptConnection(board, { ...preview, condition: ' ' }), false);
-  assert.equal(canAcceptConnection(board, { ...preview, explanation: ' ' }), false);
+  const unexplained = { ...preview, explanation: ' ' };
+  assert.equal(canAcceptConnection(board, unexplained), true);
+  assert.equal(acceptConnection(board, unexplained).relationships[0].explanation, '');
 });
 
 test('moving, pinning, reordering and accepting do not change the request key; text and goal do', () => {
@@ -42,11 +44,11 @@ test('moving, pinning, reordering and accepting do not change the request key; t
   assert.notEqual(connectionInputKey('Goal', ideas.map((idea) => ({ ...idea, content: 'Edited' }))), key);
 });
 
-test('unexplained Jev labels remain visible but cannot be accepted', () => {
-  const label = { ...preview, explanation: '', condition: null };
+test('unexplained Jev labels can be accepted directly', () => {
+  const label = { ...preview, type: 'synergy', explanation: '', condition: null };
   assert.equal(isCurrentConnection(board, label), true);
-  assert.equal(canAcceptConnection(board, label), false);
-  assert.equal(acceptConnection(board, label), board);
+  assert.equal(canAcceptConnection(board, label), true);
+  assert.deepEqual(acceptConnection(board, label).relationships, [{ id: 'preview', source: 'a', target: 'b', type: 'synergy', explanation: '' }]);
 });
 
 test('dismissal hides a pair in either direction, survives a new preview id, and is recorded once', () => {

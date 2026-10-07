@@ -56,7 +56,7 @@ export function dismissConnection(board: Board, pair: ConnectionPair): Board {
 }
 
 export function canAcceptConnection(board: Board, preview: ConnectionPreview): boolean {
-  return isCurrentConnection(board, preview) && Boolean(preview.explanation.trim()) &&
+  return isCurrentConnection(board, preview) &&
     (preview.type !== 'conflict' || Boolean(preview.condition?.trim()));
 }
 
