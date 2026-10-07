@@ -59,11 +59,11 @@ function generation(t, result = explanation, status = 200) {
 
 test('invalid JSON, duplicate cards, invalid links and oversized text never call a provider', async (t) => {
   t.mock.method(globalThis, 'fetch', () => assert.fail('Must not call provider'));
-  for (const input of ['{', {}, { ...payload, goal: ' ' }, { ...payload, cards: [payload.cards[0], payload.cards[0]] }, { ...payload, cards: Array(51).fill(payload.cards[0]) }, { ...payload, cards: [{ id: 'a', text: 'x'.repeat(4001) }, payload.cards[1]] }, { ...payload, existingLinks: [{ sourceId: 'a', targetId: 'missing' }] }]) assert.equal((await POST(request(input))).status, 400);
+  for (const input of ['{', {}, { ...payload, goal: ' ' }, { ...payload, cards: [payload.cards[0], payload.cards[0]] }, { ...payload, cards: Array(51).fill(payload.cards[0]) }, { ...payload, cards: [{ id: 'a', text: 'x'.repeat(4001) }, payload.cards[1]] }, { ...payload, excludedPairs: [{ sourceId: 'a', targetId: 'missing' }] }]) assert.equal((await POST(request(input))).status, 400);
 });
 
 test('local candidates are deterministic, exclude existing links, and contain distinct valid endpoints', () => {
-  const input = { ...payload, cards: [...payload.cards, { id: 'c', text: 'Study partner matching' }], existingLinks: [{ sourceId: 'b', targetId: 'a' }] };
+  const input = { ...payload, cards: [...payload.cards, { id: 'c', text: 'Study partner matching' }], excludedPairs: [{ sourceId: 'b', targetId: 'a' }] };
   const pairs = localCandidatePairs(input);
   assert.deepEqual(pairs, localCandidatePairs({ ...input, cards: [...input.cards].reverse() }));
   assert.equal(pairs.length, 2);
@@ -163,7 +163,7 @@ test('large multilingual cards remain within the Jev input byte limit', async (t
 
 test('all-linked boards skip all providers', async (t) => {
   t.mock.method(globalThis, 'fetch', () => assert.fail('No provider needed'));
-  const result = await suggestConnections({ ...payload, existingLinks: [{ sourceId: 'a', targetId: 'b' }] });
+  const result = await suggestConnections({ ...payload, excludedPairs: [{ sourceId: 'a', targetId: 'b' }] });
   assert.equal(result.status, 'none'); assert.equal(reservations.length, 0);
 });
 

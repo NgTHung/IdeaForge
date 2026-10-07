@@ -14,7 +14,7 @@ export function connectionScope(request: { boardId?: string; goal: string }) {
 }
 
 export async function suggestConnections(request: ConnectionRequest, store: ConnectionStore = connectionStore) {
-  const workKey = connectionHash({ kind: 'board-result', version: CONNECTION_RULES_VERSION, ...request, cards: [...request.cards].sort((a, b) => a.id.localeCompare(b.id)), existingLinks: [...request.existingLinks].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))), model: jevModel() });
+  const workKey = connectionHash({ kind: 'board-result', version: CONNECTION_RULES_VERSION, ...request, cards: [...request.cards].sort((a, b) => a.id.localeCompare(b.id)), excludedPairs: [...request.excludedPairs].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))), model: jevModel() });
   const cached = connectionResultSchema.safeParse((await store.get([workKey])).get(workKey));
   if (cached.success) return cached.data;
   if (store === connectionStore && inFlight.has(workKey)) return inFlight.get(workKey)!;
@@ -61,7 +61,7 @@ async function analyze(request: ConnectionRequest, store: ConnectionStore) {
   const unclear = reviewed.some(({ judgment }) => judgment.relation === 'unclear' || judgment.confidence < 0.4);
   return connectionResultSchema.parse({
     status: suggestions.length ? 'suggestions' : unclear ? 'needs_clarification' : 'none',
-    explanation: suggestions.length ? 'Jev found possible relationships. Write an explanation or request one before accepting.' : unclear ? 'Some candidate pairs need more detail before a relationship can be suggested.' : pairs.length ? 'No useful relationship was identified among the pairs reviewed.' : 'All pairs already have a relationship.',
+    explanation: suggestions.length ? 'Jev found possible relationships. Write an explanation or request one before accepting.' : unclear ? 'Some candidate pairs need more detail before a relationship can be suggested.' : pairs.length ? 'No useful relationship was identified among the pairs reviewed.' : 'Every pair is already linked, merged, or dismissed.',
     question: !suggestions.length && unclear ? 'Review prompt: what would these ideas do, and what constraints must they satisfy?' : null,
     suggestions, reviewedPairs: reviewed.length, remainingPairs: pairs.length - reviewed.length,
   });

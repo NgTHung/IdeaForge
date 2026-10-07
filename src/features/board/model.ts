@@ -32,7 +32,8 @@ export type Relationship = {
   explanation: string;
   condition?: string;
 };
-export type Board = { goal?: string; ideas: Idea[]; relationships: Relationship[]; clusterSnapshot?: ClusterSnapshot | null };
+export type ConnectionPair = { sourceId: string; targetId: string };
+export type Board = { goal?: string; ideas: Idea[]; relationships: Relationship[]; dismissedConnections?: ConnectionPair[]; clusterSnapshot?: ClusterSnapshot | null };
 
 export const IDEA_CARD_SIZE = { width: 272, height: 148 } as const;
 

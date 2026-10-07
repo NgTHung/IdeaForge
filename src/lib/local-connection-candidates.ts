@@ -21,7 +21,7 @@ export function localCandidatePairs(request: ConnectionRequest): CandidatePair[]
     return new Map([...vector].map(([term, value]) => [term, norm ? value / norm : 0]));
   });
   const scores = vectors.map((a) => vectors.map((b) => [...a].reduce((sum, [term, value]) => sum + value * (b.get(term) ?? 0), 0)));
-  const linked = new Set(request.existingLinks.map(({ sourceId, targetId }) => connectionPairKey(sourceId, targetId)));
+  const linked = new Set(request.excludedPairs.map(({ sourceId, targetId }) => connectionPairKey(sourceId, targetId)));
   const neighbors = cards.map((card, index) => {
     const remaining = cards.map((_, i) => i).filter((i) => i !== index && !linked.has(connectionPairKey(card.id, cards[i].id)))
       .sort((a, b) => scores[index][b] - scores[index][a] || a - b);
