@@ -1,26 +1,71 @@
-.connection-suggestions { position: absolute; z-index: 6; top: 88px; right: 18px; width: min(330px, calc(100% - 94px)); max-height: calc(100% - 170px); display: flex; flex-direction: column; border: 1px solid #dce7e0; border-radius: 14px; background: #fff; box-shadow: 0 8px 28px #203b3020; font-size: 13px; }
+.connection-suggestions { position: absolute; z-index: 6; top: 88px; right: 18px; width: min(330px, calc(100% - 94px)); max-height: calc(100% - 170px); display: flex; flex-direction: column; container-type: inline-size; border: 1px solid #dce7e0; border-radius: 14px; background: #fff; box-shadow: 0 8px 28px #203b3020; font-size: 13px; }
 .connection-suggestions header { flex-shrink: 0; }
-.connection-suggestions header > button { display: flex; justify-content: space-between; width: 100%; border: 0; border-radius: 14px; background: transparent; color: inherit; padding: 15px; font-weight: 700; text-align: left; }
-.connection-suggestions-body { padding: 0 15px 14px; overflow-y: auto; min-height: 0; }
-.connection-suggestions-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.connection-suggestions-controls label { display: flex; align-items: center; gap: 5px; }
-.connection-suggestions button { border: 1px solid #d6e3da; border-radius: 7px; padding: 7px 9px; color: #345b4c; background: #f7faf8; font-size: 12px; }
+.connection-suggestions header > button { display: flex; justify-content: space-between; width: 100%; border: 0; border-radius: 14px; background: transparent; color: inherit; padding: 15px 16px; font-size: 14px; font-weight: 700; text-align: left; }
+.connection-suggestions-body { padding: 0 16px 14px; overflow-y: auto; min-height: 0; }
+.connection-suggestions-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.connection-suggestions-controls label { display: flex; align-items: center; gap: 6px; margin: 0; white-space: nowrap; }
+.connection-suggestions-controls button { min-height: 36px; white-space: nowrap; }
+.connection-suggestions button { border: 1px solid #d6e3da; border-radius: 8px; padding: 7px 9px; color: #345b4c; background: #f7faf8; font-size: 12px; }
 .connection-suggestions button:disabled { opacity: .5; }
 .connection-suggestions p { line-height: 1.5; overflow-wrap: anywhere; }
 .connection-suggestions-status, .connection-suggestions-hint { color: #63796e; }
+.connection-accepted-notice { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 12px; border: 1px solid #bfe0d5; border-radius: 8px; background: #e7f4ef; color: #1f5f52; animation: connection-accepted-fade 4s linear forwards; }
+.connection-accepted-notice svg { flex: none; }
+.connection-accepted-notice span { flex: 1; }
+.connection-suggestions .connection-accepted-notice button { display: grid; place-items: center; width: 28px; height: 28px; min-height: 28px; margin: -4px -8px -4px 0; padding: 0; border: 0; background: transparent; color: inherit; font-size: 18px; line-height: 1; }
+.connection-suggestions .connection-accepted-notice button:hover { background: #d4ebe2; }
+.connection-suggestions .connection-accepted-notice button:focus-visible { outline: 3px solid #75b6a2; outline-offset: 2px; }
+@keyframes connection-accepted-fade { 0%, 90% { opacity: 1; } 100% { opacity: 0; } }
 .connection-suggestions-hint { margin-bottom: 0; font-size: 11px; }
 .connection-question { padding: 10px; border-radius: 8px; background: #edf6f8; }
-.connection-suggestion { margin-top: 15px; padding-top: 12px; border-top: 1px solid #dce7e0; }
-.connection-pair { margin-top: 0; }
-.connection-suggestion label { display: block; margin: 9px 0; font-size: 12px; font-weight: 600; }
-.connection-suggestion textarea, .connection-suggestion select { display: block; width: 100%; margin-top: 5px; padding: 7px; border: 1px solid #d6e3da; border-radius: 7px; color: inherit; background: #fff; font: inherit; line-height: 1.5; }
-.connection-suggestion textarea { resize: vertical; }
-.connection-suggestion-actions { display: flex; justify-content: flex-end; gap: 8px; }
-.connection-suggestion-actions .primary { background: #16785f; border-color: #16785f; color: #fff; }
+.connection-suggestion { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 16px 0; border: 0; }
+.connection-suggestion ~ .connection-suggestion { border-top: 1px solid #dce7e0; }
+.connection-pair { display: block; margin: 0; color: #6b7e75; font-size: 13px; line-height: 1.25; overflow-wrap: anywhere; }
+.connection-pair strong { color: #31483f; font-weight: 600; }
+.connection-pair-connector { margin: 0 6px; color: #6b7f7a; font-size: .9em; font-weight: 400; white-space: nowrap; }
+.connection-suggestion-fields { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.connection-suggestion-field { display: flex; flex-direction: column; gap: 6px; width: 100%; margin: 0; color: #50665c; font-size: 11px; font-weight: 600; }
+.connection-suggestion-field select, .connection-suggestion-field textarea { display: block; width: 100%; min-width: 0; margin: 0; padding: 8px 9px; border: 1px solid #d6e3da; border-radius: 7px; color: #31483f; background: #fff; font: inherit; font-size: 12px; line-height: 1.4; }
+.connection-suggestion-field select { font-weight: 500; }
+.connection-suggestion-field textarea { resize: vertical; }
+.connection-explanation { margin: 0; padding: 9px 10px; border-radius: 8px; background: #f2f7f4; color: #536b60; font-size: 12px; }
+.connection-suggestion-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 8px; }
+.connection-suggestion-actions button { height: 36px; min-height: 36px; padding: 0 10px; border-radius: 8px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.connection-suggestion-utilities { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.connection-suggestion-utilities button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; border-color: transparent; background: transparent; color: #5a6e69; font-weight: 500; }
+.connection-suggestion-utilities button:first-child { margin-left: -8px; }
+.connection-suggestion-utilities button svg { flex: none; }
+.connection-suggestion-utilities button:hover:not(:disabled) { background: #f1f6f4; color: #405d50; }
+.connection-suggestion-primary-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.connection-suggestion-primary-actions button:not(.primary) { border-color: #ccd9d1; background: #fff; color: #52675d; font-weight: 500; }
+.connection-suggestion-primary-actions button.primary:not(:disabled) { border-color: #2b756a; background: #2b756a; color: #fff; }
+.connection-suggestion-primary-actions button.primary:disabled { border-color: #dbe8e2; background: #e8f0ec; color: #8da198; }
+.connection-suggestion button:focus-visible, .connection-suggestion-field select:focus-visible, .connection-suggestion-field textarea:focus-visible, .connection-suggestions-controls button:focus-visible, .connection-suggestions header > button:focus-visible { outline: 3px solid #75b6a2; outline-offset: 2px; }
 .board-shell[data-theme="dark"] .connection-suggestions { background: #1c2a29; border-color: #344744; }
-.board-shell[data-theme="dark"] .connection-suggestions button, .board-shell[data-theme="dark"] .connection-suggestion textarea, .board-shell[data-theme="dark"] .connection-suggestion select { background: #263633; border-color: #405650; color: #dce8e3; }
+.board-shell[data-theme="dark"] .connection-explanation { background: #283a35; color: #c9dbd1; }
+.board-shell[data-theme="dark"] .connection-suggestions button, .board-shell[data-theme="dark"] .connection-suggestion-field select, .board-shell[data-theme="dark"] .connection-suggestion-field textarea { background: #263633; border-color: #405650; color: #dce8e3; }
+.board-shell[data-theme="dark"] .connection-pair strong { color: #dce8e3; }
+.board-shell[data-theme="dark"] .connection-pair-connector { color: #a6bbb1; }
+.board-shell[data-theme="dark"] .connection-suggestions .connection-accepted-notice button { border-color: transparent; background: transparent; color: #1f5f52; }
+.board-shell[data-theme="dark"] .connection-suggestions .connection-accepted-notice button:hover { background: #d4ebe2; }
+.board-shell[data-theme="dark"] .connection-suggestion-utilities button { border-color: transparent; background: transparent; color: #a6bbb1; }
+.board-shell[data-theme="dark"] .connection-suggestion-utilities button:hover:not(:disabled) { background: #293d36; color: #dce8e3; }
+.board-shell[data-theme="dark"] .connection-suggestion-primary-actions button:not(.primary) { border-color: #50635b; background: transparent; color: #c6d7ce; }
+.board-shell[data-theme="dark"] .connection-suggestion-primary-actions button.primary:not(:disabled) { border-color: #2b756a; background: #2b756a; color: #fff; }
+.board-shell[data-theme="dark"] .connection-suggestion-primary-actions button.primary:disabled { border-color: #344744; background: #293b35; color: #82988d; }
 .board-shell[data-theme="dark"] .connection-suggestions-status, .board-shell[data-theme="dark"] .connection-suggestions-hint { color: #bacbc3; }
-.board-shell[data-theme="dark"] .connection-suggestion { border-color: #405650; }
+.board-shell[data-theme="dark"] .connection-suggestion ~ .connection-suggestion { border-color: #405650; }
 .board-shell[data-theme="dark"] .connection-question { background: #263b41; }
-.board-shell[data-theme="dark"] .connection-suggestion-actions .primary { background: #16785f; }
-@media (max-width: 760px) { .connection-suggestions { right: 12px; top: 80px; max-height: calc(100% - 180px); } }
+@media (max-width: 760px) {
+  .connection-suggestions { right: 12px; top: 80px; max-height: calc(100% - 180px); }
+  .connection-suggestion-actions button { min-height: 44px; }
+}
+@container (max-width: 379px) {
+  .connection-suggestion-actions { align-items: stretch; flex-direction: column; }
+  .connection-suggestion-utilities { width: 100%; }
+  .connection-suggestion-primary-actions { width: 100%; margin-left: 0; }
+  .connection-suggestion-primary-actions button { flex: 1; min-width: 0; height: auto; white-space: normal; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .connection-accepted-notice { animation: none; }
+}
