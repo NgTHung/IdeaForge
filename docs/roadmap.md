@@ -14,7 +14,7 @@ Done:
 - Two-note selection, editable AI merge previews, and merged concept cards with two visible ancestry links and saved source snapshots.
 - Shared-board header with active connection avatars and count; the member list shows connected names and Editor or Viewer access.
 - Account popover on the landing screen and shared boards, with the signed-in user's name and sign-out action.
-- Automatic relationship suggestions across the board, with a two-second delay after saved text changes. Up to three dashed links can be edited, accepted, or dismissed. Suggestions shortlist pairs locally and classify them with Jev, exclude existing links, and become invalid when source text changes. The generation model explains a pair only on request; people can also write the explanation. MongoDB caches results and enforces shared request allowances. Each browser can pause suggestions or refresh them.
+- Automatic relationship suggestions across the board, with a two-second delay after saved text changes. Up to three dashed links can be edited, accepted, or dismissed. Dismissals save with the board for every participant. Suggestions shortlist pairs locally and classify them with Jev, exclude linked, dismissed, and merge-lineage pairs, and become invalid when source text changes. The generation model explains a pair only on request; people can also write the explanation. MongoDB caches results and enforces shared request allowances. Each browser can pause suggestions or refresh them.
 - Merge endpoint with Zod validation and JSON output from GLM-5.3-Flash on Featherless
 - Liveblocks guest authorization route
 - Shared server-only AI module (Featherless generation, Gemini embeddings) with one retry, optional generation and embedding fallbacks, output validation, and cause-specific errors
@@ -55,6 +55,8 @@ Known gaps:
 
 To regenerate a proposal today, discard it and merge again. Retry and fallback failures were tested with mocked provider responses; live overload and fallback behavior remain unverified. Liveblocks behavior was not retested for WORK-011.
 
+On 2026-10-07, WORK-031 saved suggestion dismissals with the board and excluded merge lineage from suggestion requests. All 87 automated tests, lint, typecheck, and the production build passed. A local production server over Tailscale used live Jev, MongoDB, and Liveblocks. Two guest tabs on one new room received the same three suggestions; the second tab's request reused the cached result. Dismissing a pair in one tab removed it from the other right away. Changing the board goal started a new live Jev pass, and both tabs showed three suggestions without the dismissed pair. The Liveblocks REST API showed the pair stored in the room's `dismissedConnections` map. Merge-lineage exclusion and the cooldown waiting status were covered only by unit tests and code review; no live merge or cooldown response ran.
+
 On 2026-10-07, WORK-030 moved generation from Gemini to `zai-org/GLM-5.3-Flash` on Featherless and kept Gemini embeddings. All 85 automated tests, lint, typecheck, and the production build passed. Mocked tests cover the chat completions request, JSON-mode and schema prompt, reasoning-effort and token-limit settings, reasoning-block and Markdown-fence unwrapping, separate provider keys, and the unchanged retry, fallback, and timeout policy. No `FEATHERLESS_API_KEY` was available, so live Featherless generation, its JSON-mode behavior, its overload status codes, and latency at `low` reasoning effort remain unverified.
 
 On 2026-10-07, WORK-029 replaced automatic Gemini suggestions with local matching and Jev classification. All 80 automated tests, lint, typecheck, and the production build passed. Mocked provider tests cover bounded batches, classification validation, caching, changed-source invalidation, explicit explanations, and no retry or fallback. Live MongoDB tests used an isolated collection: eight concurrent requests for one board allowed one call, separate boards shared the daily limit, a second store read the cache, expired entries were ignored, and explanation requests had a separate allowance. The collection was removed afterward.
@@ -88,7 +90,7 @@ Day 1 is the first of the five days remaining as of 2026-10-05. Each day ends wi
 | 4 | Session with an unfamiliar team, AI evaluation, release checks | Feature freeze: every release check passes |
 | 5 | Demo board, backup video, README, submission | Submitted with time remaining |
 
-Stretch work starts only after the Day 3 milestone is done. It covers a board assistant that proposes actions as previews, specified in [Board assistant](assistant.md), and live cursors.
+Stretch work covers a board assistant that proposes actions as previews, specified in [Board assistant](assistant.md), and live cursors. Board assistant work may start when its technical prerequisites are ready. Live cursor work starts only after the Day 3 milestone is done.
 
 If the schedule slips, cut in this order:
 

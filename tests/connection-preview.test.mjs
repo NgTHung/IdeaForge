@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { acceptConnection, canAcceptConnection, isCurrentConnection, connectionInputKey } from '../src/features/board/connection-preview.ts';
+import { acceptConnection, canAcceptConnection, connectionInputKey, dismissConnection, excludedConnectionPairs, isCurrentConnection } from '../src/features/board/connection-preview.ts';
 
 const ideas = ['a', 'b'].map((id) => ({ id, title: id, content: `Content ${id}`, position: { x: 0, y: 0 }, pinned: false, parentIds: [] }));
 const board = { ideas, relationships: [] };
@@ -47,4 +47,22 @@ test('unexplained Jev labels remain visible but cannot be accepted', () => {
   assert.equal(isCurrentConnection(board, label), true);
   assert.equal(canAcceptConnection(board, label), false);
   assert.equal(acceptConnection(board, label), board);
+});
+
+test('dismissal hides a pair in either direction, survives a new preview id, and is recorded once', () => {
+  const dismissed = dismissConnection(board, { sourceId: 'b', targetId: 'a' });
+  assert.deepEqual(dismissed.dismissedConnections, [{ sourceId: 'a', targetId: 'b' }]);
+  assert.equal(isCurrentConnection(dismissed, { ...preview, id: 'next-pass' }), false);
+  assert.equal(canAcceptConnection(dismissed, preview), false);
+  assert.equal(dismissConnection(dismissed, preview), dismissed);
+  assert.deepEqual(board.dismissedConnections, undefined);
+});
+
+test('merge lineage excludes parent, ancestor, and co-source pairs that are still on the board', () => {
+  const card = (id, parentIds = []) => ({ id, title: id, content: id, position: { x: 0, y: 0 }, pinned: false, parentIds });
+  const lineage = { relationships: [{ id: 'link', source: 'e', target: 'd', type: 'synergy', explanation: 'Saved' }], ideas: [
+    card('a'), card('b'), card('c', ['a', 'b']), card('d', ['c', 'missing']), card('e'), card('f'),
+  ] };
+  const pairs = excludedConnectionPairs(lineage).map(({ sourceId, targetId }) => `${sourceId}-${targetId}`);
+  assert.deepEqual(pairs, ['a-b', 'a-c', 'a-d', 'b-c', 'b-d', 'c-d', 'd-e']);
 });

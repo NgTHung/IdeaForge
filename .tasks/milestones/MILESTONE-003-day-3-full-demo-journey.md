@@ -5,12 +5,12 @@ status: "To Do"
 priority: "High"
 type: "Milestone"
 milestone: "day-3"
-last_updated: "2026-10-05"
+last_updated: "2026-10-07"
 ---
 
 ## Summary
 
-End of Day 3. Every step of the demo journey works on the deployed app. Stretch work may start only after this milestone.
+End of Day 3. Every step of the demo journey works on the deployed app. Live cursor work may start only after this milestone. Board assistant work may start when its technical prerequisites are ready.
 
 ## Exit Criteria
 

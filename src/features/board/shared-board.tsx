@@ -1,11 +1,12 @@
 "use client";
 
-import { LiveObject } from "@liveblocks/client";
+import { LiveMap, LiveObject } from "@liveblocks/client";
 import { useCallback } from "react";
 import { initialBoard } from "./fixtures";
 import { BoardApp } from "./board-app";
-import type { Board, Idea, Relationship } from "./model";
+import type { Board, ConnectionPair, Idea, Relationship } from "./model";
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
+import { connectionPairKey } from "@/lib/connections";
 import { createBoardStorage, RoomProvider, useMutation, useSelf, useStorage } from "@/lib/liveblocks";
 
 const initialTitle = "Student collaboration ideas";
@@ -25,16 +26,19 @@ function SharedBoardContent() {
     goal: root.goal,
     ideas: Object.values(root.ideas),
     relationships: Object.values(root.relationships),
+    dismissedConnections: Object.values(root.dismissedConnections ?? {}),
     clusterSnapshot: root.clusterSnapshot as ClusterSnapshot | undefined,
   }));
   const updateBoard = useMutation(({ storage }, update: (board: Board) => Board) => {
     const ideas = storage.get("ideas");
     const relationships = storage.get("relationships");
     const savedClusterSnapshot = storage.get("clusterSnapshot");
+    const dismissed = storage.get("dismissedConnections");
     const current: Board = {
       goal: storage.get("goal"),
       ideas: [...ideas.entries()].map(([, idea]) => idea.toJSON() as Idea),
       relationships: [...relationships.entries()].map(([, link]) => link.toJSON() as Relationship),
+      dismissedConnections: [...dismissed?.values() ?? []],
       clusterSnapshot: savedClusterSnapshot?.toJSON() as ClusterSnapshot | undefined,
     };
     const next = update(current);
@@ -62,6 +66,14 @@ function SharedBoardContent() {
       }
     }
     for (const link of nextRelationships.values()) relationships.set(link.id, new LiveObject(link));
+
+    // Dismissals are only added, so a whole-board write from a stale snapshot can't restore a pair another participant dismissed.
+    const addedDismissals = (next.dismissedConnections ?? []).filter((pair) => !dismissed?.has(connectionPairKey(pair.sourceId, pair.targetId)));
+    if (addedDismissals.length) {
+      const target = dismissed ?? new LiveMap<string, ConnectionPair>();
+      for (const pair of addedDismissals) target.set(connectionPairKey(pair.sourceId, pair.targetId), pair);
+      if (!dismissed) storage.set("dismissedConnections", target);
+    }
     if (JSON.stringify(next.clusterSnapshot ?? null) !== JSON.stringify(current.clusterSnapshot ?? null)) {
       storage.set("clusterSnapshot", next.clusterSnapshot ? new LiveObject(next.clusterSnapshot) : null);
     }
@@ -73,7 +85,7 @@ function SharedBoardContent() {
   if (!snapshot) return <main className="board-connection-state" aria-live="polite">Connecting to shared board…</main>;
 
   return <BoardApp
-    sharedBoard={{ goal: snapshot.goal, ideas: snapshot.ideas as Idea[], relationships: snapshot.relationships as Relationship[], clusterSnapshot: snapshot.clusterSnapshot ?? null }}
+    sharedBoard={{ goal: snapshot.goal, ideas: snapshot.ideas as Idea[], relationships: snapshot.relationships as Relationship[], dismissedConnections: snapshot.dismissedConnections as ConnectionPair[], clusterSnapshot: snapshot.clusterSnapshot ?? null }}
     sharedTitle={snapshot.title}
     authorName={self?.info?.name?.trim() || "Unknown contributor"}
     onBoardChange={changeBoard}

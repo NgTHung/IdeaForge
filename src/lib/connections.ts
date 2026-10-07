@@ -5,11 +5,12 @@ export const connectionRequestSchema = z.object({
   boardId: z.uuid().optional(),
   goal: z.string().trim().min(1).max(500),
   cards: z.array(sourceSchema).min(2).max(50),
-  existingLinks: z.array(z.object({ sourceId: z.string().min(1).max(100), targetId: z.string().min(1).max(100) })).max(2500).default([]),
-}).superRefine(({ cards, existingLinks }, context) => {
+  // Pairs that already have a saved link, merge lineage, or a dismissal.
+  excludedPairs: z.array(z.object({ sourceId: z.string().min(1).max(100), targetId: z.string().min(1).max(100) })).max(2500).default([]),
+}).superRefine(({ cards, excludedPairs }, context) => {
   const ids = new Set(cards.map((card) => card.id));
   if (ids.size !== cards.length) context.addIssue({ code: 'custom', path: ['cards'], message: 'Card IDs must be unique.' });
-  if (existingLinks.some(({ sourceId, targetId }) => sourceId === targetId || !ids.has(sourceId) || !ids.has(targetId))) context.addIssue({ code: 'custom', path: ['existingLinks'], message: 'Links must connect two different cards on the board.' });
+  if (excludedPairs.some(({ sourceId, targetId }) => sourceId === targetId || !ids.has(sourceId) || !ids.has(targetId))) context.addIssue({ code: 'custom', path: ['excludedPairs'], message: 'Excluded pairs must name two different cards on the board.' });
 });
 
 export const connectionResultSchema = z.object({
