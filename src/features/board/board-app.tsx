@@ -15,7 +15,7 @@ import { useConnectDrag } from "./use-connect-drag";
 import { usePhysics, type Contact } from "./use-physics";
 import { useConnectionSuggestions } from "./use-connection-suggestions";
 import { ConnectionSuggestionsPanel } from "./connection-suggestions-panel";
-import { canAcceptConnection } from "./connection-preview";
+import { isCurrentConnection } from "./connection-preview";
 import { clusterAssignmentResponseSchema, clusterNamesResponseSchema, clusterResponseSchema, type ClusterCard, type ClusterNamesRequest } from "@/lib/cluster-contract";
 import { layoutClusters, placeNewNote } from "./cluster-layout";
 import { appendClusterAssignment, memberFingerprint, renameClusterGroup } from "./cluster-state";
@@ -842,7 +842,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   const undoPlacementAvailable = Boolean(assignmentUndo && !clusterSnapshot?.stale && clusterSnapshot?.revision === assignmentUndo.appliedRevision &&
     board.ideas.find((idea) => idea.id === assignmentUndo.id)?.position.x === assignmentUndo.after.x &&
     board.ideas.find((idea) => idea.id === assignmentUndo.id)?.position.y === assignmentUndo.after.y);
-  const edges = useMemo<Edge[]>(() => [...[...board.relationships, ...suggestions.previews.filter((preview) => canAcceptConnection(board, preview)).map((preview) => ({ id: preview.id, source: preview.sourceId, target: preview.targetId, type: preview.type, explanation: preview.explanation }))].map((link) => {
+  const edges = useMemo<Edge[]>(() => [...[...board.relationships, ...suggestions.previews.filter((preview) => isCurrentConnection(board, preview)).map((preview) => ({ id: preview.id, source: preview.sourceId, target: preview.targetId, type: preview.type, explanation: preview.explanation }))].map((link) => {
     const provisional = suggestions.previews.some((preview) => preview.id === link.id);
     const source = board.ideas.find((idea) => idea.id === link.source);
     const target = board.ideas.find((idea) => idea.id === link.target);

@@ -1,6 +1,6 @@
 # IdeaForge
 
-A brainstorming canvas for capturing ideas and drawing typed relationships between them. You can group notes by embedding similarity, choose the number of groups, and place new notes into an existing group. The home screen creates or joins shared boards; merge and connection-suggestion endpoints still need UI flows.
+A brainstorming canvas for capturing ideas and drawing typed relationships between them. You can group notes by embedding similarity, choose the number of groups, and place new notes into an existing group. The home screen creates or joins shared boards. The canvas offers editable merge previews and automatic relationship suggestions.
 
 Built in one week for Forgehack.
 
@@ -12,7 +12,9 @@ Choose **Connect**, then drag from one idea into another. Release over the targe
 
 Choose **Organize** to group notes by embedding similarity. Select 2 to 10 groups, review the scores, then choose **Organize canvas** to arrange the rectangular notes in separate spatial groups. Similar note pairs are placed closer when space permits; every pair's similarity and distance is returned by the clustering endpoint. Group badges identify membership without drawing bubble regions. Gemini suggests concise group names after organizing, and you can rename them in the Organize panel. Naming sends up to 300 characters from each note to Gemini. Pinned notes stay where they are, and you can undo the layout before moving a note. After the first Organize, turn on **Place new notes in an existing group** in the add-note dialog. Saving a new note then moves only that note near its most similar existing group. The switch remembers your choice in this browser. Set `GEMINI_API_KEY` to enable grouping, placement, and naming. Shared boards save group membership, labels, and positions through Liveblocks.
 
-Use **Select** or **Hand / Pan** for navigation. Hold Space while dragging to pan, scroll to zoom, and use the lower-left controls to zoom or fit the ideas. Physics is disabled on shared boards so saved positions stay in place. The assistant panel accepts prompts and returns a fixed message that states AI is not connected. Merge and connection-suggestion routes do not yet have canvas controls.
+Use **Select** or **Hand / Pan** for navigation. Hold Space while dragging to pan, scroll to zoom, and use the lower-left controls to zoom or fit the ideas. Physics is disabled on shared boards so saved positions stay in place. The assistant panel accepts prompts and returns a fixed message that states AI is not connected. Select two notes to request a merge preview; keeping it preserves both originals and their source snapshots.
+
+Automatic relationship suggestions use local text matching to shortlist pairs, then Jev classifies them. They do not call Gemini or an embedding API. Review up to three dashed connections, write an explanation or choose **Explain with Gemini**, then accept. A conflict also needs a condition. Local matching can miss translations and complementary ideas that use different words.
 
 ## Getting started
 
@@ -45,11 +47,20 @@ This API foundation does not yet create boards or restrict Liveblocks room acces
 | `GEMINI_FALLBACK_MODEL` | Optional AI fallback | Used once after the primary model fails twice with overload or timeout |
 | `GEMINI_EMBEDDING_MODEL` | Embedding calls | Defaults to `gemini-embedding-001`; used by `/api/similarity` and `/api/similarity/clusters` |
 | `GEMINI_EMBEDDING_FALLBACK_MODEL` | Optional embedding fallback | Must be an embedding model; generation fallback is never used for embeddings |
+| `TYPESAFE_API_KEY` | Automatic relationship classification | Server-side TypeSafe credential; no Gemini fallback |
+| `JEV_MODEL` | Relationship classifier | Defaults to `jev-1.13.0` |
+| `MONGODB_URI` / `MONGODB_DB_NAME` | Suggestion cache and allowances | Shared across server workers; database defaults to `ideaforge_dev` |
+| `CONNECTION_JEV_DAILY_REQUEST_LIMIT` | Automatic suggestion allowance | Defaults to 200 provider requests per UTC day across the app; 0 disables new calls |
+| `CONNECTION_EXPLANATION_DAILY_REQUEST_LIMIT` | Requested explanation allowance | Defaults to 20 Gemini requests per UTC day across the app; 0 disables new calls |
 | `LIVEBLOCKS_SECRET_KEY` | Shared boards | Get one at https://liveblocks.io/dashboard. Used by `/api/liveblocks-auth` |
 
 All keys stay on the server. `.env.local` is git-ignored.
 
-Each Gemini attempt has a 30-second timeout. On overload, quota exhaustion, or timeout, the server waits one second and retries once. If that attempt fails for the same causes, it calls the configured fallback once. Other errors stop immediately. A merge can take about 91 seconds across all three attempts; the browser waits 96 seconds. Error responses name the cause of a failed request.
+Except for relationship explanations, each Gemini attempt has a 30-second timeout. On overload, quota exhaustion, or timeout, the server waits one second and retries once. If that attempt fails for the same causes, it calls the configured fallback once. Other errors stop immediately. A merge can take about 91 seconds across all three attempts; the browser waits 96 seconds. Error responses name the cause of a failed request.
+
+Relationship classification and explanations each make one provider attempt, without retry or fallback. Classification sends at most 24 pairs and 48 KB per batch, with a 20-second provider timeout and a shared 30-second board cooldown. Pair judgments and board results expire after 24 hours. Repeated unchanged boards reuse their result; remaining candidates wait for a board change or cache expiry. Explanation results are cached by goal, source text, type, direction, and model. Failed provider attempts still consume the allowance. Merge and Organize requests use their existing policies outside these suggestion allowances.
+
+For access on this machine through Tailscale, bind the frontend to `0.0.0.0` and open `http://100.102.144.120:3000`. Account API origin settings must match the address used by the browser.
 
 ## Scripts
 
@@ -81,7 +92,7 @@ src/server/                      Express account API (Better Auth, MongoDB)
 
 ## Status
 
-This is an early hackathon build. The canvas keeps its board in memory and doesn't yet call the AI or Liveblocks routes, so merging, shared boards, and persistence aren't available in the UI. Undo isn't implemented. The app has no rate limit of its own on AI requests; Gemini's quotas apply. See the [roadmap](docs/roadmap.md) for what has been verified and what's next.
+This is an early hackathon build with shared boards, merge previews, and relationship review. Automatic classification requires a TypeSafe key and MongoDB. See the [roadmap](docs/roadmap.md) for verification evidence and remaining work.
 
 ## Documentation
 

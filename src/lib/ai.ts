@@ -51,13 +51,15 @@ async function callGemini<T>(
   model: string,
   fallback: string | undefined,
   operation: (ai: GoogleGenAI, model: string) => Promise<T>,
+  maxAttempts = 3,
 ): Promise<T> {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) throw new AiError("missing_key");
   const ai = new GoogleGenAI({ apiKey });
   const models = [model, model];
   if (fallback && fallback !== model) models.push(fallback);
-  for (const [attempt, currentModel] of models.entries()) {
+  const attempts = models.slice(0, maxAttempts);
+  for (const [attempt, currentModel] of attempts.entries()) {
     try {
       return await operation(ai, currentModel);
     } catch (error) {
@@ -68,7 +70,7 @@ async function callGemini<T>(
         providerStatus: error instanceof ApiError ? error.status : undefined,
       });
       const retryable = failure.code === "provider_overload" || failure.code === "timeout";
-      if (!retryable || attempt === models.length - 1) throw failure;
+      if (!retryable || attempt === attempts.length - 1) throw failure;
       if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, AI_RETRY_DELAY_MS));
     }
   }
@@ -80,11 +82,11 @@ type GenerationRequest = {
   config?: Omit<GenerateContentConfig, "httpOptions" | "abortSignal" | "responseMimeType" | "responseJsonSchema" | "responseSchema">;
 };
 
-export async function generateJson<T extends z.ZodType>(request: GenerationRequest, schema: T): Promise<z.output<T>> {
-  return (await generateJsonWithModel(request, schema)).result;
+export async function generateJson<T extends z.ZodType>(request: GenerationRequest, schema: T, options?: { maxAttempts: 1 }): Promise<z.output<T>> {
+  return (await generateJsonWithModel(request, schema, options)).result;
 }
 
-export async function generateJsonWithModel<T extends z.ZodType>(request: GenerationRequest, schema: T): Promise<{ result: z.output<T>; model: string }> {
+export async function generateJsonWithModel<T extends z.ZodType>(request: GenerationRequest, schema: T, options?: { maxAttempts: 1 }): Promise<{ result: z.output<T>; model: string }> {
   return callGemini(
     process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash",
     process.env.GEMINI_FALLBACK_MODEL?.trim(),
@@ -101,7 +103,7 @@ export async function generateJsonWithModel<T extends z.ZodType>(request: Genera
       } catch {
         throw new AiError("invalid_output");
       }
-    },
+    }, options?.maxAttempts,
   );
 }
 
