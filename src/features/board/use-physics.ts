@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { forceCollide, forceLink, forceManyBody, forceSimulation, type Simulation, type SimulationLinkDatum, type SimulationNodeDatum } from "d3-force";
 import { IDEA_CARD_SIZE, type Board } from "./model";
+import { resolveNodeOverlaps } from "./node-layout";
 
 type Particle = SimulationNodeDatum & { id: string; x: number; y: number; pinned: boolean };
 type Spring = SimulationLinkDatum<Particle> & { source: string | Particle; target: string | Particle };
@@ -12,7 +13,7 @@ export type Contact = { first: string; second: string; axis: "x" | "y" };
 const CARD_CENTER = { x: IDEA_CARD_SIZE.width / 2, y: IDEA_CARD_SIZE.height / 2 };
 const CONTACT_GAP = 42;
 const MOTION = {
-  collisionRadius: Math.ceil(Math.hypot(IDEA_CARD_SIZE.width, IDEA_CARD_SIZE.height) / 2),
+  collisionRadius: Math.ceil(Math.hypot(IDEA_CARD_SIZE.width + 48, IDEA_CARD_SIZE.height + 48) / 2),
   collisionStrength: 0.4,
   repulsion: -55,
   linkDistance: 345,
@@ -75,6 +76,23 @@ export function usePhysics(board: Board, enabled: boolean, frozenId: string | nu
       frame.current = requestAnimationFrame(() => {
         frame.current = null;
         if (!latest.current.enabled) return;
+        if (!dragging.current) {
+          const ideas = latest.current.board.ideas.map((idea) => {
+            const node = particles.current.get(idea.id);
+            return node ? { ...idea, position: { x: node.x - CARD_CENTER.x, y: node.y - CARD_CENTER.y } } : idea;
+          });
+          const fixed = new Set([latest.current.frozenId].filter((id): id is string => Boolean(id)));
+          const resolved = resolveNodeOverlaps(ideas, {}, fixed);
+          for (const [id, position] of resolved) {
+            const node = particles.current.get(id);
+            if (!node || node.x - CARD_CENTER.x === position.x && node.y - CARD_CENTER.y === position.y) continue;
+            node.x = position.x + CARD_CENTER.x;
+            node.y = position.y + CARD_CENTER.y;
+            if (node.pinned || node.id === latest.current.frozenId) { node.fx = node.x; node.fy = node.y; }
+            node.vx = 0;
+            node.vy = 0;
+          }
+        }
         const positions = new Map<string, { x: number; y: number }>();
         for (const node of particles.current.values()) {
           if (node.id !== dragging.current && node.id !== latest.current.frozenId && !node.pinned)
