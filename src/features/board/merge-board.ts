@@ -15,7 +15,7 @@ export function mergeContext(board: Board, ids: [string, string]) {
     link.source === ids[0] && link.target === ids[1] || link.source === ids[1] && link.target === ids[0]);
   const goal = board.goal === undefined ? "Help students build a consistent study habit." : board.goal.trim();
   const fingerprint = JSON.stringify({ goal, sources: sources.map((source) => ({ id: source.id, title: source.title, content: source.content, author: source.author })),
-    relationship: relationship ? { id: relationship.id, source: relationship.source, target: relationship.target, type: relationship.type, explanation: relationship.explanation } : null });
+    relationship: relationship ? { id: relationship.id, source: relationship.source, target: relationship.target, type: relationship.type, explanation: relationship.explanation, condition: relationship.condition } : null });
   return { sources, relationship, goal, fingerprint };
 }
 
@@ -24,9 +24,10 @@ function intersects(first: Idea["position"], second: Idea["position"], gap: numb
     first.y < second.y + IDEA_CARD_SIZE.height + gap && first.y + IDEA_CARD_SIZE.height + gap > second.y;
 }
 
-export function mergedIdeaPosition(board: Board, parents: [Idea, Idea]): Idea["position"] {
-  const midX = (parents[0].position.x + parents[1].position.x) / 2;
-  const baseY = Math.max(parents[0].position.y, parents[1].position.y) + IDEA_CARD_SIZE.height + 100;
+export function relatedIdeaPosition(board: Board, parents: Idea[]): Idea["position"] {
+  if (parents.length === 0) return { x: 0, y: 0 };
+  const midX = parents.reduce((sum, idea) => sum + idea.position.x, 0) / parents.length;
+  const baseY = Math.max(...parents.map((idea) => idea.position.y)) + IDEA_CARD_SIZE.height + 100;
   const offsets = [0, -1, 1, -2, 2, -3, 3];
   for (let row = 0; row < 12; row += 1) {
     for (const offset of offsets) {
@@ -35,6 +36,10 @@ export function mergedIdeaPosition(board: Board, parents: [Idea, Idea]): Idea["p
     }
   }
   return { x: midX, y: baseY + 12 * (IDEA_CARD_SIZE.height + 44) };
+}
+
+export function mergedIdeaPosition(board: Board, parents: [Idea, Idea]): Idea["position"] {
+  return relatedIdeaPosition(board, parents);
 }
 
 export function addMergedIdea(board: Board, id: string, title: string, content: string, merge: MergeRecord, author: string): Board {

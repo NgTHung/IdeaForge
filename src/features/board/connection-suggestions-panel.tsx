@@ -13,9 +13,10 @@ type Props = {
   suggestions: ReturnType<typeof useConnectionSuggestions>;
   onBoardChange: (update: (board: Board) => Board) => void;
   minimized?: boolean;
+  authorName?: string;
 };
 
-export function ConnectionSuggestionsPanel({ board, suggestions, onBoardChange, minimized = false }: Props) {
+export function ConnectionSuggestionsPanel({ board, suggestions, onBoardChange, minimized = false, authorName }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [notice, setNotice] = useState(0);
   useEffect(() => {
@@ -29,7 +30,7 @@ export function ConnectionSuggestionsPanel({ board, suggestions, onBoardChange, 
   const busy = suggestions.loading || suggestions.waiting;
   function accept(preview: ConnectionPreview) {
     if (!canAcceptConnection(board, preview)) return;
-    onBoardChange((current) => acceptConnection(current, preview));
+    onBoardChange((current) => acceptConnection(current, preview, authorName));
     suggestions.remove(preview.id);
     setNotice((current) => current + 1);
   }

@@ -1,13 +1,13 @@
 ---
 id: "WORK-004"
 title: "Typed relationship links"
-status: "To Do"
+status: "In Progress"
 priority: "High"
 type: "Feature"
 milestone: "day-1"
 impact: "Adds links to board storage and new edge types to the canvas."
 tags: ["enhancement", "ready-for-agent"]
-last_updated: "2026-10-05"
+last_updated: "2026-10-07"
 ---
 
 ## Summary
@@ -22,3 +22,7 @@ Owner: SE1. People connect two cards with a link that says how the ideas relate.
 - [ ] Each type has a distinct color and label, and ancestry edges stay visually distinct from relationship links.
 - [ ] You can edit a link's type and explanation, and delete the link.
 - [ ] Links sync between browsers on a shared board and survive a reload.
+
+## Implementation note — 2026-10-07
+
+The relationship form now captures a required explanation, author, and conflict condition; selected links can be edited or deleted. The model validates endpoints, duplicates, explanations, and conflict conditions, and removes obsolete conditions when a conflict changes type. Model tests cover these rules. The two-browser sync and reload criterion remains unverified.

@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    ".assistant-route-validation/**",
+    ".venv-clustering/**",
+    "ops/connectivity/edge-ui-test/**",
   ]),
 ]);
 

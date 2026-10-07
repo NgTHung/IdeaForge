@@ -60,12 +60,13 @@ export function canAcceptConnection(board: Board, preview: ConnectionPreview): b
     (preview.type !== 'conflict' || Boolean(preview.condition?.trim()));
 }
 
-export function acceptConnection(board: Board, preview: ConnectionPreview): Board {
+export function acceptConnection(board: Board, preview: ConnectionPreview, author?: string): Board {
   if (!canAcceptConnection(board, preview)) return board;
   const relationship: Relationship = {
     id: preview.id, source: preview.sourceId, target: preview.targetId, type: preview.type,
     explanation: preview.explanation.trim(),
     ...(preview.type === 'conflict' ? { condition: preview.condition!.trim() } : {}),
+    ...(author ? { author } : {}),
   };
   return createRelationship(board, relationship);
 }

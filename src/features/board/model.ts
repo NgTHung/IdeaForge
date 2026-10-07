@@ -2,10 +2,17 @@ import type { ClusterSnapshot } from "@/lib/cluster-contract";
 import type { MergeResult } from "@/lib/ideas";
 
 export type MergeSourceSnapshot = { id: string; title: string; content: string; author: string };
+export type AssistantSourceSnapshot = MergeSourceSnapshot;
+export type AssistantIdeaRecord = {
+  sources: AssistantSourceSnapshot[];
+  generated: { title: string; content: string };
+  model: string;
+  generatedAt: string;
+};
 export type MergeRecord = {
   sources: [MergeSourceSnapshot, MergeSourceSnapshot];
   goal: string;
-  relationship?: { type: RelationshipType; explanation: string; sourceId: string; targetId: string };
+  relationship?: { type: RelationshipType; explanation: string; sourceId: string; targetId: string; condition?: string };
   proposal: MergeResult;
   model: string;
   generatedAt: string;
@@ -21,6 +28,7 @@ export type Idea = {
   parentIds: string[];
   author?: string;
   merge?: MergeRecord;
+  assistant?: AssistantIdeaRecord;
 };
 
 export type RelationshipType = "synergy" | "conflict" | "extends";
@@ -31,6 +39,7 @@ export type Relationship = {
   type: RelationshipType;
   explanation: string;
   condition?: string;
+  author?: string;
 };
 export type ConnectionPair = { sourceId: string; targetId: string };
 export type Board = { goal?: string; ideas: Idea[]; relationships: Relationship[]; dismissedConnections?: ConnectionPair[]; clusterSnapshot?: ClusterSnapshot | null };
@@ -72,10 +81,28 @@ export function setIdeaPinned(board: Board, id: string, pinned: boolean): Board 
 }
 export function createRelationship(board: Board, relationship: Relationship): Board {
   const { source, target, type } = relationship;
-  if (source === target || !board.ideas.some((idea) => idea.id === source) || !board.ideas.some((idea) => idea.id === target)) return board;
+  if (source === target || type === "conflict" && !relationship.condition?.trim() ||
+    !board.ideas.some((idea) => idea.id === source) || !board.ideas.some((idea) => idea.id === target)) return board;
   const duplicate = board.relationships.some((link) => link.type === type &&
     (link.source === source && link.target === target || type !== "extends" && link.source === target && link.target === source));
-  return duplicate ? board : { ...board, relationships: [...board.relationships, relationship] };
+  if (duplicate) return board;
+  const saved = { ...relationship };
+  if (saved.type !== "conflict") delete saved.condition;
+  return { ...board, relationships: [...board.relationships, saved] };
+}
+export function updateRelationship(board: Board, id: string, patch: Partial<Relationship>): Board {
+  const existing = board.relationships.find((link) => link.id === id);
+  if (!existing) return board;
+  const relationship = { ...existing, ...patch, id };
+  if (relationship.source === relationship.target ||
+    relationship.type === "conflict" && !relationship.condition?.trim() ||
+    !board.ideas.some((idea) => idea.id === relationship.source) || !board.ideas.some((idea) => idea.id === relationship.target)) return board;
+  const duplicate = board.relationships.some((link) => link.id !== id && link.type === relationship.type &&
+    (link.source === relationship.source && link.target === relationship.target ||
+      relationship.type !== "extends" && link.source === relationship.target && link.target === relationship.source));
+  if (duplicate) return board;
+  if (relationship.type !== "conflict") delete relationship.condition;
+  return { ...board, relationships: board.relationships.map((link) => link.id === id ? relationship : link) };
 }
 export function deleteRelationship(board: Board, id: string): Board {
   return { ...board, relationships: board.relationships.filter((link) => link.id !== id) };

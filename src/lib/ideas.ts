@@ -11,10 +11,12 @@ export const mergeRequestSchema = z.object({
   relationship: z.object({
     type: z.enum(["synergy", "conflict", "extends"]),
     explanation: z.string().trim().max(500),
+    condition: z.string().trim().max(600).optional(),
     sourceId: z.string().min(1).max(100),
     targetId: z.string().min(1).max(100),
   }).optional(),
 }).refine(({ sources, relationship }) => sources[0].id !== sources[1].id && (!relationship ||
+  (relationship.type !== "conflict" || Boolean(relationship.condition?.trim())) &&
   relationship.sourceId !== relationship.targetId && sources.some((source) => source.id === relationship.sourceId) && sources.some((source) => source.id === relationship.targetId)),
 "Select two different notes and a link between them.");
 

@@ -1,7 +1,7 @@
 ---
 id: "WORK-026"
 title: "Assistant idea previews with ancestry"
-status: "To Do"
+status: "In Progress"
 priority: "Low"
 type: "Feature"
 parent: "WORK-021"
@@ -10,7 +10,7 @@ risk: "Medium"
 impact: "Adds ghost ideas to the canvas and creates ideas with parents and source snapshots."
 tags: ["enhancement", "ready-for-agent"]
 whitepaper: "docs/assistant.md"
-last_updated: "2026-10-06"
+last_updated: "2026-10-08"
 ---
 
 ## Summary
@@ -25,3 +25,7 @@ Owner: SE1. Show the assistant's create actions as ghost ideas on the canvas, an
 - [ ] The accepted idea keeps the generated title and content next to the editable ones, and is labeled as created with the assistant.
 - [ ] Accepting is blocked when a source card changed or was deleted since the request, and the chat offers to ask again, using the staleness check from work:WORK-009.
 - [ ] Discarding removes the ghost without changing the board, and previews stay in the requesting browser.
+
+## Implementation note — 2026-10-07
+
+Create actions have editable local previews, dashed ancestry, source snapshots, accepting-author attribution, generated-text/model/time provenance, parent links, stale-source checks, and latest-board mutation checks. On 2026-10-08, a live shared-board browser test showed a ghost idea with two ancestry edges; accepting an edited title created an assistant-labeled card with both source snapshots and generated text. The card survived reload and guest rejoin. The test did not cover content editing, stale-source rejection, preview isolation across browsers, or discard, so the acceptance criteria remain open.
