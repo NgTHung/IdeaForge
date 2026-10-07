@@ -5,12 +5,12 @@ status: "To Do"
 priority: "Low"
 type: "Feature"
 parent: "WORK-021"
-depends_on: ["WORK-011", "milestones:MILESTONE-003"]
+depends_on: ["WORK-011"]
 risk: "Medium"
 impact: "Adds a Gemini route whose output names board cards and proposes board changes."
 tags: ["enhancement", "ready-for-agent"]
 whitepaper: "docs/assistant.md"
-last_updated: "2026-10-06"
+last_updated: "2026-10-07"
 ---
 
 ## Summary

@@ -67,10 +67,10 @@ MVP: one shared board for about four participants and 30 to 50 short cards. Thes
 - Persistence across reloads and reconnects.
 - Clear feedback when an AI request fails.
 
-Stretch, started only after the MVP works on the deployed app:
+Stretch:
 
-- A board assistant that proposes create, edit, link, and merge actions as previews. A board this size fits in one prompt, so the assistant uses the whole board as context and needs no retrieval. The design is in [Board assistant](assistant.md).
-- Live cursors.
+- A board assistant that proposes create, edit, link, and merge actions as previews. A board this size fits in one prompt, so the assistant uses the whole board as context and needs no retrieval. Work may start when its technical prerequisites are ready. The design is in [Board assistant](assistant.md).
+- Live cursors, started only after the MVP works on the deployed app.
 
 Deferred:
 
@@ -151,6 +151,8 @@ For Organize, the browser sends eligible note text and the selected group count 
 - The merge route exports `maxDuration = 95` to cover three 30-second AI attempts and the retry delay. Keep Fluid compute enabled when deploying; its duration limits support this budget. See [Vercel function duration](https://vercel.com/docs/functions/configuring-functions/duration).
 
 ## Log
+
+- 2026-10-07: board assistant work no longer waits for Day 3. At the user's request, `work:WORK-021` and `work:WORK-024` no longer depend on `milestones:MILESTONE-003`. Assistant tasks keep their technical dependencies and stretch priority. This replaces the Day 3 gate recorded in the 2026-10-06 assistant design decision. Live cursor work still waits for Day 3.
 
 - **2026-10-07: dismissed suggestions are saved with the board.** The user reported that dismissed suggestions came back on the next automatic pass and that merged cards were suggested as related to their own sources. Dismissal used to remove only a browser-local preview with a random ID, and requests excluded only saved links. The board now stores dismissed pairs in a Liveblocks `dismissedConnections` map keyed by the unordered pair. Rooms created earlier get the map on their first dismissal. A dismissal hides the pair for every participant and stays in effect after either card is edited. Nothing in the interface reverses one yet. The request field `existingLinks` became `excludedPairs`, which holds saved links, dismissed pairs, and merge lineage. Every browser derives the same list from shared storage, so collaborators keep sending identical requests that share one cached result. A cooldown response caused by another browser's analysis now shows a waiting status and retries instead of an error. WORK-031 tracks the change.
 - **2026-10-07: generation moves from Gemini to Featherless GLM-5.3-Flash.** The user asked to replace AI Studio generation with Featherless and keep embeddings unchanged. Merges, group names, and requested relationship explanations now call `zai-org/GLM-5.3-Flash` through Featherless's OpenAI-compatible chat completions API with `FEATHERLESS_API_KEY`. `FEATHERLESS_MODEL`, `FEATHERLESS_FALLBACK_MODEL`, and `FEATHERLESS_REASONING_EFFORT` replace `GEMINI_MODEL` and `GEMINI_FALLBACK_MODEL`. Organize and new-note placement keep `gemini-embedding-001` with `GEMINI_API_KEY`, so cached vectors and similarity thresholds are unaffected. Both providers share the existing retry, fallback, timeout, logging, and error-cause policy. Featherless documents JSON mode but not schema-constrained output, so the schema goes in the system message and Zod validation rejects mismatches as invalid output. Explanation cache keys include the new model, so cached Gemini explanations are not reused. Note text for these features now goes to Featherless instead of Google. WORK-030 tracks implementation and verification.

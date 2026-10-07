@@ -122,4 +122,4 @@ The epic `work:WORK-021` tracks this feature. Its tasks are:
 | `work:WORK-027` | Edit, link, and merge previews |
 | `work:WORK-028` | The assistant evaluation |
 
-Work starts after the Day 3 milestone, `milestones:MILESTONE-003`. The previews depend on the connection suggestion UI (`work:WORK-009`), editable merge proposals (`work:WORK-010`), and the editing lock (`work:WORK-014`), because they reuse those tasks' staleness check, source snapshots, and lock.
+Work may start when its technical prerequisites are ready. The previews depend on the connection suggestion UI (`work:WORK-009`), editable merge proposals (`work:WORK-010`), and the editing lock (`work:WORK-014`), because they reuse those tasks' staleness check, source snapshots, and lock.
