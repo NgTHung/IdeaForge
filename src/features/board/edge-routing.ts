@@ -1,4 +1,4 @@
-import { IDEA_CARD_SIZE, type Idea } from "./model";
+import { IDEA_CARD_SIZE, type Idea } from "./model.ts";
 
 export type Point = { x: number; y: number };
 export type Side = "left" | "right" | "top" | "bottom";
@@ -331,7 +331,7 @@ function labelFor(text: string | undefined, points: Point[], nodes: Rect[], labe
   const midpoint = (horizontal ? (part.first.x + part.second.x) : (part.first.y + part.second.y)) / 2;
   const reach = horizontal ? width / 2 + 32 : height / 2 + 32;
   const low = Math.min(horizontal ? part.first.x : part.first.y, horizontal ? part.second.x : part.second.y) + reach;
-  const high = Math.max(horizontal ? part.first.x : part.second.x, horizontal ? part.first.y : part.second.y) - reach;
+  const high = Math.max(horizontal ? part.first.x : part.first.y, horizontal ? part.second.x : part.second.y) - reach;
   const positions = [midpoint, midpoint - 32, midpoint + 32, midpoint - 64, midpoint + 64].filter((value) => value >= low && value <= high);
   for (const position of positions) {
     const x = horizontal ? position : (part.first.x + part.second.x) / 2;
