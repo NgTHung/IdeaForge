@@ -88,7 +88,6 @@ export function usePhysics(board: Board, enabled: boolean, frozenId: string | nu
             if (!node || node.x - CARD_CENTER.x === position.x && node.y - CARD_CENTER.y === position.y) continue;
             node.x = position.x + CARD_CENTER.x;
             node.y = position.y + CARD_CENTER.y;
-            if (node.pinned || node.id === latest.current.frozenId) { node.fx = node.x; node.fy = node.y; }
             node.vx = 0;
             node.vy = 0;
           }
