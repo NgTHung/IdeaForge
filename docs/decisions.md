@@ -12,7 +12,11 @@ Differentiator: Miro AI already generates, clusters, and summarizes sticky notes
 
 ### Core journey
 
+<<<<<<< Updated upstream
 A participant opens a board link and enters a display name. The team adds idea cards and clicks **Organize** to group related cards. They select a card, click **Suggest connections**, and review the suggested links. They merge two cards into a concept preview, keep it, and generate a short concept brief from it.
+=======
+A participant opens a board link and enters a display name. The team adds idea cards and clicks **Organize** to group related cards. Participants can request suggested links and review them before acceptance. They merge two cards into a concept preview, keep it, and generate a short concept brief from it.
+>>>>>>> Stashed changes
 
 ### Relationships
 
@@ -28,8 +32,14 @@ A link records how two ideas relate. Each link has a type, an explanation, and a
 
 - Similarity isn't agreement. Two cards on the same topic can propose opposite approaches, so closeness on the canvas never creates a link.
 - When asked for connections, the AI can answer that no useful relationship exists, or that a relationship needs clarification and what question would settle it.
+<<<<<<< Updated upstream
 - AI suggestions are provisional. Nothing is saved until a person accepts a suggestion, optionally after editing its type or explanation.
 - A request returns at most three suggestions. Candidates include the card's nearest neighbors and a few cards from other groups, because combining ideas across themes is part of the creativity hypothesis.
+=======
+- AI suggestions are provisional. Nothing is saved until a person accepts a suggestion, optionally after changing its type or direction and requesting an explanation.
+- A request returns at most three suggestions across the board. For each card, candidates include four nearest neighbors and up to three diverse cards selected by their lowest maximum similarity to the cards already chosen. Boards do not store semantic groups yet; this diversity rule is a provisional way to reach other themes. The counts still need evaluation on real notes.
+- Automatic suggestions are off by default. When enabled, each browser requests suggestions after two seconds without saved text or board-goal changes. Moving cards, accepting links, and dismissing suggestions do not trigger generation. Requests exclude pairs with a saved link, a dismissal, or merge lineage. Lineage covers a merged card and every ancestor, plus the two sources of each merge. People can pause automatic suggestions or refresh manually. Previews stay local until accepted. A dismissal is saved with the board, so it applies to every participant and survives reloads.
+>>>>>>> Stashed changes
 - Anyone can link or merge any two cards, however far apart they are.
 
 ### Merge rules
@@ -46,7 +56,11 @@ A link records how two ideas relate. Each link has a type, an explanation, and a
 
 ### Organize
 
+<<<<<<< Updated upstream
 Cards move only when someone clicks **Organize** or drags a card. There's no continuous physics. Organize lays out the board once from embedding similarity and saves the positions, and the other browsers animate to them. Pinned cards keep their positions. Canvas distance is an approximate cue, not a precise map of meaning.
+=======
+**Organize** moves cards on request using embedding similarity, saves the positions, and lets the other browsers animate to them. The local demo runs Physics for temporary movement; shared boards keep it disabled, and Organize pauses it before applying a layout. Pinned cards keep their positions. Canvas distance is an approximate cue, not a precise map of meaning.
+>>>>>>> Stashed changes
 
 ### Concept brief
 
@@ -133,7 +147,13 @@ Each idea and relationship stores its creator actor ID and display-name snapshot
 
 For a merge, suggestion, or brief, the browser sends the goal, the relevant card text, and any link between the selected cards to a route handler. The route validates the request with Zod and calls Gemini through the shared AI module. It then validates the structured output and checks that every returned card ID appeared in the request. The browser holds the result until someone accepts it. Accepting first checks that the source cards haven't changed since the request, then writes through the same Liveblocks mutations as manual edits. Accepting a merge creates the child note in one operation, and the original generated proposal is stored alongside the editable concept text.
 
+<<<<<<< Updated upstream
 For Organize, the browser that clicks the button gets similarity scores from the server. It then runs d3-force to completion with pinned cards fixed, and writes every new position in one batch. Other browsers animate from the old positions to the new ones. Only one browser computes each layout, so browsers never compete over positions. Embeddings are derived from card text. The server computes them on request and caches at most 2,000 text entries per process. Each score batch uses vectors from one embedding model, and the cache evicts least-recently used entries. Embeddings aren't board data.
+=======
+For suggested links, the server shortlists pairs with local word and phrase TF-IDF scores plus diverse candidates. Jev classifies up to 24 uncached pairs within a 48 KB request. Provisional filters require confidence of at least 0.4 and usefulness of at least 0.6; these thresholds need evaluation against human judgments and are not accuracy guarantees. The browser shows at most three labels, with no generated explanation. People may request an AI explanation or accept a link without one. A conflict still requires a stated condition. Shared caches retain pair judgments, board results, and explanations for 24 hours. Repeated board snapshots reuse the same result instead of purchasing further batches.
+
+For Organize, the browser sends eligible note text and the selected group count to `/api/similarity/clusters`. The server reuses the embedding cache and merges clusters by average pair score until the requested count remains. The response includes group membership, the actual embedding model, representative and neighbor scores, score distances, mean similarity between every group pair, and one `{ sourceId, targetId, similarity, distance }` entry for every unordered note pair. The browser arranges unpinned rectangular notes within spatially separated groups using those pair scores, then writes positions and a compact group snapshot in one board update. Group badges remain visible without bubble outlines. Pinned notes keep their coordinates. After a full Organize, **Place new notes in an existing group** can assign a newly saved note by its mean similarity to each existing group. The assignment endpoint returns the chosen group and a complete pair score table for the submitted notes; the browser moves only the new note. The preference belongs to the current browser. Shared boards persist group membership and invisible rectangular bounds through Liveblocks. Embeddings are derived from card text, cached for up to 2,000 text entries per process, and never stored as board data. Each result identifies the score method because rank scores and centered cosine scores have different meanings.
+>>>>>>> Stashed changes
 
 ## Access and configuration
 
@@ -175,6 +195,13 @@ For Organize, the browser that clicks the button gets similarity scores from the
   - The chatbot became a stretch goal, and retrieval over documents was deferred.
 
   The team kept this repository's stack instead of the brief's Express, Socket.IO, and MongoDB proposal. Evidence for these choices is in [Similarity](#similarity) and [AI reliability](#ai-reliability). The 503 overload seen that day is one possible cause of the earlier unexplained merge failure. The merge route reported every error with the same message, so the cause can't be confirmed.
+- **2026-10-07: toolbar controls refined.** The Physics toggle was removed from the toolbar. A Merge mode now sits below Connect and selects two ideas with successive clicks. Opening the AI helper minimizes Suggested connections and places the helper beneath its header.
+- **2026-10-07: suggested links simplified.** Suggested Links starts minimized and automatic generation starts off. Canvas previews use the same line style and label as saved links. The explanation field is hidden; people request an AI explanation before accepting a suggested link.
+- **2026-10-07: accepting a suggested link no longer requires an AI explanation.** Jev returns a relationship label without generated text. A person can accept that label directly; the saved link has an empty explanation unless one was requested. Conflicts still require a stated condition.
+- **2026-10-07: Organize panel copy reduced.** The panel shows the group count, eligible note count, group names, rename controls, progress, and actionable errors. It omits embedding and score details because they do not change the next action. The grouping and layout calculations remain the same.
+- **2026-10-07: canvas links use one orthogonal router.** Relationship and ancestry links share a client-side routing pass that chooses facing sides, spreads attachment points, avoids card bounds, and separates occupied channels. Custom SVG edges draw rounded corners, crossing bridges, labels, and directional arrowheads. Routing depends on current card positions and measured sizes, so dragging and Organize recalculate it without changing stored nodes or relationships.
+- **2026-10-07: canvas routing favors readable connections.** Port spacing is 20px, route clearance is 24px, and parallel channels are separated by 14px. Organize uses saved relationships and merge ancestry to bring connected notes closer and order related groups together. Hovering or selecting a note emphasizes its connected edges; crowded labels appear on edge hover or selection.
+- **2026-10-07: canvas layout enforces card spacing.** Layout, node add/remove, drag end, and physics placement run a shared overlap resolver with a 48px card gap. Orthogonal routes keep 28px card clearance, 24px port spacing, and 20px lane spacing. Routes stay within 80px of their endpoint bounds and within twice the Manhattan distance; the renderer uses a curve when no orthogonal route fits. Dense labels stay hidden until focus.
 
 ## References
 

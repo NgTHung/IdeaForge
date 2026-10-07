@@ -9,16 +9,35 @@ Done:
 - Landing screen at `/` with actions to create a shared board or join by URL or UUID.
 - Guest lobby at `/board/<uuid>` that asks for a display name before connecting to Liveblocks and remembers the name in that browser.
 - Shared canvas at `/board/<uuid>` with seeded Liveblocks Storage, live board mutations, saved room state, and a share-link button.
+<<<<<<< Updated upstream
 - Shared-board header with active connection avatars and count; the member list shows connected names and Editor or Viewer access.
 - Account popover on the landing screen and shared boards, with the signed-in user's name and sign-out action.
 - Merge endpoint with Zod validation and Gemini structured output
+=======
+- Organize on the canvas with a chosen group count, separated rectangular notes, a score for each note pair, and optional placement of only newly saved notes. Group snapshots persist with shared boards.
+- AI-suggested group names, with manual rename controls; labels save in the cluster snapshot and update matching canvas badges.
+- Relationship and ancestry links use a shared router with 24px port spacing, 20px lane separation, 28px card clearance, endpoint-bounded orthogonal routes, rounded corners, isolated crossing bridges, labels, and directional arrowheads. The router uses a curve when no orthogonal route fits. Hovering or selecting a node or edge emphasizes related links, with an option to show only one node's links. Layout and drag placement keep cards 48px apart and bring connected notes closer.
+- Two-note selection, editable AI merge previews, and merged concept cards with two visible ancestry links and saved source snapshots.
+- Shared-board header with active connection avatars and count; the member list shows connected names and Editor or Viewer access.
+- Account popover on the landing screen and shared boards, with the signed-in user's name and sign-out action.
+- Suggested Links across the board. The panel starts minimized, and automatic checks are off until enabled. When enabled, checks wait two seconds after saved text or goal changes. Up to three suggestions use the same canvas line and label as saved links; people can change the type, request an AI explanation, accept, or dismiss them. Dismissals save with the board for every participant. Suggestions shortlist pairs locally and classify them with Jev, exclude linked, dismissed, and merge-lineage pairs, and become invalid when source text changes. MongoDB caches results and enforces shared request allowances. Manual refresh works while automatic checks are off.
+- Merge endpoint with Zod validation and JSON output from GLM-5.3-Flash on Featherless
+>>>>>>> Stashed changes
 - Liveblocks guest authorization route
 - Shared server-only Gemini module with one retry, optional generation and embedding fallbacks, output validation, and cause-specific errors
 
 Verified:
 
 - On 2026-10-06, before the canvas replaced the merge UI, its two board-model tests, lint, typecheck, and production build passed. A headless Chrome check at 1280×720 confirmed the board renders, a connection drag shows its preview and chooser, confirmation adds a link without moving its source, a pinned idea stays fixed, and direct dragging works with physics on.
+<<<<<<< Updated upstream
 - Lint, typecheck, and production build pass
+=======
+- Lint, typecheck, and production build pass with the 2026-10-07 routing and Organize refinements.
+- Lint, typecheck, and production build pass with the 2026-10-07 overlap resolver, dense routing, and edge focus mode. The changed layout and routing still need a browser review on a dense board.
+- On 2026-10-07, lint, typecheck, and production build pass with the orthogonal edge router. Dense-board visual routing and two-browser layout changes remain unverified.
+- On 2026-10-06, average-linkage clustering tests cover request validation, deterministic groups, response score summaries, and a successful mocked endpoint call. Layout tests cover pinned and excluded notes and card separation. A local browser smoke test grouped the five sample ideas, displayed method and group summaries, paused Physics, and restored the prior positions with Undo layout.
+- On 2026-10-07, 53 repository tests passed, including complete note-pair response validation, score-based rectangle spacing, deterministic new-note assignment, snapshot invalidation after edits and deletions, and mocked clustering endpoints. Lint, typecheck, and production build pass; lint reports only three unused-variable warnings in the bundled `.venv-clustering` scikit-learn file. Live localhost requests returned 3 of 3 note-pair scores from full clustering and 6 of 6 from incremental assignment. A browser check grouped the five sample ideas into two separated sets without bubble outlines; after saving one new note with auto placement enabled, only that new note moved and gained a Group 1 badge. Two-browser shared snapshot sync still needs verification.
+>>>>>>> Stashed changes
 - A Chromium smoke test covers selection, missing-key feedback, accepting a merge (using a mocked response), ancestry, editing, adding notes, and mobile width
 - A live Gemini merge returned a valid proposal
 - On 2026-10-06, 34 mocked tests cover AI generation, embeddings, retry and fallback attempt counts, SDK timeouts, output validation, safe errors, and merge-route contracts. Lint, typecheck, and production build pass.

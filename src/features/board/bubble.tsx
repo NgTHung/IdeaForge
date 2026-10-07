@@ -34,6 +34,11 @@ export function Bubble({ data, selected, dragging }: NodeProps<IdeaNode>) {
     onDoubleClick={(event) => { if (!data.connecting) { event.stopPropagation(); data.onEdit(); } }}>
     <Handle id="target-left" type="target" position={Position.Left} isConnectable={false} className="board-hidden-handle" />
     <Handle id="source-left" type="source" position={Position.Left} isConnectable={false} className="board-hidden-handle" />
+<<<<<<< Updated upstream
+=======
+    <Handle id="target-top" type="target" position={Position.Top} isConnectable={false} className="board-hidden-handle" />
+    <Handle id="source-top" type="source" position={Position.Top} isConnectable={false} className="board-hidden-handle" />
+>>>>>>> Stashed changes
     <div className="board-bubble-float"><div key={data.squash?.token ?? "idle"} className="board-bubble-squash"><div className="board-bubble-surface">
       <div className="board-bubble-top"><span className="board-bubble-kicker">IDEA</span>{idea.pinned && <span className="board-pinned" title="Pinned idea">PINNED</span>}</div>
       <h3>{idea.title}</h3><p>{idea.content || "Add a few details to this idea."}</p>
@@ -41,5 +46,10 @@ export function Bubble({ data, selected, dragging }: NodeProps<IdeaNode>) {
     </div></div></div>
     <Handle id="target-right" type="target" position={Position.Right} isConnectable={false} className="board-hidden-handle" />
     <Handle id="source-right" type="source" position={Position.Right} isConnectable={false} className="board-hidden-handle" />
+<<<<<<< Updated upstream
+=======
+    <Handle id="source-bottom" type="source" position={Position.Bottom} isConnectable={false} className="board-hidden-handle" />
+    <Handle id="target-bottom" type="target" position={Position.Bottom} isConnectable={false} className="board-hidden-handle" />
+>>>>>>> Stashed changes
   </div>;
 }
