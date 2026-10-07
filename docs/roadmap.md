@@ -11,6 +11,7 @@ Done:
 - Shared canvas at `/board/<uuid>` with seeded Liveblocks Storage, live board mutations, saved room state, and a share-link button.
 - Organize on the canvas with a chosen group count, separated rectangular notes, a score for each note pair, and optional placement of only newly saved notes. Group snapshots persist with shared boards.
 - Gemini suggested group names, with manual rename controls; labels save in the cluster snapshot and update matching canvas badges.
+- Two-note selection, editable Gemini merge previews, and merged concept cards with two visible ancestry links and saved source snapshots.
 - Shared-board header with active connection avatars and count; the member list shows connected names and Editor or Viewer access.
 - Account popover on the landing screen and shared boards, with the signed-in user's name and sign-out action.
 - Merge endpoint with Zod validation and Gemini structured output
@@ -27,19 +28,20 @@ Verified:
 - A live Gemini merge returned a valid proposal
 - On 2026-10-06, 34 mocked tests cover AI generation, embeddings, retry and fallback attempt counts, SDK timeouts, output validation, safe errors, and merge-route contracts. Lint, typecheck, and production build pass.
 - On 2026-10-06, live Gemini calls through the shared module returned a valid merge in 8.4 seconds and two 768-dimensional embeddings in 0.7 seconds. The production browser, reached through Tailscale, showed the missing-key message and allowed editing and adding notes after the failed request. A live browser merge could be kept, leaving both originals and two ancestry edges. The Gemini key and SDK were absent from client chunks, and the server-only import guard passed.
+- On 2026-10-07, a live Gemini merge on the current shared canvas returned an editable proposal. Keeping it created one child and two ancestry edges, preserved both originals, and saved the source explanations. The child and edges survived a reload and appeared in a second browser on the same local server. Typecheck and production build passed. The deployed app has not been rechecked for this change.
 - Liveblocks authorization returned a token and a secure guest cookie
 - On 2026-10-06, the guest profile endpoint accepted a trimmed display name, set an HTTP-only cookie, and rejected an empty name. The board route serves the guest-entry client before mounting the Liveblocks room.
 - On 2026-10-06, the Vercel production app at [idea-forge-wine.vercel.app](https://idea-forge-wine.vercel.app) served the local and shared boards over HTTPS. A real browser merge returned a valid proposal in 26.3 seconds; keeping it preserved both originals, their source snapshots, and two ancestry edges. A fresh shared board connected to Liveblocks with a secure HTTP-only guest cookie. Ten loaded client chunks contained no known provider keys, credential patterns, or Gemini SDK code.
 - On 2026-10-06, two local browser sessions created and joined a shared board from the landing screen. A new idea appeared in both browsers and remained after both reloaded. On the deployed app, two browsers connected to one room, synchronized a new idea, a card title edit, and a card move, and retained those changes after both reloaded.
 - On 2026-10-05, live tests measured embedding similarity and merge latency across Gemini models. The results are in [Similarity](decisions.md#similarity) and [AI reliability](decisions.md#ai-reliability).
 
-Not yet verified: active member names across two deployed browsers, goal changes, and kept merges syncing and surviving reload on the deployed shared board. The current canvas does not expose board-goal editing or the merge flow. Production retry, fallback, and forced timeout behavior remain unverified. The deployed commit configures the merge function for 95 seconds; its live merge completed within the first 30-second attempt.
+Not yet verified: active member names across two deployed browsers, goal changes, and kept merges syncing and surviving reload on the deployed shared board. Production retry, fallback, and forced timeout behavior remain unverified. The deployed commit configures the merge function for 95 seconds; its live merge completed within the first 30-second attempt.
 
-The browser checks above that mention merging or ancestry ran against the previous merge UI. The current landing screen links to the shared board at `/board/<uuid>`. Merge proposals and ancestry are not connected to the current canvas.
+The older browser checks above that mention merging or ancestry ran against the previous merge UI. The 2026-10-07 check above covers the current canvas on a local server.
 
 Known gaps:
 
-- Connecting the canvas to the merge and connection-suggestion routes.
+- Connecting the canvas to the connection-suggestion route.
 - Verifying shared-board Organize positions and group snapshots sync across browsers and survive reload.
 - Verifying goal changes and kept merges across two deployed browsers and reloads.
 - Recording idea and relationship creators and last editors.

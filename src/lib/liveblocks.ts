@@ -5,6 +5,7 @@ import type { ClusterSnapshot } from "@/lib/cluster-contract";
 
 type BoardStorage = {
   title: string;
+  goal?: string;
   ideas: LiveMap<string, LiveObject<Idea>>;
   relationships: LiveMap<string, LiveObject<Relationship>>;
   clusterSnapshot: LiveObject<ClusterSnapshot> | null;
@@ -20,6 +21,7 @@ export const { RoomProvider, useMutation, useStatus, useStorage, useOthers, useS
 export function createBoardStorage(title: string, ideas: Idea[], relationships: Relationship[]) {
   return {
     title,
+    goal: "Help students build a consistent study habit.",
     ideas: new LiveMap(ideas.map((idea) => [idea.id, new LiveObject(idea)])),
     relationships: new LiveMap(relationships.map((link) => [link.id, new LiveObject(link)])),
     clusterSnapshot: null,

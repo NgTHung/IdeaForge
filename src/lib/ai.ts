@@ -81,6 +81,10 @@ type GenerationRequest = {
 };
 
 export async function generateJson<T extends z.ZodType>(request: GenerationRequest, schema: T): Promise<z.output<T>> {
+  return (await generateJsonWithModel(request, schema)).result;
+}
+
+export async function generateJsonWithModel<T extends z.ZodType>(request: GenerationRequest, schema: T): Promise<{ result: z.output<T>; model: string }> {
   return callGemini(
     process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash",
     process.env.GEMINI_FALLBACK_MODEL?.trim(),
@@ -93,7 +97,7 @@ export async function generateJson<T extends z.ZodType>(request: GenerationReque
         },
       });
       try {
-        return schema.parse(JSON.parse(response.text || ""));
+        return { result: schema.parse(JSON.parse(response.text || "")), model };
       } catch {
         throw new AiError("invalid_output");
       }
