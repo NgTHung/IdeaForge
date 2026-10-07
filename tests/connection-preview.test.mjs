@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { acceptConnection, canAcceptConnection, connectionInputKey } from '../src/features/board/connection-preview.ts';
+import { acceptConnection, canAcceptConnection, isCurrentConnection, connectionInputKey } from '../src/features/board/connection-preview.ts';
 
 const ideas = ['a', 'b'].map((id) => ({ id, title: id, content: `Content ${id}`, position: { x: 0, y: 0 }, pinned: false, parentIds: [] }));
 const board = { ideas, relationships: [] };
@@ -40,4 +40,11 @@ test('moving, pinning, reordering and accepting do not change the request key; t
   assert.equal(connectionInputKey('Goal', acceptConnection(board, preview).ideas), key);
   assert.notEqual(connectionInputKey('Changed goal', ideas), key);
   assert.notEqual(connectionInputKey('Goal', ideas.map((idea) => ({ ...idea, content: 'Edited' }))), key);
+});
+
+test('unexplained Jev labels remain visible but cannot be accepted', () => {
+  const label = { ...preview, explanation: '', condition: null };
+  assert.equal(isCurrentConnection(board, label), true);
+  assert.equal(canAcceptConnection(board, label), false);
+  assert.equal(acceptConnection(board, label), board);
 });

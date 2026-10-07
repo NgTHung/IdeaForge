@@ -10,14 +10,14 @@ Done:
 - Guest lobby at `/board/<uuid>` that asks for a display name before connecting to Liveblocks and remembers the name in that browser.
 - Shared canvas at `/board/<uuid>` with seeded Liveblocks Storage, live board mutations, saved room state, and a share-link button.
 - Organize on the canvas with a chosen group count, separated rectangular notes, a score for each note pair, and optional placement of only newly saved notes. Group snapshots persist with shared boards.
-- Gemini suggested group names, with manual rename controls; labels save in the cluster snapshot and update matching canvas badges.
-- Two-note selection, editable Gemini merge previews, and merged concept cards with two visible ancestry links and saved source snapshots.
+- AI-suggested group names, with manual rename controls; labels save in the cluster snapshot and update matching canvas badges.
+- Two-note selection, editable AI merge previews, and merged concept cards with two visible ancestry links and saved source snapshots.
 - Shared-board header with active connection avatars and count; the member list shows connected names and Editor or Viewer access.
 - Account popover on the landing screen and shared boards, with the signed-in user's name and sign-out action.
-- Automatic relationship suggestions across the board, with a two-second delay after saved text changes. Up to three dashed links can be edited, accepted, or dismissed. Suggestions use real Gemini calls, exclude existing links, and become invalid when source text changes. Each browser can pause suggestions or refresh them.
-- Merge endpoint with Zod validation and Gemini structured output
+- Automatic relationship suggestions across the board, with a two-second delay after saved text changes. Up to three dashed links can be edited, accepted, or dismissed. Suggestions shortlist pairs locally and classify them with Jev, exclude existing links, and become invalid when source text changes. The generation model explains a pair only on request; people can also write the explanation. MongoDB caches results and enforces shared request allowances. Each browser can pause suggestions or refresh them.
+- Merge endpoint with Zod validation and JSON output from GLM-5.3-Flash on Featherless
 - Liveblocks guest authorization route
-- Shared server-only Gemini module with one retry, optional generation and embedding fallbacks, output validation, and cause-specific errors
+- Shared server-only AI module (Featherless generation, Gemini embeddings) with one retry, optional generation and embedding fallbacks, output validation, and cause-specific errors
 
 Verified:
 
@@ -36,7 +36,7 @@ Verified:
 - On 2026-10-06, two local browser sessions created and joined a shared board from the landing screen. A new idea appeared in both browsers and remained after both reloaded. On the deployed app, two browsers connected to one room, synchronized a new idea, a card title edit, and a card move, and retained those changes after both reloaded.
 - On 2026-10-05, live tests measured embedding similarity and merge latency across Gemini models. The results are in [Similarity](decisions.md#similarity) and [AI reliability](decisions.md#ai-reliability).
 
-Two tabs now verify suggestion acceptance and saved-text sync on the local production build over Tailscale. Suggestions have not been rechecked since they began using the board goal instead of the title.
+Earlier two-tab checks verified suggestion acceptance and saved-text sync over Tailscale. The current local matching and Jev pipeline has separate verification below; live Jev quality and deployment checks remain outstanding.
 
 Not yet verified: active member names across two deployed browsers, goal changes, and kept merges syncing and surviving reload on the deployed shared board. Production retry, fallback, and forced timeout behavior remain unverified. The deployed commit configures the merge function for 95 seconds; its live merge completed within the first 30-second attempt.
 
@@ -54,6 +54,12 @@ Known gaps:
 - A policy for two people typing in one note.
 
 To regenerate a proposal today, discard it and merge again. Retry and fallback failures were tested with mocked provider responses; live overload and fallback behavior remain unverified. Liveblocks behavior was not retested for WORK-011.
+
+On 2026-10-07, WORK-030 moved generation from Gemini to `zai-org/GLM-5.3-Flash` on Featherless and kept Gemini embeddings. All 85 automated tests, lint, typecheck, and the production build passed. Mocked tests cover the chat completions request, JSON-mode and schema prompt, reasoning-effort and token-limit settings, reasoning-block and Markdown-fence unwrapping, separate provider keys, and the unchanged retry, fallback, and timeout policy. No `FEATHERLESS_API_KEY` was available, so live Featherless generation, its JSON-mode behavior, its overload status codes, and latency at `low` reasoning effort remain unverified.
+
+On 2026-10-07, WORK-029 replaced automatic Gemini suggestions with local matching and Jev classification. All 80 automated tests, lint, typecheck, and the production build passed. Mocked provider tests cover bounded batches, classification validation, caching, changed-source invalidation, explicit explanations, and no retry or fallback. Live MongoDB tests used an isolated collection: eight concurrent requests for one board allowed one call, separate boards shared the daily limit, a second store read the cache, expired entries were ignored, and explanation requests had a separate allowance. The collection was removed afterward.
+
+The production browser at `http://100.102.144.120:3000` connected to Liveblocks and displayed the missing TypeSafe key message. An explicitly mocked Jev response produced a dashed preview with acceptance disabled until an explanation was entered. No explanation request ran automatically. Clicking **Explain with Gemini** made one live request; the configured `gemini-3.8-flash` returned HTTP 503 and the interface reported overload without retry or fallback. Live Jev classification and successful live explanation generation remain unverified. The deployed app has not been checked for this change.
 
 Connection suggestions were verified on 2026-10-06 with 60 automated tests, lint, typecheck, and a production build. Live Gemini returned suggestions through the configured generation fallback after primary-model overloads. In the Tailscale browser, a real suggestion appeared automatically and became a normal link when accepted. Card movement and acceptance caused no further generation requests. Mocked browser responses covered editable explanations, direction reversal, dismissal, clarification, and failure feedback. Two tabs connected to a fresh Liveblocks room; accepting an edited suggestion synchronized the link and it survived reload. Editing a source in the second tab removed the first tab's stale preview and queued fresh suggestions. Mobile layout verification was interrupted by preview resize timeouts.
 

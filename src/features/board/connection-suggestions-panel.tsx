@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { connectionPairKey } from '@/lib/connections';
-import { acceptConnection, canAcceptConnection, type ConnectionPreview } from './connection-preview';
-import { relationshipLabels, type Board, type RelationshipType } from './model';
+import { acceptConnection, type ConnectionPreview } from './connection-preview';
+import type { Board } from './model';
+import { ConnectionSuggestionCard } from './connection-suggestion-card';
 import type { useConnectionSuggestions } from './use-connection-suggestions';
 import './connection-suggestions.css';
 
@@ -28,15 +29,10 @@ export function ConnectionSuggestionsPanel({ board, suggestions, onBoardChange }
       <p className="connection-suggestions-status" role="status">{!suggestions.enabled ? 'Automatic suggestions paused.' : busy ? (suggestions.loading ? 'Finding useful connections…' : 'Waiting for your edits to settle…') : board.ideas.length < 2 ? 'Add at least two ideas to find connections.' : suggestions.result?.explanation || 'Connections appear here as your ideas develop.'}</p>
       {suggestions.error && <p role="alert" className="board-error">{suggestions.error}</p>}
       {suggestions.result?.question && <p className="connection-question">{suggestions.result.question}</p>}
-      {previews.map((preview, index) => <form key={preview.id} className="connection-suggestion" aria-label={`Suggestion ${index + 1}`} onSubmit={(event) => { event.preventDefault(); accept(preview); }}>
-        <p className="connection-pair"><strong>{board.ideas.find((idea) => idea.id === preview.sourceId)?.title || 'Deleted idea'}</strong><span>{preview.type === 'extends' ? ' extends ' : ' ↔ '}</span><strong>{board.ideas.find((idea) => idea.id === preview.targetId)?.title || 'Deleted idea'}</strong></p>
-        <label>Relationship<select value={preview.type} onChange={(event) => { const type = event.target.value as RelationshipType; suggestions.update(preview.id, { type, condition: type === 'conflict' ? '' : null }); }}>{Object.entries(relationshipLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        {preview.type === 'extends' && <button type="button" onClick={() => suggestions.update(preview.id, { sourceId: preview.targetId, targetId: preview.sourceId })}>Reverse direction</button>}
-        <label>Explanation<textarea rows={3} required maxLength={1000} value={preview.explanation} onChange={(event) => suggestions.update(preview.id, { explanation: event.target.value })} /></label>
-        {preview.type === 'conflict' && <label>When do these ideas conflict?<textarea rows={2} required maxLength={600} value={preview.condition ?? ''} onChange={(event) => suggestions.update(preview.id, { condition: event.target.value })} /></label>}
-        <div className="connection-suggestion-actions"><button type="button" onClick={() => suggestions.dismiss(preview.id)}>Dismiss</button><button className="primary" type="submit" disabled={!canAcceptConnection(board, preview)}>Accept connection</button></div>
-      </form>)}
+      {previews.map((preview, index) => <ConnectionSuggestionCard key={preview.id} preview={preview} index={index} board={board} goal={suggestions.goal} boardId={suggestions.boardId} onUpdate={suggestions.update} onAccept={accept} onDismiss={suggestions.dismiss} />)}
       {suggestions.result?.status === 'suggestions' && !previews.length && <p>No suggestions left to review.</p>}
+      {Boolean(suggestions.result?.remainingPairs) && <p className="connection-suggestions-hint">{suggestions.result?.reviewedPairs} candidate pairs reviewed. Additional pairs are deferred until the board changes.</p>}
+      <p className="connection-suggestions-hint">Automatic analysis uses Jev. The AI explains a relationship only when you request it here.</p>
       <p className="connection-suggestions-hint">AI suggestions need your review. Only accepted connections are saved.</p>
     </div>}
   </aside>;
