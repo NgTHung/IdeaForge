@@ -1,4 +1,4 @@
-import { IDEA_CARD_SIZE, type Idea } from "./model";
+import { IDEA_CARD_SIZE, type Idea } from "./model.ts";
 
 export type NodeSize = { width: number; height: number };
 export type NodePosition = { x: number; y: number };
@@ -30,16 +30,16 @@ export function resolveNodeOverlaps(
 ): Map<string, NodePosition> {
   const positions = new Map(ideas.map((idea) => [idea.id, { ...idea.position }]));
   const sizes = new Map(ideas.map((idea) => [idea.id, measured[idea.id] ?? IDEA_CARD_SIZE]));
-  const pinned = new Set(ideas.filter((idea) => idea.pinned).map((idea) => idea.id));
-  const ordered = [...ideas].sort((left, right) => Number(fixedIds.has(right.id)) - Number(fixedIds.has(left.id)) ||
-    Number(pinned.has(right.id)) - Number(pinned.has(left.id)) || left.id.localeCompare(right.id));
+  // Pinned cards keep their saved positions, like cards in fixedIds, so they are placed first and never move.
+  const movable = (idea: Idea) => !idea.pinned && !fixedIds.has(idea.id);
+  const ordered = [...ideas].sort((left, right) => Number(movable(left)) - Number(movable(right)) || left.id.localeCompare(right.id));
   const placed: Idea[] = [];
 
   for (const idea of ordered) {
     const size = sizes.get(idea.id)!;
     let position = positions.get(idea.id)!;
     const conflicts = () => placed.some((other) => overlapsWithClearance(position, size, positions.get(other.id)!, sizes.get(other.id)!));
-    if (!fixedIds.has(idea.id) && conflicts()) {
+    if (movable(idea) && conflicts()) {
       const offsets = gridOffsets(Math.max(24, Math.round(size.width / 4)), Math.max(24, Math.round(size.height / 4)), 2401);
       const free = offsets.find((offset) => !placed.some((other) => overlapsWithClearance(
         { x: idea.position.x + offset.x, y: idea.position.y + offset.y }, size,
