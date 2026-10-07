@@ -28,7 +28,7 @@ export function useConnectionSuggestions(board: Board, goal: string, editing: bo
       if (cards.length < 2) { setState({ ...emptyState, key: inputKey }); return; }
       const parsed = connectionRequestSchema.safeParse({ goal: snapshot.goal, cards, existingLinks: current.current.relationships.map((link) => ({ sourceId: link.source, targetId: link.target })) });
       if (!parsed.success) {
-        setState({ ...emptyState, key: inputKey, error: 'Use a board title and 2–50 ideas, each with at most 4,000 characters including its title, for automatic suggestions.' });
+        setState({ ...emptyState, key: inputKey, error: 'Use a board goal and 2–50 ideas, each with at most 4,000 characters including its title, for automatic suggestions.' });
         return;
       }
       setState({ ...emptyState, key: inputKey, loading: true });

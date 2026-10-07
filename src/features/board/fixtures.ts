@@ -1,6 +1,7 @@
 import type { Board } from "./model";
 
 export const initialBoard: Board = {
+  goal: "Help students build a consistent study habit.",
   ideas: [
     { id: "study-rooms", title: "Shared study rooms", content: "Small rooms where students can study together, in person or online.", position: { x: 60, y: 80 }, pinned: false, parentIds: [] },
     { id: "peer-matching", title: "Peer matching", content: "Match students by subject, availability, and study goals.", position: { x: 430, y: 20 }, pinned: false, parentIds: [] },

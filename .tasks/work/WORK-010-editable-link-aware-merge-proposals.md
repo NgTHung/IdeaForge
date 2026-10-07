@@ -1,7 +1,7 @@
 ---
 id: "WORK-010"
 title: "Editable, link-aware merge proposals"
-status: "To Do"
+status: "In Progress"
 priority: "High"
 type: "Feature"
 milestone: "day-2"
@@ -17,8 +17,10 @@ Owner: AI2 for the prompt and schema, with SE1 for the preview UI. Merge preview
 
 ## Acceptance Criteria
 
-- [ ] You can edit a proposal's title and concept before keeping it, **Regenerate** requests a new proposal, and the original generated proposal is stored with the kept card.
+- [x] You can edit a proposal's title and concept before keeping it, **Regenerate** requests a new proposal, and the original generated proposal is stored with the kept card.
 - [ ] When the two selected cards are linked, the merge request includes the link type and explanation, and merging a conflicts-with pair proposes a concept that addresses the stated condition.
-- [ ] The proposal lists the assumptions the concept introduces, alongside each source's contribution and the tension.
-- [ ] A proposal can't be kept if either source card's text changed since generation, and the UI offers to regenerate it, using the same staleness check as suggested links.
-- [ ] The kept card's source snapshot stores the goal, the model, and the generation time.
+- [x] The proposal lists the assumptions the concept introduces, alongside each source's contribution and the tension.
+- [x] A proposal can't be kept if either source card's text changed since generation, and the UI offers to regenerate it, using the same staleness check as suggested links.
+- [x] The kept card's source snapshot stores the goal, the model, and the generation time.
+
+The canvas and API send a typed link when one exists and instruct Gemini to address a conflict. A live conflict-pair check remains before that criterion is marked complete.

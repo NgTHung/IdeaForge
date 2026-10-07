@@ -1,0 +1,26 @@
+.account-menu { position: relative; display: inline-flex; align-items: center; }
+.account-avatar { display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 50%; background: #dcefe5; color: #17674f; font-size: 15px; font-weight: 800; cursor: pointer; }
+.account-avatar:hover, .account-avatar[aria-expanded="true"] { background: #c8e7d7; }
+.account-popover { position: absolute; z-index: 20; top: calc(100% + 11px); right: 0; display: flex; width: min(270px, calc(100vw - 28px)); flex-direction: column; gap: 7px; padding: 17px; border: 1px solid #dce7e0; border-radius: 14px; background: #fff; color: #243e40; box-shadow: 0 14px 38px #203b3026; }
+.account-popover-label { color: #779087; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
+.account-popover strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.account-email { overflow: hidden; color: #72837d; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.account-popover > button { margin-top: 8px; padding: 10px 12px; border: 1px solid #dce7e0; border-radius: 9px; background: #f7faf8; color: #34564b; font-size: 13px; font-weight: 700; text-align: left; cursor: pointer; }
+.account-popover > button:hover { background: #edf5f0; }
+.account-popover > button:disabled { cursor: wait; opacity: .65; }
+.account-error { margin: 2px 0; color: #963f36; font-size: 12px; }
+.account-signin { padding: 10px 13px; border: 1px solid #d4dfd9; border-radius: 9px; background: #fff; color: #16785f; font-size: 13px; font-weight: 700; text-decoration: none; }
+.account-loading { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(90deg, #f1f4f2 25%, #e7eeea 50%, #f1f4f2 75%); background-size: 200% 100%; animation: account-loading 1.2s infinite linear; }
+.board-shell[data-theme="dark"] .account-avatar { background: #29483a; color: #b9e5cb; }
+.board-shell[data-theme="dark"] .account-avatar:hover,
+.board-shell[data-theme="dark"] .account-avatar[aria-expanded="true"] { background: #355b49; }
+.board-shell[data-theme="dark"] .account-popover { border-color: #344744; background: #1c2a29; color: #dce8e3; }
+.board-shell[data-theme="dark"] .account-popover-label,
+.board-shell[data-theme="dark"] .account-email { color: #9eb5aa; }
+.board-shell[data-theme="dark"] .account-popover > button { border-color: #405650; background: #263633; color: #cedbd5; }
+.board-shell[data-theme="dark"] .account-popover > button:hover { background: #2a403a; }
+@keyframes account-loading { to { background-position: -200% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .account-loading { animation: none; }
+}

@@ -1,3 +1,16 @@
+import type { ClusterSnapshot } from "@/lib/cluster-contract";
+import type { MergeResult } from "@/lib/ideas";
+
+export type MergeSourceSnapshot = { id: string; title: string; content: string; author: string };
+export type MergeRecord = {
+  sources: [MergeSourceSnapshot, MergeSourceSnapshot];
+  goal: string;
+  relationship?: { type: RelationshipType; explanation: string; sourceId: string; targetId: string };
+  proposal: MergeResult;
+  model: string;
+  generatedAt: string;
+};
+
 export type Idea = {
   id: string;
   title: string;
@@ -6,6 +19,8 @@ export type Idea = {
   pinned: boolean;
   color?: string;
   parentIds: string[];
+  author?: string;
+  merge?: MergeRecord;
 };
 
 export type RelationshipType = "synergy" | "conflict" | "extends";
@@ -17,7 +32,7 @@ export type Relationship = {
   explanation: string;
   condition?: string;
 };
-export type Board = { ideas: Idea[]; relationships: Relationship[] };
+export type Board = { goal?: string; ideas: Idea[]; relationships: Relationship[]; clusterSnapshot?: ClusterSnapshot | null };
 
 export const IDEA_CARD_SIZE = { width: 272, height: 148 } as const;
 
@@ -31,10 +46,22 @@ export function createIdea(board: Board, idea: Idea): Board {
   return { ...board, ideas: [...board.ideas, idea] };
 }
 export function updateIdea(board: Board, id: string, patch: Partial<Idea>): Board {
-  return { ...board, ideas: board.ideas.map((idea) => idea.id === id ? { ...idea, ...patch } : idea) };
+  const changesGroupSource = patch.title !== undefined || patch.content !== undefined || patch.pinned !== undefined;
+  const isGrouped = board.clusterSnapshot?.result.groups.some((group) => group.noteIds.includes(id));
+  return {
+    ...board,
+    ...(changesGroupSource && isGrouped && board.clusterSnapshot ? { clusterSnapshot: { ...board.clusterSnapshot, stale: true } } : {}),
+    ideas: board.ideas.map((idea) => idea.id === id ? { ...idea, ...patch } : idea),
+  };
 }
 export function deleteIdea(board: Board, id: string): Board {
-  return { ideas: board.ideas.filter((idea) => idea.id !== id), relationships: board.relationships.filter((link) => link.source !== id && link.target !== id) };
+  const isGrouped = board.clusterSnapshot?.result.groups.some((group) => group.noteIds.includes(id));
+  return {
+    ...board,
+    ...(isGrouped && board.clusterSnapshot ? { clusterSnapshot: { ...board.clusterSnapshot, stale: true } } : {}),
+    ideas: board.ideas.filter((idea) => idea.id !== id),
+    relationships: board.relationships.filter((link) => link.source !== id && link.target !== id),
+  };
 }
 export function moveIdea(board: Board, id: string, position: Idea["position"]): Board {
   return updateIdea(board, id, { position });

@@ -1,16 +1,18 @@
 # IdeaForge
 
-A brainstorming canvas for capturing ideas and drawing typed relationships between them. The goal is a shared board where a team finds which ideas are worth combining and merges them with visible ancestry. Today the canvas runs locally in the browser, and the AI merge and shared-board backends exist as server routes that the canvas doesn't call yet.
+A brainstorming canvas for capturing ideas and drawing typed relationships between them. You can group notes by embedding similarity, choose the number of groups, and place new notes into an existing group. The home screen creates or joins shared boards; merge and connection-suggestion endpoints still need UI flows.
 
 Built in one week for Forgehack.
 
 ## Use the board
 
-Choose **Add idea**, then click empty canvas space to place a bubble. Double-click a bubble or select it and choose **Edit** to change its title and content. Drag a bubble to move it; select it to pin or delete it. The sample board starts with five ideas and two relationships, and resets when you refresh.
+Open the home screen, choose **Create board** or join a board link, then enter your display name if asked. Choose **Add idea**, then click empty canvas space to place a note. Double-click a note or select it and choose **Edit** to change its title and content. Drag a note to move it; select it to pin or delete it. A new shared board starts with five ideas and two relationships, and saves later changes through Liveblocks.
 
 Choose **Connect**, then drag from one idea into another. Release over the target, choose **Works well together**, **Conflicts with**, or **Extends**, and optionally explain the link. The arrow for **Extends** points from the extending idea to the idea it extends. Select a connection to delete it.
 
-Use **Select** or **Hand / Pan** for navigation. Hold Space while dragging to pan, scroll to zoom, and use the lower-right controls to zoom or fit the ideas. Toggle **Physics** to pause or resume settling. The assistant panel accepts prompts and returns a fixed message that states AI is not connected. **AI Organize**, **Merge ideas**, **Generate brief**, and **Share** are disabled placeholders.
+Choose **Organize** to group notes by embedding similarity. Select 2 to 10 groups, review the scores, then choose **Organize canvas** to arrange the rectangular notes in separate spatial groups. Similar note pairs are placed closer when space permits; every pair's similarity and distance is returned by the clustering endpoint. Group badges identify membership without drawing bubble regions. Gemini suggests concise group names after organizing, and you can rename them in the Organize panel. Naming sends up to 300 characters from each note to Gemini. Pinned notes stay where they are, and you can undo the layout before moving a note. After the first Organize, turn on **Place new notes in an existing group** in the add-note dialog. Saving a new note then moves only that note near its most similar existing group. The switch remembers your choice in this browser. Set `GEMINI_API_KEY` to enable grouping, placement, and naming. Shared boards save group membership, labels, and positions through Liveblocks.
+
+Use **Select** or **Hand / Pan** for navigation. Hold Space while dragging to pan, scroll to zoom, and use the lower-left controls to zoom or fit the ideas. Physics is disabled on shared boards so saved positions stay in place. The assistant panel accepts prompts and returns a fixed message that states AI is not connected. Merge and connection-suggestion routes do not yet have canvas controls.
 
 ## Getting started
 
@@ -22,7 +24,7 @@ cp .env.example .env.local   # add keys here (optional)
 npm run dev
 ```
 
-Open http://localhost:3000. The canvas needs no keys. The keys below enable the merge, similarity, and Liveblocks authorization routes.
+Open http://localhost:3000. Set `LIVEBLOCKS_SECRET_KEY` to create and use shared boards, and set `GEMINI_API_KEY` to use **Organize**. You can view the landing screen without either key.
 
 ### Account API setup
 
@@ -41,7 +43,7 @@ This API foundation does not yet create boards or restrict Liveblocks room acces
 | `GEMINI_API_KEY` | AI routes | Get one at https://aistudio.google.com/apikey |
 | `GEMINI_MODEL` | AI routes | Defaults to `gemini-2.5-flash`; use any model your API project can access |
 | `GEMINI_FALLBACK_MODEL` | Optional AI fallback | Used once after the primary model fails twice with overload or timeout |
-| `GEMINI_EMBEDDING_MODEL` | Embedding calls | Defaults to `gemini-embedding-001`; used by `/api/similarity` |
+| `GEMINI_EMBEDDING_MODEL` | Embedding calls | Defaults to `gemini-embedding-001`; used by `/api/similarity` and `/api/similarity/clusters` |
 | `GEMINI_EMBEDDING_FALLBACK_MODEL` | Optional embedding fallback | Must be an embedding model; generation fallback is never used for embeddings |
 | `LIVEBLOCKS_SECRET_KEY` | Shared boards | Get one at https://liveblocks.io/dashboard. Used by `/api/liveblocks-auth` |
 
@@ -56,7 +58,7 @@ Each Gemini attempt has a 30-second timeout. On overload, quota exhaustion, or t
 | `npm run dev` | Start the development server |
 | `npm run build` / `npm start` | Production build and server |
 | `npm run lint` | ESLint |
-| `npm test` | Board model tests, plus AI retry, fallback, validation, and error tests with mocked provider responses |
+| `npm test` | Board model, clustering, and AI retry, fallback, validation, and error tests with mocked provider responses |
 | `npm run typecheck` | Generate route types and run `tsc` |
 
 ## Project structure
@@ -65,11 +67,13 @@ Each Gemini attempt has a 30-second timeout. On overload, quota exhaustion, or t
 src/app/                         Pages and route handlers
 src/app/api/merge/               AI merge endpoint (Zod-validated, Gemini)
 src/app/api/similarity/          Embedding similarity endpoint
+src/app/api/similarity/clusters/  User-count clustering endpoint
 src/app/api/liveblocks-auth/     Guest authorization for shared boards
-src/features/board/              Canvas UI, board model, fixtures, connect gesture, physics
+src/features/board/              Canvas UI, board model, cluster layout, fixtures, connect gesture, physics
 src/lib/ideas.ts                 Merge request and result schemas
 src/lib/ai.ts                    Server-only Gemini calls, validation, and error responses
-src/lib/similarity.ts            Mean-centered embedding similarity and its cache
+src/lib/similarity.ts            Embedding similarity and its cache
+src/lib/cluster-algorithm.ts     Deterministic average-linkage grouping and score summaries
 src/server/                      Express account API (Better Auth, MongoDB)
 ```
 

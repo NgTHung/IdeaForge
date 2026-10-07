@@ -26,6 +26,7 @@ export const similarityRequestSchema = z.object({
 
 export const similarityResultSchema = z.object({
   method: z.enum(["mean_centered_cosine", "nearest_neighbor_rank"]),
+  embeddingModel: z.string().min(1),
   centeredThreshold: z.number().int().min(2).max(50),
   scores: z.array(z.object({
     sourceId: z.string(),
@@ -107,7 +108,7 @@ function vectorsForTexts(
   return texts.map((text) => byText.get(text)!);
 }
 
-async function embeddingsFor(texts: string[]): Promise<number[][]> {
+async function embeddingsFor(texts: string[]): Promise<{ model: string; vectors: number[][] }> {
   const uniqueTexts = [...new Set(texts)];
   const cachedByText = uniqueTexts.map((text) => embeddingCache.get(text));
   const missing = uniqueTexts.filter((_, index) => !cachedByText[index]);
@@ -119,9 +120,10 @@ async function embeddingsFor(texts: string[]): Promise<number[][]> {
     const cachedEntries = await Promise.all(cachedByText as Promise<CachedEmbedding>[]);
     if (sameModel(cachedEntries)) {
       touchCachedEmbeddings(uniqueTexts, cachedByText as Promise<CachedEmbedding>[]);
-      return vectorsForTexts(texts, uniqueTexts, cachedEntries);
+      return { model: cachedEntries[0].model, vectors: vectorsForTexts(texts, uniqueTexts, cachedEntries) };
     }
-    return vectorsForTexts(texts, uniqueTexts, await embedAndCache(uniqueTexts));
+    const entries = await embedAndCache(uniqueTexts);
+    return { model: entries[0].model, vectors: vectorsForTexts(texts, uniqueTexts, entries) };
   }
 
   if (hits.length > 0) {
@@ -134,12 +136,13 @@ async function embeddingsFor(texts: string[]): Promise<number[][]> {
           hits.map(({ text }, index) => [text, hitEntries[index]]),
         );
         missing.forEach((text, index) => byText.set(text, missingEntries[index]));
-        return texts.map((text) => byText.get(text)!.vector);
+        return { model: hitEntries[0].model, vectors: texts.map((text) => byText.get(text)!.vector) };
       }
     }
   }
 
-  return vectorsForTexts(texts, uniqueTexts, await embedAndCache(uniqueTexts));
+  const entries = await embedAndCache(uniqueTexts);
+  return { model: entries[0].model, vectors: vectorsForTexts(texts, uniqueTexts, entries) };
 }
 
 function cosine(left: number[], right: number[]): number {
@@ -192,12 +195,13 @@ function rankedScores(cards: SimilarityCard[], rawScores: number[][]): Similarit
 
 export async function calculateSimilarity(cards: SimilarityCard[]): Promise<SimilarityResult> {
   const threshold = centeredThreshold();
-  const vectors = await embeddingsFor(cards.map((card) => card.text));
+  const { model, vectors } = await embeddingsFor(cards.map((card) => card.text));
   const rawScores = cosineMatrix(vectors);
 
   if (cards.length < threshold) {
     return {
       method: "nearest_neighbor_rank",
+      embeddingModel: model,
       centeredThreshold: threshold,
       scores: rankedScores(cards, rawScores),
     };
@@ -214,5 +218,5 @@ export async function calculateSimilarity(cards: SimilarityCard[]): Promise<Simi
       });
     }
   }
-  return { method: "mean_centered_cosine", centeredThreshold: threshold, scores };
+  return { method: "mean_centered_cosine", embeddingModel: model, centeredThreshold: threshold, scores };
 }

@@ -6,8 +6,14 @@ What's built, what's verified, and the five-day plan to the Forgehack submission
 
 Done:
 
-- Local canvas at `/` with sample ideas, adding, editing, deleting, pinning, typed relationships created by dragging one idea into another, and physics people can turn off. Board data resets on refresh.
+- Landing screen at `/` with actions to create a shared board or join by URL or UUID.
+- Guest lobby at `/board/<uuid>` that asks for a display name before connecting to Liveblocks and remembers the name in that browser.
 - Shared canvas at `/board/<uuid>` with seeded Liveblocks Storage, live board mutations, saved room state, and a share-link button.
+- Organize on the canvas with a chosen group count, separated rectangular notes, a score for each note pair, and optional placement of only newly saved notes. Group snapshots persist with shared boards.
+- Gemini suggested group names, with manual rename controls; labels save in the cluster snapshot and update matching canvas badges.
+- Two-note selection, editable Gemini merge previews, and merged concept cards with two visible ancestry links and saved source snapshots.
+- Shared-board header with active connection avatars and count; the member list shows connected names and Editor or Viewer access.
+- Account popover on the landing screen and shared boards, with the signed-in user's name and sign-out action.
 - Automatic relationship suggestions across the board, with a two-second delay after saved text changes. Up to three dashed links can be edited, accepted, or dismissed. Suggestions use real Gemini calls, exclude existing links, and become invalid when source text changes. Each browser can pause suggestions or refresh them.
 - Merge endpoint with Zod validation and Gemini structured output
 - Liveblocks guest authorization route
@@ -17,26 +23,33 @@ Verified:
 
 - On 2026-10-06, before the canvas replaced the merge UI, its two board-model tests, lint, typecheck, and production build passed. A headless Chrome check at 1280×720 confirmed the board renders, a connection drag shows its preview and chooser, confirmation adds a link without moving its source, a pinned idea stays fixed, and direct dragging works with physics on.
 - Lint, typecheck, and production build pass
+- On 2026-10-06, average-linkage clustering tests cover request validation, deterministic groups, response score summaries, and a successful mocked endpoint call. Layout tests cover pinned and excluded notes and card separation. A local browser smoke test grouped the five sample ideas, displayed method and group summaries, paused Physics, and restored the prior positions with Undo layout.
+- On 2026-10-07, 53 repository tests passed, including complete note-pair response validation, score-based rectangle spacing, deterministic new-note assignment, snapshot invalidation after edits and deletions, and mocked clustering endpoints. Lint, typecheck, and production build pass; lint reports only three unused-variable warnings in the bundled `.venv-clustering` scikit-learn file. Live localhost requests returned 3 of 3 note-pair scores from full clustering and 6 of 6 from incremental assignment. A browser check grouped the five sample ideas into two separated sets without bubble outlines; after saving one new note with auto placement enabled, only that new note moved and gained a Group 1 badge. Two-browser shared snapshot sync still needs verification.
 - A Chromium smoke test covers selection, missing-key feedback, accepting a merge (using a mocked response), ancestry, editing, adding notes, and mobile width
 - A live Gemini merge returned a valid proposal
 - On 2026-10-06, 34 mocked tests cover AI generation, embeddings, retry and fallback attempt counts, SDK timeouts, output validation, safe errors, and merge-route contracts. Lint, typecheck, and production build pass.
 - On 2026-10-06, live Gemini calls through the shared module returned a valid merge in 8.4 seconds and two 768-dimensional embeddings in 0.7 seconds. The production browser, reached through Tailscale, showed the missing-key message and allowed editing and adding notes after the failed request. A live browser merge could be kept, leaving both originals and two ancestry edges. The Gemini key and SDK were absent from client chunks, and the server-only import guard passed.
+- On 2026-10-07, a live Gemini merge on the current shared canvas returned an editable proposal. Keeping it created one child and two ancestry edges, preserved both originals, and saved the source explanations. The child and edges survived a reload and appeared in a second browser on the same local server. Typecheck and production build passed. The deployed app has not been rechecked for this change.
 - Liveblocks authorization returned a token and a secure guest cookie
+- On 2026-10-06, the guest profile endpoint accepted a trimmed display name, set an HTTP-only cookie, and rejected an empty name. The board route serves the guest-entry client before mounting the Liveblocks room.
 - On 2026-10-06, the Vercel production app at [idea-forge-wine.vercel.app](https://idea-forge-wine.vercel.app) served the local and shared boards over HTTPS. A real browser merge returned a valid proposal in 26.3 seconds; keeping it preserved both originals, their source snapshots, and two ancestry edges. A fresh shared board connected to Liveblocks with a secure HTTP-only guest cookie. Ten loaded client chunks contained no known provider keys, credential patterns, or Gemini SDK code.
-- On 2026-10-06, after restoring the shared canvas, the local production build returned HTTP 200 for `/` and `/board/<uuid>`. A POST to `/api/liveblocks-auth` for that room returned HTTP 200. The Liveblocks client connection, persisted mutations, and two-browser sync still need browser verification.
+- On 2026-10-06, two local browser sessions created and joined a shared board from the landing screen. A new idea appeared in both browsers and remained after both reloaded. On the deployed app, two browsers connected to one room, synchronized a new idea, a card title edit, and a card move, and retained those changes after both reloaded.
 - On 2026-10-05, live tests measured embedding similarity and merge latency across Gemini models. The results are in [Similarity](decisions.md#similarity) and [AI reliability](decisions.md#ai-reliability).
 
-Two tabs now verify suggestion acceptance and saved-text sync on the local production build over Tailscale. Four-person collaboration and deployed-app retry, fallback, and forced timeout behavior remain unverified. The deployed commit configures the merge function for 95 seconds; its live merge completed within the first 30-second attempt.
+Two tabs now verify suggestion acceptance and saved-text sync on the local production build over Tailscale. Suggestions have not been rechecked since they began using the board goal instead of the title.
 
-The browser checks above that mention merging, ancestry, or shared boards ran against the previous merge UI, which the local canvas replaced on 2026-10-06. The merge proposal preview and parent edges are no longer reachable from the UI. The shared board was restored later on 2026-10-06.
+Not yet verified: active member names across two deployed browsers, goal changes, and kept merges syncing and surviving reload on the deployed shared board. Production retry, fallback, and forced timeout behavior remain unverified. The deployed commit configures the merge function for 95 seconds; its live merge completed within the first 30-second attempt.
+
+The older browser checks above that mention merging or ancestry ran against the previous merge UI. The 2026-10-07 check above covers the current canvas on a local server.
 
 Known gaps:
 
-- Connecting the canvas to the merge and similarity routes.
 - Verifying four-person collaboration on the deployed app.
-- Undo.
-- Local persistence.
-- Display names and card authors.
+- Verifying shared-board Organize positions and group snapshots sync across browsers and survive reload.
+- Verifying goal changes and kept merges across two deployed browsers and reloads.
+- Recording idea and relationship creators and last editors.
+- Reverting a participant's latest operation when no later edit has changed its affected values.
+- Persisting the MongoDB board directory record with its owner and Liveblocks room ID. Separate membership and share-grant collections are out of scope for the hackathon.
 - Editing or regenerating a proposal before keeping it.
 - A policy for two people typing in one note.
 
