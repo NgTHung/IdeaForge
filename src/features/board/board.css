@@ -195,25 +195,59 @@
 .board-merge-tray button.primary, .board-merge-actions button.primary { border-color: #16785f; background: #16785f; color: #fff; }
 .board-merge-tray button:disabled, .board-merge-actions button:disabled { opacity: .5; }
 .board-merge-panel, .board-merge-details { position: fixed; z-index: 12; top: 85px; right: 20px; bottom: 20px; width: min(390px, calc(100vw - 40px)); overflow-y: auto; padding: 20px; border: 1px solid #d7e4da; border-radius: 16px; background: #fff; box-shadow: 0 20px 60px #1c433a35; }
+.board-merge-panel { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0; }
+.board-merge-preview-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 4px 16px 0; }
 .board-merge-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .board-merge-panel-head h2 { margin: 5px 0 10px; font-size: 20px; }
 .board-merge-panel-head button { border: 0; background: transparent; color: #4d665e; font-size: 25px; line-height: 1; }
 .board-merge-panel label { display: block; margin: 14px 0; color: #4b625a; font-size: 12px; font-weight: 700; }
 .board-merge-panel input, .board-merge-panel textarea { width: 100%; margin-top: 5px; padding: 10px; border: 1px solid #d3e0d8; border-radius: 8px; background: #fff; color: #243e40; font: 500 13px/1.4 Arial, Helvetica, sans-serif; }
 .board-merge-panel textarea { resize: vertical; }
+.board-merge-compact-concept { padding: 8px 0 12px; }
+.board-merge-compact-concept h3, .board-merge-saved-title { margin: 5px 0 9px; color: #243e40; font-size: 22px; line-height: 1.2; }
+.board-merge-compact-concept > p, .board-merge-saved-concept { margin: 0 0 13px; color: #354d45; font-size: 15px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.board-merge-compact-concept .board-merge-first-test { padding: 10px 12px; border-left: 3px solid #7dae94; border-radius: 0 8px 8px 0; background: #f1f8f3; font-size: 13px; }
+.board-merge-first-test strong { display: block; margin-bottom: 3px; color: #245b45; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.board-merge-conflict-notice { padding: 9px 11px; border-radius: 8px; background: #fff2d5; color: #724f19; font-size: 12px; line-height: 1.4; }
+.board-merge-character-hint { display: block; margin-top: 5px; color: #6d8176; font-size: 11px; font-weight: 500; }
+.board-merge-read-full { margin: -4px 0 12px; color: #306951; font-size: 12px; }
+.board-merge-read-full summary, .board-merge-disclosure summary { cursor: pointer; font-weight: 700; }
+.board-merge-read-full summary { display: inline-block; padding: 3px 0; text-decoration: underline; }
+.board-merge-read-full p { margin: 6px 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.board-merge-disclosure { margin: 8px 0; border: 1px solid #dbe9df; border-radius: 10px; background: #f8fbf8; color: #36574a; }
+.board-merge-disclosure > summary { padding: 11px 12px; }
+.board-merge-disclosure[open] > summary { border-bottom: 1px solid #dbe9df; }
+.board-merge-disclosure > .board-merge-reasoning, .board-merge-disclosure > .board-merge-source { margin: 10px; }
+.board-merge-disclosure > .board-merge-reasoning { padding: 4px 12px 12px; }
+.board-merge-disclosure h3 { margin: 10px 0 6px; color: #245b45; font-size: 12px; }
+.board-merge-disclosure h3:first-child { margin-top: 0; }
+.board-merge-disclosure section + section { margin-top: 13px; }
+.board-merge-disclosure > summary:focus-visible, .board-merge-read-full summary:focus-visible { outline: 3px solid #168264; outline-offset: 2px; }
 .board-merge-sources { margin: 4px 0 15px; color: #527465; font-size: 12px; line-height: 1.4; }
 .board-merge-reasoning { padding: 12px; border-radius: 10px; background: #f1f8f3; color: #416254; font-size: 12px; line-height: 1.45; }
 .board-merge-reasoning p { margin: 0 0 10px; }
 .board-merge-reasoning p:last-child { margin-bottom: 0; }
 .board-merge-reasoning strong { display: block; color: #245b45; }
 .board-merge-weak { padding: 10px; border-radius: 8px; background: #fff2d5; color: #724f19; font-size: 12px; }
-.board-merge-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; margin-top: 15px; }
+.board-merge-actions { position: sticky; bottom: 0; display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 7px; margin: 0 -20px; padding: 12px 20px 16px; border-top: 1px solid #dbe9df; background: #fff; }
+.board-merge-actions .primary { flex: 1 0 100%; }
 .board-merge-source { padding: 11px 0; border-top: 1px solid #dbe9df; font-size: 12px; }
 .board-merge-source strong, .board-merge-source span { display: block; }
 .board-merge-source span { margin-top: 4px; color: #658073; }
 .board-merge-details > small { display: block; margin-top: 12px; color: #667b70; line-height: 1.4; }
 .board-merge-show-sources { margin: 0 0 12px; padding: 8px 10px; border: 1px solid #cfe1d4; border-radius: 8px; background: #f4f8f4; color: #306951; font-size: 12px; font-weight: 700; }
+.board-merge-source-count { margin: 4px 0 8px; color: #5a7168; font-size: 12px; }
 .board-shell[data-theme="dark"] .board-merge-panel, .board-shell[data-theme="dark"] .board-merge-details, .board-shell[data-theme="dark"] .board-merge-tray { background: #1d2c2a; border-color: #3d5950; color: #e0eae4; }
+.board-shell[data-theme="dark"] .board-merge-panel .board-merge-actions { background: #1d2c2a; border-color: #3d5950; }
+.board-shell[data-theme="dark"] .board-merge-compact-concept h3, .board-shell[data-theme="dark"] .board-merge-saved-title { color: #e0eae4; }
+.board-shell[data-theme="dark"] .board-merge-compact-concept > p, .board-shell[data-theme="dark"] .board-merge-saved-concept { color: #d0ddd5; }
+.board-shell[data-theme="dark"] .board-merge-compact-concept .board-merge-first-test { background: #283d34; }
+.board-shell[data-theme="dark"] .board-merge-first-test strong, .board-shell[data-theme="dark"] .board-merge-disclosure h3 { color: #b4e2c7; }
+.board-shell[data-theme="dark"] .board-merge-disclosure { background: #22332e; border-color: #3d5950; color: #d0ddd5; }
+.board-shell[data-theme="dark"] .board-merge-disclosure[open] > summary { border-color: #3d5950; }
+.board-shell[data-theme="dark"] .board-merge-read-full { color: #a6e4bf; }
+.board-shell[data-theme="dark"] .board-merge-character-hint, .board-shell[data-theme="dark"] .board-merge-source-count { color: #a9bdb1; }
+.board-shell[data-theme="dark"] .board-merge-conflict-notice { background: #514326; color: #f1d99d; }
 .board-shell[data-theme="dark"] .board-merge-panel input, .board-shell[data-theme="dark"] .board-merge-panel textarea { background: #263633; border-color: #405650; color: #e0eae4; }
 .board-shell[data-theme="dark"] .board-merge-reasoning { background: #283d34; color: #c3dac9; }
 .board-shell[data-theme="dark"] .board-merge-count { background: #2f5743; color: #c1efd0; }

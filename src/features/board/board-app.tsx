@@ -85,6 +85,14 @@ function normalizeBoardLayout(board: Board, measured: Record<string, NodeSize | 
   return withResolvedNodeOverlaps(board, measured, new Set(fixedIds), clusterLabelsFor(board));
 }
 
+function textExcerpt(text: string, limit = 240): { text: string; shortened: boolean } {
+  const characters = Array.from(text.trim());
+  if (characters.length <= limit) return { text: characters.join(""), shortened: false };
+  const boundary = characters.slice(0, limit).lastIndexOf(" ");
+  const cutoff = boundary > limit * 0.7 ? boundary : limit;
+  return { text: `${characters.slice(0, cutoff).join("").trimEnd()}…`, shortened: true };
+}
+
 type BoardAppProps = {
   sharedBoard?: Board;
   sharedTitle?: string;
@@ -125,6 +133,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   const [mergeBusy, setMergeBusy] = useState(false);
   const [mergeError, setMergeError] = useState("");
   const [mergePreview, setMergePreview] = useState<MergePreview | null>(null);
+  const [mergeEditMode, setMergeEditMode] = useState(false);
   const [mergeDetailsId, setMergeDetailsId] = useState<string | null>(null);
   const [mergeSaving, setMergeSaving] = useState(false);
   const [sourceId, setSourceId] = useState<string | null>(null);
@@ -285,6 +294,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   const previewContext = mergePreview ? mergeContext(board, mergePreview.ids) : null;
   const previewStale = Boolean(mergePreview && previewContext?.fingerprint !== mergePreview.fingerprint);
   const selectedMergeIdea = mergeDetailsId ? board.ideas.find((idea) => idea.id === mergeDetailsId && idea.merge) : undefined;
+  const selectedMergeDetails = selectedMergeIdea?.merge ? mergeDisplayData(selectedMergeIdea.merge) : null;
   const selectedAssistantIdea = assistantDetailsId ? board.ideas.find((idea) => idea.id === assistantDetailsId && idea.assistant) : undefined;
 
 
@@ -475,7 +485,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     mergeRequestSequence.current += 1;
     mergeController.current?.abort();
     mergeController.current = null;
-    setMergeBusy(false); setMergePreview(null); setMergeError("");
+    setMergeBusy(false); setMergePreview(null); setMergeEditMode(false); setMergeError("");
   }
 
   function moveMergeSource(id: string, offset: -1 | 1) {
@@ -521,6 +531,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
       if (mergeContext(boardRef.current, ids)?.fingerprint !== context.fingerprint) {
         setMergeError("The source notes or goal changed. Merge again to use the latest text."); return;
       }
+      setMergeEditMode(false);
       setMergePreview({ ids, fingerprint: context.fingerprint, result: parsed.data, model: payload.model, generatedAt: payload.generatedAt,
         title: parsed.data.title, concept: parsed.data.concept });
     } catch (error) {
@@ -1331,21 +1342,53 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
         onAcceptAction={acceptAssistantAction} onDiscardAction={discardAssistantPreview} />
     </div>
     {mergePreview && <div className="board-merge-panel" role="dialog" aria-modal="false" aria-label="Merged idea preview">
-      <div className="board-merge-panel-head"><div><span className="board-eyebrow">AI PROPOSAL</span><h2>Merge preview</h2></div><button type="button" aria-label="Discard merge preview" onClick={discardMerge}>×</button></div>
-      <p className="board-merge-sources">{mergePreview.ids.map((id, index) => `${index + 1}. ${board.ideas.find((idea) => idea.id === id)?.title || "Deleted idea"}`).join("  +  ")}</p>
-      {previewContext?.relationships.map((relationship, index) => <p className="board-merge-sources" key={`${relationship.type}-${relationship.sourceId}-${relationship.targetId}-${index}`}>Link: {relationshipLabels[relationship.type]}{relationship.explanation ? ` — ${relationship.explanation}` : ""}{relationship.condition ? ` When: ${relationship.condition}` : ""}</p>)}
-      {previewStale && <p className="board-error" role="alert">A source note, its link, or the goal changed. Regenerate before creating this idea.</p>}
-      {mergePreview.result.status !== "useful" && <p className="board-merge-weak" role="status">{mergePreview.result.reason || "This set needs a clearer connection before merging."}</p>}
-      <label>Title<input value={mergePreview.title} maxLength={120} disabled={mergePreview.result.status !== "useful"} onChange={(event) => setMergePreview({ ...mergePreview, title: event.target.value })} /></label>
-      <label>Concept<textarea value={mergePreview.concept} maxLength={2000} rows={5} disabled={mergePreview.result.status !== "useful"} onChange={(event) => setMergePreview({ ...mergePreview, concept: event.target.value })} /></label>
-      <div className="board-merge-reasoning">{mergePreview.result.contributions.map((item, index) => <p key={item.sourceId}><strong>{board.ideas.find((idea) => idea.id === item.sourceId)?.title || `Idea ${index + 1}`} adds</strong> {item.contribution}</p>)}
-        <p><strong>Bridge</strong> {mergePreview.result.bridge}</p><p><strong>Tension</strong> {mergePreview.result.tension}</p>
-        {mergePreview.result.assumptions.length > 0 && <p><strong>Assumptions</strong> {mergePreview.result.assumptions.join("; ")}</p>}
-        <p><strong>Try next</strong> {mergePreview.result.nextExperiment}</p></div>
-      {mergeError && <p className="board-error" role="alert">{mergeError}</p>}
-      <div className="board-merge-actions"><button type="button" onClick={discardMerge}>Discard</button><button type="button" disabled={mergeBusy} onClick={() => void generateMerge()}>{mergeBusy ? "Generating…" : "Regenerate"}</button>
-        <button type="button" disabled={mergeBusy} onClick={() => { setMergePreview(null); setMergeError(""); setTool("merge"); }}>Change sources</button>
-        <button type="button" className="primary" disabled={mergeSaving || mergeBusy || previewStale || mergePreview.result.status !== "useful" || !mergePreview.title.trim() || !mergePreview.concept.trim()} onClick={keepMerge}>Create merged idea</button></div>
+      <div className="board-merge-panel-head"><div><span className="board-eyebrow">{mergePreview.ids.length} SOURCE IDEAS</span><h2>Merge preview</h2></div><button type="button" aria-label="Discard merge preview" onClick={discardMerge}>×</button></div>
+      <div className="board-merge-preview-content">
+        {previewStale && <p className="board-error" role="alert">A source note, its link, or the goal changed. Regenerate before creating this idea.</p>}
+        {mergePreview.result.status !== "useful" ? <>
+          <p className="board-merge-weak" role="status">{textExcerpt(mergePreview.result.reason || "These ideas need a clearer connection before they can be combined.", 180).text}</p>
+          {mergePreview.result.reason.length > 180 && <details className="board-merge-read-full"><summary>Read the full explanation</summary><p>{mergePreview.result.reason}</p></details>}
+          <p className="board-merge-sources">{mergePreview.ids.map((id, index) => `${index + 1}. ${board.ideas.find((idea) => idea.id === id)?.title || "Deleted idea"}`).join(" · ")}</p>
+          {previewContext?.relationships.length ? <details className="board-merge-disclosure"><summary>Review selected links ({previewContext.relationships.length})</summary><div className="board-merge-reasoning">
+            {previewContext.relationships.map((relationship, index) => <p key={`${relationship.type}-${relationship.sourceId}-${relationship.targetId}-${index}`}><strong>{relationshipLabels[relationship.type]}</strong>: {board.ideas.find((idea) => idea.id === relationship.sourceId)?.title || "Source"} → {board.ideas.find((idea) => idea.id === relationship.targetId)?.title || "Target"}{relationship.explanation ? ` — ${relationship.explanation}` : ""}{relationship.condition ? ` Condition: ${relationship.condition}` : ""}</p>)}
+          </div></details> : null}
+        </> : <>
+          {mergeEditMode ? <div className="board-merge-edit-fields">
+            <label>Title<input value={mergePreview.title} maxLength={120} onChange={(event) => setMergePreview({ ...mergePreview, title: event.target.value })} /></label>
+            <label>Concept<textarea value={mergePreview.concept} maxLength={2000} rows={5} onChange={(event) => setMergePreview({ ...mergePreview, concept: event.target.value })} /><span className="board-merge-character-hint">Short concepts are easier to scan. {mergePreview.concept.length}/2,000 characters.</span></label>
+          </div> : <section className="board-merge-compact-concept" aria-label="Combined idea">
+            <h3>{mergePreview.title}</h3>
+            {(() => { const excerpt = textExcerpt(mergePreview.concept); return <>
+              <p>{excerpt.text}</p>
+              {excerpt.shortened && <details className="board-merge-read-full"><summary>Read full concept</summary><p>{mergePreview.concept}</p></details>}
+            </>; })()}
+            {(() => { const experiment = textExcerpt(mergePreview.result.nextExperiment, 160); return <>
+              <p className="board-merge-first-test"><strong>Try first</strong> {experiment.text}</p>
+              {experiment.shortened && <details className="board-merge-read-full"><summary>Read full experiment</summary><p>{mergePreview.result.nextExperiment}</p></details>}
+            </>; })()}
+            {previewContext?.relationships.some((relationship) => relationship.type === "conflict") && <p className="board-merge-conflict-notice" role="note">This set includes a conflict. Review its condition under “Why these ideas fit”.</p>}
+          </section>}
+          <details className="board-merge-disclosure">
+            <summary>Why these ideas fit</summary>
+            <div className="board-merge-reasoning">
+              <section><h3>What each idea adds</h3>{mergePreview.result.contributions.map((item, index) => <p key={item.sourceId}><strong>{board.ideas.find((idea) => idea.id === item.sourceId)?.title || `Idea ${index + 1}`}</strong> {item.contribution}</p>)}</section>
+              <section><h3>Why the combination works</h3><p>{mergePreview.result.bridge}</p></section>
+              <section><h3>What needs checking</h3><p><strong>Tension</strong> {mergePreview.result.tension}</p>
+                {mergePreview.result.assumptions.length > 0 && <p><strong>Assumptions</strong> {mergePreview.result.assumptions.join("; ")}</p>}
+                <p><strong>First experiment</strong> {mergePreview.result.nextExperiment}</p></section>
+              {previewContext?.relationships.length ? <section><h3>Existing links</h3>{previewContext.relationships.map((relationship, index) => <p key={`${relationship.type}-${relationship.sourceId}-${relationship.targetId}-${index}`}><strong>{relationshipLabels[relationship.type]}</strong>: {board.ideas.find((idea) => idea.id === relationship.sourceId)?.title || "Source"} → {board.ideas.find((idea) => idea.id === relationship.targetId)?.title || "Target"}{relationship.explanation ? ` — ${relationship.explanation}` : ""}{relationship.condition ? ` Condition: ${relationship.condition}` : ""}</p>)}</section> : null}
+            </div>
+          </details>
+        </>}
+        {mergeError && <p className="board-error" role="alert">{mergeError}</p>}
+      </div>
+      <div className="board-merge-actions">
+        <button type="button" onClick={discardMerge}>Discard</button>
+        {mergePreview.result.status === "useful" && <button type="button" onClick={() => setMergeEditMode((value) => !value)}>{mergeEditMode ? "Preview" : "Edit"}</button>}
+        <button type="button" disabled={mergeBusy} onClick={() => void generateMerge()}>{mergeBusy ? "Generating…" : "Regenerate"}</button>
+        <button type="button" disabled={mergeBusy} onClick={() => { setMergePreview(null); setMergeEditMode(false); setMergeError(""); setTool("merge"); }}>Change sources</button>
+        <button type="button" className="primary" disabled={mergeSaving || mergeBusy || previewStale || mergePreview.result.status !== "useful" || !mergePreview.title.trim() || !mergePreview.concept.trim()} onClick={keepMerge}>Create merged idea</button>
+      </div>
     </div>}
     {selectedMergeIdea?.merge && <div className="board-merge-details" role="dialog" aria-modal="false" aria-label="How this idea was made"><div className="board-merge-panel-head"><h2>How this idea was made</h2><button type="button" aria-label="Close merge details" onClick={() => setMergeDetailsId(null)}>×</button></div>
       <button type="button" className="board-merge-show-sources" onClick={() => {
@@ -1353,15 +1396,24 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
         setSelection({ kind: "idea", id: selectedMergeIdea.id });
         window.requestAnimationFrame(() => { void flow.current?.fitView({ nodes: [...sourceIds, selectedMergeIdea.id].map((id) => ({ id })), padding: 0.28, duration: 350, maxZoom: 0.9 }); });
       }}>Show source notes on canvas</button>
-      <p>{mergeDisplayData(selectedMergeIdea.merge).sources.map((source) => source.title || source.content).join(" + ")}</p>
-      {mergeDisplayData(selectedMergeIdea.merge).sources.map((source, index) => <div className="board-merge-source" key={`${source.id}-${index}`}><strong>Idea {index + 1}: {source.title}</strong><span>By {source.author}</span><p>{source.content}</p></div>)}
-      <div className="board-merge-reasoning"><p><strong>Goal</strong> {selectedMergeIdea.merge.goal}</p>
-        {mergeDisplayData(selectedMergeIdea.merge!).contributions.map((item, index) => <p key={item.sourceId}><strong>{mergeDisplayData(selectedMergeIdea.merge!).sources[index]?.title || `Idea ${index + 1}`} adds</strong> {item.contribution}</p>)}
-        {mergeDisplayData(selectedMergeIdea.merge!).relationships.map((relationship, index) => <p key={`${relationship.type}-${relationship.sourceId}-${relationship.targetId}-${index}`}><strong>Original link</strong> {relationshipLabels[relationship.type]}: {relationship.explanation || "No explanation"}{relationship.condition ? ` When: ${relationship.condition}` : ""}</p>)}
-        <p><strong>Bridge</strong> {selectedMergeIdea.merge.proposal.bridge}</p><p><strong>Tension</strong> {selectedMergeIdea.merge.proposal.tension}</p>
+      <p className="board-merge-source-count">Combined from {selectedMergeDetails?.sources.length ?? 0} ideas</p>
+      <h3 className="board-merge-saved-title">{selectedMergeIdea.title}</h3>
+      {(() => { const excerpt = textExcerpt(selectedMergeIdea.content); return <>
+        <p className="board-merge-saved-concept">{excerpt.text}</p>
+        {excerpt.shortened && <details className="board-merge-read-full"><summary>Read full concept</summary><p>{selectedMergeIdea.content}</p></details>}
+      </>; })()}
+      <details className="board-merge-disclosure"><summary>Original source notes ({selectedMergeDetails?.sources.length ?? 0})</summary>
+        {selectedMergeDetails?.sources.map((source, index) => <div className="board-merge-source" key={`${source.id}-${index}`}><strong>Idea {index + 1}: {source.title || "Untitled idea"}</strong><span>By {source.author}</span><p>{source.content || "No description"}</p></div>)}
+      </details>
+      <details className="board-merge-disclosure"><summary>Why this idea works</summary><div className="board-merge-reasoning">
+        <p><strong>Goal</strong> {selectedMergeIdea.merge.goal}</p>
+        {selectedMergeDetails?.contributions.map((item, index) => <p key={item.sourceId}><strong>{selectedMergeDetails.sources[index]?.title || `Idea ${index + 1}`} adds</strong> {item.contribution}</p>)}
+        {selectedMergeDetails?.relationships.map((relationship, index) => <p key={`${relationship.type}-${relationship.sourceId}-${relationship.targetId}-${index}`}><strong>{relationshipLabels[relationship.type]}</strong>: {relationship.explanation || "No explanation"}{relationship.condition ? ` Condition: ${relationship.condition}` : ""}</p>)}
+        <p><strong>Why the combination works</strong> {selectedMergeIdea.merge.proposal.bridge}</p><p><strong>What needs checking</strong> {selectedMergeIdea.merge.proposal.tension}</p>
         {selectedMergeIdea.merge.proposal.assumptions.length > 0 && <p><strong>Assumptions</strong> {selectedMergeIdea.merge.proposal.assumptions.join("; ")}</p>}
-        <p><strong>Try next</strong> {selectedMergeIdea.merge.proposal.nextExperiment}</p></div>
-      <small>Generated with {selectedMergeIdea.merge.model} on {new Date(selectedMergeIdea.merge.generatedAt).toLocaleString()}. The original proposal is saved with this idea.</small>
+        <p><strong>First experiment</strong> {selectedMergeIdea.merge.proposal.nextExperiment}</p>
+        <small>Generated with {selectedMergeIdea.merge.model} on {new Date(selectedMergeIdea.merge.generatedAt).toLocaleString()}.</small>
+      </div></details>
     </div>}
     {selectedAssistantIdea?.assistant && <div className="board-merge-details" role="dialog" aria-modal="false" aria-label="Assistant idea sources"><div className="board-merge-panel-head"><h2>Assistant idea sources</h2><button type="button" aria-label="Close assistant sources" onClick={() => setAssistantDetailsId(null)}>×</button></div>
       <p><strong>Current title</strong> {selectedAssistantIdea.title}</p><p><strong>Current content</strong> {selectedAssistantIdea.content || "No description"}</p>
