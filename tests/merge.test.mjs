@@ -53,14 +53,15 @@ test("merge returns the validated result from a mocked provider", async (t) => {
     contributions: [{ sourceId: "a", contribution: "A contributes" }, { sourceId: "b", contribution: "B contributes" }],
     bridge: "A enables B", tension: "Mocked tension", assumptions: ["Mocked assumption"], nextExperiment: "Mocked experiment",
   };
+  let providerRequest;
   t.mock.method(globalThis, "fetch", async (_url, init) => {
-    const request = JSON.parse(init.body);
-    assert.equal(JSON.parse(request.messages[1].content).relationships[0].condition, conflictPayload.relationship.condition);
-    assert.match(request.messages[0].content, /address its exact condition/);
+    providerRequest = JSON.parse(init.body);
     return Response.json({ choices: [{ message: { content: JSON.stringify(result) } }] });
   });
   const response = await POST(mergeRequest(conflictPayload));
   assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+  assert.equal(JSON.parse(providerRequest.messages[1].content).relationships[0].condition, conflictPayload.relationship.condition);
+  assert.match(providerRequest.messages[0].content, /Address every conflict condition/);
   const body = await response.json();
   assert.deepEqual(body.result, result);
   assert.equal(typeof body.model, "string");
