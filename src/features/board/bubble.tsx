@@ -1,6 +1,6 @@
 import type { CSSProperties, PointerEvent } from "react";
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
-import { IDEA_CARD_SIZE, type Idea } from "./model";
+import { ideaCardSize, type Idea } from "./model";
 
 export type IdeaNode = Node<{
   idea: Idea;
@@ -13,7 +13,6 @@ export type IdeaNode = Node<{
   clusterLabel?: string;
   clusterColor?: number;
   mergeIndex: number;
-  mergeSourceCount?: number;
   onMergeDetails?: () => void;
   onAssistantDetails?: () => void;
   onSelect: (additive: boolean) => void;
@@ -21,13 +20,14 @@ export type IdeaNode = Node<{
   onStartConnection: (event: PointerEvent<HTMLDivElement>) => void;
 }, "idea" | "assistantPreview">;
 
-function motionStyle(id: string): CSSProperties {
+function motionStyle(idea: Idea, clusterLabel?: string): CSSProperties {
   let hash = 0;
-  for (const character of id) hash = (hash * 31 + character.charCodeAt(0)) | 0;
+  for (const character of idea.id) hash = (hash * 31 + character.charCodeAt(0)) | 0;
   const seed = Math.abs(hash);
+  const size = ideaCardSize(idea, clusterLabel);
   return {
-    width: IDEA_CARD_SIZE.width,
-    height: IDEA_CARD_SIZE.height,
+    width: size.width,
+    height: size.height,
     "--float-duration": `${2.5 + seed % 17 / 10}s`,
     "--float-delay": `${-(seed % 53 / 10)}s`,
   } as CSSProperties;
@@ -37,7 +37,7 @@ export function Bubble({ data, selected, dragging }: NodeProps<IdeaNode>) {
   const { idea } = data;
   const squashing = data.squash ? `is-squashing-${data.squash.axis}` : "";
   return <div data-idea-id={idea.id}
-    style={motionStyle(idea.id)}
+    style={motionStyle(idea, data.clusterLabel)}
     role="group" tabIndex={0} aria-label={`Idea: ${idea.title}. Press Enter to select.`}
     className={`board-bubble ${selected ? "is-selected" : ""} ${data.source ? "is-source" : ""} ${data.editing ? "is-editing" : ""} ${dragging ? "is-dragging" : ""} ${data.mergeIndex ? "is-merge-source" : ""} ${idea.merge ? "is-merged" : ""} ${data.clusterColor === undefined ? "" : `cluster-color-${data.clusterColor}`} ${squashing}`}
     onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); event.stopPropagation(); data.onSelect(event.shiftKey); } }}
@@ -48,9 +48,10 @@ export function Bubble({ data, selected, dragging }: NodeProps<IdeaNode>) {
     <Handle id="target-top" type="target" position={Position.Top} isConnectable={false} className="board-hidden-handle" />
     <Handle id="source-top" type="source" position={Position.Top} isConnectable={false} className="board-hidden-handle" />
     <div className="board-bubble-float"><div key={data.squash?.token ?? "idle"} className="board-bubble-squash"><div className="board-bubble-surface">
-      <div className="board-bubble-top"><span className="board-bubble-kicker">{idea.assistant ? "ASSISTANT IDEA" : idea.merge ? "COMBINED CONCEPT" : "IDEA"}</span><span className="board-bubble-badges">{data.mergeIndex > 0 && <span className="board-merge-index" aria-label={`Merge idea ${data.mergeIndex}`}>{data.mergeIndex}</span>}{idea.merge && data.mergeSourceCount && <span className="board-merge-count" title={`Combined from ${data.mergeSourceCount} ideas`}>{data.mergeSourceCount} sources</span>}{data.clusterLabel && <span className="board-cluster-badge">{data.clusterLabel}</span>}{idea.pinned && <span className="board-pinned" title="Pinned idea">PINNED</span>}</span></div>
+      <div className="board-bubble-top"><span className="board-bubble-kicker">{idea.assistant ? "ASSISTANT IDEA" : idea.merge ? "COMBINED CONCEPT" : "IDEA"}</span><span className="board-bubble-badges">{data.mergeIndex > 0 && <span className="board-merge-index" aria-label={`Merge idea ${data.mergeIndex}`}>{data.mergeIndex}</span>}{data.clusterLabel && !idea.merge && <span className="board-cluster-badge">{data.clusterLabel}</span>}{idea.pinned && <span className="board-pinned" title="Pinned idea">PINNED</span>}</span></div>
+      {idea.merge && data.clusterLabel && <div className="board-merged-cluster-line"><span className="board-cluster-badge">{data.clusterLabel}</span></div>}
       {data.editingBy && <span className="board-card-editing-lock" title={`${data.editingBy} is editing this idea`}>{data.editingBy} editing</span>}
-      <h3>{idea.title}</h3>{idea.author && <small className="board-bubble-author">By {idea.author}</small>}<p>{idea.content || "Add a few details to this idea."}</p>
+      <h3>{idea.title}</h3>{idea.author && !idea.merge && <small className="board-bubble-author">By {idea.author}</small>}<p>{idea.content || "Add a few details to this idea."}</p>
       {idea.merge && <button type="button" className="board-merge-details-button nodrag nopan" onClick={(event) => { event.stopPropagation(); data.onMergeDetails?.(); }}>How this idea was made</button>}
       {idea.assistant && !data.preview && <button type="button" className="board-merge-details-button nodrag nopan" onClick={(event) => { event.stopPropagation(); data.onAssistantDetails?.(); }}>Show assistant sources</button>}
       {data.connecting && <span className="board-connect-dot" aria-hidden="true" />}

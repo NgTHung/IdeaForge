@@ -1,4 +1,4 @@
-import { IDEA_CARD_SIZE, type Idea } from "./model.ts";
+import { ideaCardSize, type Idea } from "./model.ts";
 
 export type NodeSize = { width: number; height: number };
 export type NodePosition = { x: number; y: number };
@@ -28,9 +28,10 @@ export function resolveNodeOverlaps(
   ideas: Idea[],
   measured: Record<string, NodeSize | undefined> = {},
   fixedIds: ReadonlySet<string> = new Set(),
+  clusterLabels: ReadonlyMap<string, string> = new Map(),
 ): Map<string, NodePosition> {
   const positions = new Map(ideas.map((idea) => [idea.id, { ...idea.position }]));
-  const sizes = new Map(ideas.map((idea) => [idea.id, measured[idea.id] ?? IDEA_CARD_SIZE]));
+  const sizes = new Map(ideas.map((idea) => [idea.id, measured[idea.id] ?? ideaCardSize(idea, clusterLabels.get(idea.id))]));
   // Pinned cards keep their saved positions, like cards in fixedIds, so they are placed first and never move.
   const movable = (idea: Idea) => !idea.pinned && !fixedIds.has(idea.id);
   const ordered = [...ideas].sort((left, right) => Number(movable(left)) - Number(movable(right)) || left.id.localeCompare(right.id));
@@ -67,8 +68,9 @@ export function withResolvedNodeOverlaps<T extends { ideas: Idea[] }>(
   board: T,
   measured: Record<string, NodeSize | undefined> = {},
   fixedIds: ReadonlySet<string> = new Set(),
+  clusterLabels: ReadonlyMap<string, string> = new Map(),
 ): T {
-  const positions = resolveNodeOverlaps(board.ideas, measured, fixedIds);
+  const positions = resolveNodeOverlaps(board.ideas, measured, fixedIds, clusterLabels);
   let changed = false;
   const ideas = board.ideas.map((idea) => {
     const position = positions.get(idea.id)!;

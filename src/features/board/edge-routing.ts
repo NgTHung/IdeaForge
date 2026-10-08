@@ -1,4 +1,4 @@
-import { IDEA_CARD_SIZE, type Idea } from "./model.ts";
+import { ideaCardSize, type Idea } from "./model.ts";
 
 export type Point = { x: number; y: number };
 export type Side = "left" | "right" | "top" | "bottom";
@@ -371,9 +371,9 @@ function bridgesFor(points: Point[], occupied: Segment[]) {
     Math.hypot(crossing.point.x - other.point.x, crossing.point.y - other.point.y) <= 40).length < 3);
 }
 
-export function routeCanvasEdges(ideas: Idea[], links: CanvasLink[], measured: Record<string, { width: number; height: number } | undefined> = {}) {
+export function routeCanvasEdges(ideas: Idea[], links: CanvasLink[], measured: Record<string, { width: number; height: number } | undefined> = {}, clusterLabels: ReadonlyMap<string, string> = new Map()) {
   const nodes = new Map(ideas.map((idea) => {
-    const size = measured[idea.id] ?? IDEA_CARD_SIZE;
+    const size = measured[idea.id] ?? ideaCardSize(idea, clusterLabels.get(idea.id));
     return [idea.id, { id: idea.id, ...idea.position, width: size.width, height: size.height }] as const;
   }));
   const ports = distributePorts(links, nodes);

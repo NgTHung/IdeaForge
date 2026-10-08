@@ -1,5 +1,5 @@
 import type { ClusterAssignmentResponse, ClusterResponse } from "../../lib/cluster-contract";
-import { IDEA_CARD_SIZE, type Idea } from "./model";
+import { IDEA_CARD_SIZE, ideaCardSize, type Idea } from "./model";
 
 // The persisted `bubbles` field uses these invisible rectangular group bounds.
 // Its name is retained so previously saved shared boards can be reorganized.
@@ -73,16 +73,22 @@ function layoutGroup(group: ClusterResponse["groups"][number], ideas: Idea[], sc
     .filter((idea): idea is Idea => Boolean(idea && !idea.pinned))
     .sort((left, right) => left.id.localeCompare(right.id));
   const anchorIdea = group.noteIds.map((id) => ideas.find((idea) => idea.id === id)).find((idea) => idea?.pinned);
+  const fallbackSize = (idea: Idea) => ideaCardSize(idea, group.label);
   const anchor = anchorIdea ? {
-    x: anchorIdea.position.x + (measured[anchorIdea.id] ?? IDEA_CARD_SIZE).width / 2,
-    y: anchorIdea.position.y + (measured[anchorIdea.id] ?? IDEA_CARD_SIZE).height / 2,
+    x: anchorIdea.position.x + (measured[anchorIdea.id] ?? fallbackSize(anchorIdea)).width / 2,
+    y: anchorIdea.position.y + (measured[anchorIdea.id] ?? fallbackSize(anchorIdea)).height / 2,
   } : null;
+  const groupSizes = group.noteIds.map((id) => ideas.find((idea) => idea.id === id)).filter((idea): idea is Idea => Boolean(idea)).map(fallbackSize);
+  const groupSize = {
+    width: Math.max(IDEA_CARD_SIZE.width, ...groupSizes.map((size) => size.width)),
+    height: Math.max(IDEA_CARD_SIZE.height, ...groupSizes.map((size) => size.height)),
+  };
   if (!members.length) return {
-    group, positions: new Map<string, Point>(), width: IDEA_CARD_SIZE.width + GROUP_PADDING * 2,
-    height: IDEA_CARD_SIZE.height + GROUP_PADDING * 2, anchor,
+    group, positions: new Map<string, Point>(), width: groupSize.width + GROUP_PADDING * 2,
+    height: groupSize.height + GROUP_PADDING * 2, anchor,
   };
 
-  const sizes = new Map(members.map((idea) => [idea.id, measured[idea.id] ?? IDEA_CARD_SIZE]));
+  const sizes = new Map(members.map((idea) => [idea.id, measured[idea.id] ?? fallbackSize(idea)]));
   const allScores = members.flatMap((first, index) => members.slice(index + 1).map((second) => scoreFor(scores, first.id, second.id)));
   const minimum = Math.min(...allScores);
   const maximum = Math.max(...allScores);
@@ -172,6 +178,8 @@ export function layoutClusters(
   const scores = noteScoreMap(result.notePairs);
   const connectedPairs = new Set(connections.map(([first, second]) => [first, second].sort().join("\u0000")));
   const groupForNote = new Map(result.assignments.map((assignment) => [assignment.noteId, assignment.clusterId]));
+  const groupLabels = new Map(result.groups.map((group) => [group.id, group.label]));
+  const sizeFor = (idea: Idea) => ideaCardSize(idea, groupLabels.get(groupForNote.get(idea.id) ?? ""));
   const groupLinks = new Map<string, number>();
   for (const [first, second] of connections) {
     const firstGroup = groupForNote.get(first);
@@ -195,7 +203,7 @@ export function layoutClusters(
   const groupLayouts = ordered.map((group) => layoutGroup(group, ideas, scores, measured, connectedPairs));
   const assignedIds = new Set(result.assignments.map((item) => item.noteId));
   const fixed = ideas.filter((idea) => idea.pinned || !assignedIds.has(idea.id)).map((idea) => ({
-    id: idea.id, ...idea.position, ...(measured[idea.id] ?? IDEA_CARD_SIZE),
+    id: idea.id, ...idea.position, ...(measured[idea.id] ?? sizeFor(idea)),
   }));
   const columns = Math.ceil(Math.sqrt(groupLayouts.length));
   const placedRegions: Rect[] = [];
@@ -227,7 +235,8 @@ export function layoutClusters(
       if (placedRegions.some((other) => overlaps(inflate(candidate, 70), inflate(other, 70)))) return false;
       if (fixed.some((other) => !ownPinned.has(other.id) && overlaps(candidate, inflate(other, 28)))) return false;
       return ![...layout.positions].some(([id, point]) => {
-        const size = measured[id] ?? IDEA_CARD_SIZE;
+        const member = ideas.find((idea) => idea.id === id);
+        const size = measured[id] ?? (member ? ideaCardSize(member, layout.group.label) : IDEA_CARD_SIZE);
         const rect = noteRect({ x: candidate.x + candidate.width / 2 + point.x, y: candidate.y + candidate.height / 2 + point.y }, size);
         return fixed.some((other) => overlaps(inflate(rect, CARD_GAP / 2), inflate(other, CARD_GAP / 2)));
       });
@@ -236,7 +245,8 @@ export function layoutClusters(
     previousInRow = { ...region, groupId: layout.group.id };
     rowBottom = Math.max(rowBottom, region.y + region.height);
     for (const [id, point] of layout.positions) {
-      const size = measured[id] ?? IDEA_CARD_SIZE;
+      const member = ideas.find((idea) => idea.id === id);
+      const size = measured[id] ?? (member ? ideaCardSize(member, layout.group.label) : IDEA_CARD_SIZE);
       positions.set(id, {
         x: region.x + region.width / 2 + point.x - size.width / 2,
         y: region.y + region.height / 2 + point.y - size.height / 2,
@@ -264,11 +274,11 @@ export function placeNewNote(
   const member = ideas.find((candidate) => candidate.id === group?.closestMember.noteId);
   if (!group || !member) return null;
   const members = memberIds.map((id) => ideas.find((candidate) => candidate.id === id)).filter((candidate): candidate is Idea => Boolean(candidate));
-  const size = measured[idea.id] ?? IDEA_CARD_SIZE;
-  const memberSize = measured[member.id] ?? IDEA_CARD_SIZE;
+  const size = measured[idea.id] ?? ideaCardSize(idea, bubble.label);
+  const memberSize = measured[member.id] ?? ideaCardSize(member, bubble.label);
   const origin = { x: member.position.x + memberSize.width / 2, y: member.position.y + memberSize.height / 2 };
   const obstacles = ideas.filter((candidate) => candidate.id !== idea.id).map((candidate) => ({
-    ...candidate.position, ...(measured[candidate.id] ?? IDEA_CARD_SIZE),
+    ...candidate.position, ...(measured[candidate.id] ?? ideaCardSize(candidate, memberIds.includes(candidate.id) ? bubble.label : undefined)),
   }));
   const scores = noteScoreMap(assignment.notePairs);
   const memberScores = members.map((candidate) => scoreFor(scores, idea.id, candidate.id));
@@ -290,7 +300,7 @@ export function placeNewNote(
     };
     if (otherBubbles.some((other) => other.clusterId !== groupId && overlaps(inflate(expanded, 50), inflate(other, 50)))) return [];
     const pairCost = members.reduce((total, candidate) => {
-      const candidateSize = measured[candidate.id] ?? IDEA_CARD_SIZE;
+      const candidateSize = measured[candidate.id] ?? ideaCardSize(candidate, memberIds.includes(candidate.id) ? bubble.label : undefined);
       const similarity = scoreFor(scores, idea.id, candidate.id);
       const target = Math.max((size.width + candidateSize.width) / 2, (size.height + candidateSize.height) / 2) + CARD_GAP +
         (1 - normalized(similarity, minimum, maximum)) * 190;
