@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { markdownTextSchema } from "./markdown";
 
 export const sourceSchema = z.object({
   id: z.string().min(1).max(100),
@@ -55,18 +56,18 @@ export const mergeRequestSchema = z.object({
 
 const mergeResultFields = {
   status: z.enum(["useful", "needs_clarification", "no_useful_merge"]),
-  reason: z.string().trim().max(600),
+  reason: markdownTextSchema(600),
   title: z.string().trim().min(1).max(120),
-  concept: z.string().trim().min(1).max(2000),
-  bridge: z.string().trim().min(1).max(600),
-  tension: z.string().trim().min(1).max(600),
-  assumptions: z.array(z.string().trim().min(1).max(300)).max(4),
-  nextExperiment: z.string().trim().min(1).max(600),
+  concept: markdownTextSchema(2000, 1),
+  bridge: markdownTextSchema(600, 1),
+  tension: markdownTextSchema(600, 1),
+  assumptions: z.array(markdownTextSchema(300, 1)).max(4),
+  nextExperiment: markdownTextSchema(600, 1),
 };
 
 export const mergeProposalSchema = z.object({
   ...mergeResultFields,
-  contributions: z.array(z.object({ sourceId: z.string().min(1).max(100), contribution: z.string().trim().min(1).max(600) }).strict())
+  contributions: z.array(z.object({ sourceId: z.string().min(1).max(100), contribution: markdownTextSchema(600, 1) }).strict())
     .min(2).max(MAX_MERGE_SOURCES),
 }).strict().superRefine(({ contributions }, context) => {
   if (new Set(contributions.map(({ sourceId }) => sourceId)).size !== contributions.length) {
@@ -76,8 +77,8 @@ export const mergeProposalSchema = z.object({
 
 export const legacyMergeResultSchema = z.object({
   ...mergeResultFields,
-  contributionA: z.string().trim().min(1).max(600),
-  contributionB: z.string().trim().min(1).max(600),
+  contributionA: markdownTextSchema(600, 1),
+  contributionB: markdownTextSchema(600, 1),
 });
 
 export const mergeResultSchema = z.union([mergeProposalSchema, legacyMergeResultSchema]);

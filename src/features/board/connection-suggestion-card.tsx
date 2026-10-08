@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { connectionExplanationSchema } from '@/lib/connections';
 import { canAcceptConnection, type ConnectionPreview } from './connection-preview';
 import { relationshipLabels, type Board, type RelationshipType } from './model';
+import { MarkdownText } from './markdown-text';
 
 type Props = {
   preview: ConnectionPreview; index: number; board: Board; goal: string; boardId?: string;
@@ -50,9 +51,9 @@ export function ConnectionSuggestionCard({ preview, index, board, goal, boardId,
     <p className="connection-pair"><strong>{board.ideas.find((idea) => idea.id === preview.sourceId)?.title || 'Deleted idea'}</strong><span className="connection-pair-connector">{preview.type === 'extends' ? 'extends' : '↔'}{'\u00a0'}</span><strong>{board.ideas.find((idea) => idea.id === preview.targetId)?.title || 'Deleted idea'}</strong></p>
     <div className="connection-suggestion-fields">
       <label className="connection-suggestion-field">Relationship<select value={preview.type} onChange={(event) => change({ type: event.target.value as RelationshipType, condition: event.target.value === 'conflict' ? preview.condition : null, explanation: preview.explanationSource === 'ai' ? '' : preview.explanation })}>{Object.entries(relationshipLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-      {preview.explanation && <p className="connection-explanation">{preview.explanation}</p>}
-      {error && <p role="alert" className="board-error">{error}</p>}
-      {preview.type === 'conflict' && <label className="connection-suggestion-field">When do these ideas conflict?<textarea rows={2} required maxLength={600} value={preview.condition ?? ''} onChange={(event) => change({ condition: event.target.value })} /></label>}
+      {preview.explanation && <MarkdownText className="connection-explanation">{preview.explanation}</MarkdownText>}
+      {error && <MarkdownText role="alert" className="board-error">{error}</MarkdownText>}
+      {preview.type === 'conflict' && <label className="connection-suggestion-field">When do these ideas conflict?<textarea rows={2} required maxLength={600} value={preview.condition ?? ''} onChange={(event) => change({ condition: event.target.value })} />{preview.condition?.trim() && <MarkdownText className="connection-explanation">{preview.condition}</MarkdownText>}</label>}
     </div>
     <div className="connection-suggestion-actions">
       <div className="connection-suggestion-utilities">

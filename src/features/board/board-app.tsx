@@ -8,6 +8,7 @@ import { initialBoard } from "./fixtures";
 import { clusterLabelsFor, createIdea, createRelationship, deleteIdea, deleteRelationship, IDEA_CARD_SIZE, ideaCardSize, moveIdea, relationshipLabels, setIdeaPinned, updateIdea, updateRelationship,
   type Board, type Idea, type Relationship, type RelationshipType } from "./model";
 import { Bubble, type IdeaNode } from "./bubble";
+import { MarkdownText } from "./markdown-text";
 import { OrthogonalEdge, type OrthogonalCanvasEdge } from "./orthogonal-edge";
 import { orthogonalPreviewPath, routeCanvasEdges } from "./edge-routing";
 import { ChatSidebar } from "./chat-sidebar";
@@ -152,6 +153,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const [condition, setCondition] = useState("");
   const [linkError, setLinkError] = useState("");
   const [editor, setEditor] = useState<{ id: string; title: string; content: string } | null>(null);
+  const [editorPreview, setEditorPreview] = useState(false);
   const [editError, setEditError] = useState("");
   const [lockNotice, setLockNotice] = useState("");
   const [physicsEnabled, setPhysicsEnabled] = useState(!onBoardChange);
@@ -376,6 +378,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     setMergeIds([]);
     setSelection({ kind: "idea", id: idea.id });
     setEditor({ id: idea.id, title: idea.title, content: idea.content });
+    setEditorPreview(false);
     setEditError("");
   }
   function openRelationshipEditor(relationship: Relationship) {
@@ -1430,11 +1433,11 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       <div className="board-merge-preview-content">
         {previewStale && <p className="board-error" role="alert">A source note, its link, or the goal changed. Regenerate before creating this idea.</p>}
         {mergePreview.result.status !== "useful" ? <>
-          <p className="board-merge-weak" role="status">{textExcerpt(mergePreview.result.reason || "These ideas need a clearer connection before they can be combined.", 180).text}</p>
-          {mergePreview.result.reason.length > 180 && <details className="board-merge-read-full"><summary>Read the full explanation</summary><p>{mergePreview.result.reason}</p></details>}
+          <MarkdownText className="board-merge-weak" role="status">{textExcerpt(mergePreview.result.reason || "These ideas need a clearer connection before they can be combined.", 180).text}</MarkdownText>
+          {mergePreview.result.reason.length > 180 && <details className="board-merge-read-full"><summary>Read the full explanation</summary><MarkdownText>{mergePreview.result.reason}</MarkdownText></details>}
           <p className="board-merge-sources">{mergePreview.ids.map((id, index) => `${index + 1}. ${board.ideas.find((idea) => idea.id === id)?.title || "Deleted idea"}`).join(" · ")}</p>
           {previewContext?.relationships.length ? <details className="board-merge-disclosure"><summary>Review selected links ({previewContext.relationships.length})</summary><div className="board-merge-reasoning">
-            {previewContext.relationships.map((relationship, index) => <p key={`${relationship.type}-${relationship.sourceId}-${relationship.targetId}-${index}`}><strong>{relationshipLabels[relationship.type]}</strong>: {board.ideas.find((idea) => idea.id === relationship.sourceId)?.title || "Source"} → {board.ideas.find((idea) => idea.id === relationship.targetId)?.title || "Target"}{relationship.explanation ? ` — ${relationship.explanation}` : ""}{relationship.condition ? ` Condition: ${relationship.condition}` : ""}</p>)}
+            {previewContext.relationships.map((relationship, index) => <div className="board-merge-reasoning-item" key={`${relationship.type}-${relationship.sourceId}-${relationship.targetId}-${index}`}><strong>{relationshipLabels[relationship.type]}</strong><p>{board.ideas.find((idea) => idea.id === relationship.sourceId)?.title || "Source"} → {board.ideas.find((idea) => idea.id === relationship.targetId)?.title || "Target"}</p>{relationship.explanation && <MarkdownText>{relationship.explanation}</MarkdownText>}{relationship.condition && <MarkdownText>Condition: {relationship.condition}</MarkdownText>}</div>)}
           </div></details> : null}
         </> : <>
           {mergeEditMode ? <div className="board-merge-edit-fields">
@@ -1443,24 +1446,24 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           </div> : <section className="board-merge-compact-concept" aria-label="Combined idea">
             <h3>{mergePreview.title}</h3>
             {(() => { const excerpt = textExcerpt(mergePreview.concept); return <>
-              <p>{excerpt.text}</p>
-              {excerpt.shortened && <details className="board-merge-read-full"><summary>Read full concept</summary><p>{mergePreview.concept}</p></details>}
+              <MarkdownText className="board-merge-concept-text">{excerpt.text}</MarkdownText>
+              {excerpt.shortened && <details className="board-merge-read-full"><summary>Read full concept</summary><MarkdownText>{mergePreview.concept}</MarkdownText></details>}
             </>; })()}
             {(() => { const experiment = textExcerpt(mergePreview.result.nextExperiment, 160); return <>
-              <p className="board-merge-first-test"><strong>Try first</strong> {experiment.text}</p>
-              {experiment.shortened && <details className="board-merge-read-full"><summary>Read full experiment</summary><p>{mergePreview.result.nextExperiment}</p></details>}
+              <div className="board-merge-first-test"><strong>Try first</strong><MarkdownText>{experiment.text}</MarkdownText></div>
+              {experiment.shortened && <details className="board-merge-read-full"><summary>Read full experiment</summary><MarkdownText>{mergePreview.result.nextExperiment}</MarkdownText></details>}
             </>; })()}
             {previewContext?.relationships.some((relationship) => relationship.type === "conflict") && <p className="board-merge-conflict-notice" role="note">This set includes a conflict. Review its condition under “Why these ideas fit”.</p>}
           </section>}
           <details className="board-merge-disclosure">
             <summary>Why these ideas fit</summary>
             <div className="board-merge-reasoning">
-              <section><h3>What each idea adds</h3>{mergePreview.result.contributions.map((item, index) => <p key={item.sourceId}><strong>{board.ideas.find((idea) => idea.id === item.sourceId)?.title || `Idea ${index + 1}`}</strong> {item.contribution}</p>)}</section>
-              <section><h3>Why the combination works</h3><p>{mergePreview.result.bridge}</p></section>
-              <section><h3>What needs checking</h3><p><strong>Tension</strong> {mergePreview.result.tension}</p>
-                {mergePreview.result.assumptions.length > 0 && <p><strong>Assumptions</strong> {mergePreview.result.assumptions.join("; ")}</p>}
-                <p><strong>First experiment</strong> {mergePreview.result.nextExperiment}</p></section>
-              {previewContext?.relationships.length ? <section><h3>Existing links</h3>{previewContext.relationships.map((relationship, index) => <p key={`${relationship.type}-${relationship.sourceId}-${relationship.targetId}-${index}`}><strong>{relationshipLabels[relationship.type]}</strong>: {board.ideas.find((idea) => idea.id === relationship.sourceId)?.title || "Source"} → {board.ideas.find((idea) => idea.id === relationship.targetId)?.title || "Target"}{relationship.explanation ? ` — ${relationship.explanation}` : ""}{relationship.condition ? ` Condition: ${relationship.condition}` : ""}</p>)}</section> : null}
+              <section><h3>What each idea adds</h3>{mergePreview.result.contributions.map((item, index) => <div className="board-merge-reasoning-item" key={item.sourceId}><strong>{board.ideas.find((idea) => idea.id === item.sourceId)?.title || `Idea ${index + 1}`}</strong><MarkdownText>{item.contribution}</MarkdownText></div>)}</section>
+              <section><h3>Why the combination works</h3><MarkdownText>{mergePreview.result.bridge}</MarkdownText></section>
+              <section><h3>What needs checking</h3><div className="board-merge-reasoning-item"><strong>Tension</strong><MarkdownText>{mergePreview.result.tension}</MarkdownText></div>
+                {mergePreview.result.assumptions.length > 0 && <div className="board-merge-reasoning-item"><strong>Assumptions</strong><MarkdownText>{mergePreview.result.assumptions.join("\n\n")}</MarkdownText></div>}
+                <div className="board-merge-reasoning-item"><strong>First experiment</strong><MarkdownText>{mergePreview.result.nextExperiment}</MarkdownText></div></section>
+              {previewContext?.relationships.length ? <section><h3>Existing links</h3>{previewContext.relationships.map((relationship, index) => <div className="board-merge-reasoning-item" key={`${relationship.type}-${relationship.sourceId}-${relationship.targetId}-${index}`}><strong>{relationshipLabels[relationship.type]}</strong><p>{board.ideas.find((idea) => idea.id === relationship.sourceId)?.title || "Source"} → {board.ideas.find((idea) => idea.id === relationship.targetId)?.title || "Target"}</p>{relationship.explanation && <MarkdownText>{relationship.explanation}</MarkdownText>}{relationship.condition && <MarkdownText>Condition: {relationship.condition}</MarkdownText>}</div>)}</section> : null}
             </div>
           </details>
         </>}
@@ -1483,31 +1486,33 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       <p className="board-merge-source-count">Combined from {selectedMergeDetails?.sources.length ?? 0} ideas</p>
       <h3 className="board-merge-saved-title">{selectedMergeIdea.title}</h3>
       {(() => { const excerpt = textExcerpt(selectedMergeIdea.content); return <>
-        <p className="board-merge-saved-concept">{excerpt.text}</p>
-        {excerpt.shortened && <details className="board-merge-read-full"><summary>Read full concept</summary><p>{selectedMergeIdea.content}</p></details>}
+        <MarkdownText className="board-merge-saved-concept">{excerpt.text}</MarkdownText>
+        {excerpt.shortened && <details className="board-merge-read-full"><summary>Read full concept</summary><MarkdownText>{selectedMergeIdea.content}</MarkdownText></details>}
       </>; })()}
       <details className="board-merge-disclosure"><summary>Original source notes ({selectedMergeDetails?.sources.length ?? 0})</summary>
-        {selectedMergeDetails?.sources.map((source, index) => <div className="board-merge-source" key={`${source.id}-${index}`}><strong>Idea {index + 1}: {source.title || "Untitled idea"}</strong><span>By {source.author}</span><p>{source.content || "No description"}</p></div>)}
+        {selectedMergeDetails?.sources.map((source, index) => <div className="board-merge-source" key={`${source.id}-${index}`}><strong>Idea {index + 1}: {source.title || "Untitled idea"}</strong><span>By {source.author}</span><MarkdownText>{source.content || "No description"}</MarkdownText></div>)}
       </details>
       <details className="board-merge-disclosure"><summary>Why this idea works</summary><div className="board-merge-reasoning">
         <p><strong>Goal</strong> {selectedMergeIdea.merge.goal}</p>
-        {selectedMergeDetails?.contributions.map((item, index) => <p key={item.sourceId}><strong>{selectedMergeDetails.sources[index]?.title || `Idea ${index + 1}`} adds</strong> {item.contribution}</p>)}
-        {selectedMergeDetails?.relationships.map((relationship, index) => <p key={`${relationship.type}-${relationship.sourceId}-${relationship.targetId}-${index}`}><strong>{relationshipLabels[relationship.type]}</strong>: {relationship.explanation || "No explanation"}{relationship.condition ? ` Condition: ${relationship.condition}` : ""}</p>)}
-        <p><strong>Why the combination works</strong> {selectedMergeIdea.merge.proposal.bridge}</p><p><strong>What needs checking</strong> {selectedMergeIdea.merge.proposal.tension}</p>
-        {selectedMergeIdea.merge.proposal.assumptions.length > 0 && <p><strong>Assumptions</strong> {selectedMergeIdea.merge.proposal.assumptions.join("; ")}</p>}
-        <p><strong>First experiment</strong> {selectedMergeIdea.merge.proposal.nextExperiment}</p>
+        {selectedMergeDetails?.contributions.map((item, index) => <div className="board-merge-reasoning-item" key={item.sourceId}><strong>{selectedMergeDetails.sources[index]?.title || `Idea ${index + 1}`} adds</strong><MarkdownText>{item.contribution}</MarkdownText></div>)}
+        {selectedMergeDetails?.relationships.map((relationship, index) => <div className="board-merge-reasoning-item" key={`${relationship.type}-${relationship.sourceId}-${relationship.targetId}-${index}`}><strong>{relationshipLabels[relationship.type]}</strong><MarkdownText>{relationship.explanation || "No explanation"}</MarkdownText>{relationship.condition && <MarkdownText>Condition: {relationship.condition}</MarkdownText>}</div>)}
+        <div className="board-merge-reasoning-item"><strong>Why the combination works</strong><MarkdownText>{selectedMergeIdea.merge.proposal.bridge}</MarkdownText></div><div className="board-merge-reasoning-item"><strong>What needs checking</strong><MarkdownText>{selectedMergeIdea.merge.proposal.tension}</MarkdownText></div>
+        {selectedMergeIdea.merge.proposal.assumptions.length > 0 && <div className="board-merge-reasoning-item"><strong>Assumptions</strong><MarkdownText>{selectedMergeIdea.merge.proposal.assumptions.join("\n\n")}</MarkdownText></div>}
+        <div className="board-merge-reasoning-item"><strong>First experiment</strong><MarkdownText>{selectedMergeIdea.merge.proposal.nextExperiment}</MarkdownText></div>
         <small>Generated with {selectedMergeIdea.merge.model} on {new Date(selectedMergeIdea.merge.generatedAt).toLocaleString()}.</small>
       </div></details>
     </div>}
     {selectedAssistantIdea?.assistant && <div className="board-merge-details" role="dialog" aria-modal="false" aria-label="Assistant idea sources"><div className="board-merge-panel-head"><h2>Assistant idea sources</h2><button type="button" aria-label="Close assistant sources" onClick={() => setAssistantDetailsId(null)}>×</button></div>
-      <p><strong>Current title</strong> {selectedAssistantIdea.title}</p><p><strong>Current content</strong> {selectedAssistantIdea.content || "No description"}</p>
-      <p><strong>Generated title</strong> {selectedAssistantIdea.assistant.generated.title}</p><p><strong>Generated content</strong> {selectedAssistantIdea.assistant.generated.content}</p>
-      {selectedAssistantIdea.assistant.sources.map((source, index) => <div className="board-merge-source" key={`${source.id}-${index}`}><strong>Source {index + 1}: {source.title || "Untitled idea"}</strong><span>By {source.author}</span><p>{source.content || "No description"}</p></div>)}
+      <p><strong>Current title</strong> {selectedAssistantIdea.title}</p><div><strong>Current content</strong><MarkdownText>{selectedAssistantIdea.content || "No description"}</MarkdownText></div>
+      <p><strong>Generated title</strong> {selectedAssistantIdea.assistant.generated.title}</p><div><strong>Generated content</strong><MarkdownText>{selectedAssistantIdea.assistant.generated.content}</MarkdownText></div>
+      {selectedAssistantIdea.assistant.sources.map((source, index) => <div className="board-merge-source" key={`${source.id}-${index}`}><strong>Source {index + 1}: {source.title || "Untitled idea"}</strong><span>By {source.author}</span><MarkdownText>{source.content || "No description"}</MarkdownText></div>)}
       <small>Created by {selectedAssistantIdea.author || "Unknown contributor"} with {selectedAssistantIdea.assistant.model} on {new Date(selectedAssistantIdea.assistant.generatedAt).toLocaleString()}.</small>
     </div>}
     {editor && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) { setEditor(null); setDraftIdeaId(null); draftIdeaRef.current = null; } }}><form className="board-dialog" onSubmit={saveEdit} aria-label="Edit idea">
       <span className="board-eyebrow">IDEA DETAILS</span><h2>Edit idea</h2><label>Title<input ref={titleInput} value={editor.title} maxLength={120} onChange={(event) => { setEditor({ ...editor, title: event.target.value }); setEditError(""); }} /></label>
-      <label>Content<textarea value={editor.content} maxLength={4000} rows={6} onChange={(event) => setEditor({ ...editor, content: event.target.value })} placeholder="What makes this idea useful?" /></label>
+      <label>Content<textarea value={editor.content} maxLength={4000} rows={6} onChange={(event) => setEditor({ ...editor, content: event.target.value })} placeholder="What makes this idea useful?" /><span className="board-markdown-hint">Markdown: **bold**, *italic*, lists, and [links](https://example.com).</span></label>
+      <button type="button" className="board-markdown-preview-toggle" onClick={() => setEditorPreview((value) => !value)}>{editorPreview ? "Hide preview" : "Preview Markdown"}</button>
+      {editorPreview && <MarkdownText className="board-markdown-edit-preview">{editor.content || "Markdown preview will appear here."}</MarkdownText>}
       {draftIdeaId === editor.id && <label className="board-auto-place-toggle"><input type="checkbox" checked={autoPlaceNewNotes} disabled={!clusterSnapshot || clusterStale || assignmentBusy} onChange={(event) => {
         const enabled = event.target.checked;
         autoPlacePreference.current = enabled;
@@ -1524,8 +1529,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       <span className="board-eyebrow">{relationshipEditor ? "EDIT RELATIONSHIP" : "CONNECT IDEAS"}</span><h2>{relationshipEditor ? "Edit relationship" : "How are they related?"}</h2><p className="board-link-direction">{board.ideas.find((idea) => idea.id === (relationshipEditor ?? linkDraft)?.source)?.title} → {board.ideas.find((idea) => idea.id === (relationshipEditor ?? linkDraft)?.target)?.title}</p>
       <label>Relationship<select value={relationshipType} onChange={(event) => setRelationshipType(event.target.value as RelationshipType)}>{Object.entries(relationshipLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       {relationshipType === "extends" && <p className="board-direction-note">The first idea extends the second idea. The arrow will point to the second idea.</p>}
-      {relationshipType === "conflict" && <label>Conflict condition<textarea rows={2} maxLength={600} value={condition} onChange={(event) => setCondition(event.target.value)} placeholder="When can both ideas not hold?" /></label>}
-      <label>Explanation<textarea rows={3} maxLength={1000} value={explanation} onChange={(event) => setExplanation(event.target.value)} placeholder="Why does this connection matter?" /></label>
+      {relationshipType === "conflict" && <label>Conflict condition<textarea rows={2} maxLength={600} value={condition} onChange={(event) => setCondition(event.target.value)} placeholder="When can both ideas not hold?" />{condition.trim() && <MarkdownText className="board-link-markdown-preview">{condition}</MarkdownText>}</label>}
+      <label>Explanation<textarea rows={3} maxLength={1000} value={explanation} onChange={(event) => setExplanation(event.target.value)} placeholder="Why does this connection matter?" />{explanation.trim() && <MarkdownText className="board-link-markdown-preview">{explanation}</MarkdownText>}</label>
       {linkError && <p className="board-error" role="alert">{linkError}</p>}<div className="board-dialog-actions"><button type="button" onClick={cancelInteraction}>Cancel</button><button className="primary" type="submit">{relationshipEditor ? "Save relationship" : "Create connection"}</button></div></form></div>}
   </main>;
 }
