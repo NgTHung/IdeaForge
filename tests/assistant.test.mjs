@@ -163,6 +163,7 @@ test("mocked assistant translates aliases to real IDs for citations and every ac
     assert.deepEqual(parsedPrompt.cards.map(({ id }) => id), ["c1", "c2"]);
     assert.deepEqual([parsedPrompt.relationships[0].source, parsedPrompt.relationships[0].target], ["c1", "c2"]);
     assert.equal(parsedPrompt.selectedCard, "c1");
+    assert.match(request.body.messages[0].content, /Put every edit, new card, link, or merge you propose in actions/);
     assert.ok(!prompt.includes(ids[0]));
     assert.ok(!prompt.includes(ids[1]));
   }
@@ -246,13 +247,60 @@ test("mocked assistant reports missing provider credentials without calling fetc
 
 test("mocked invalid provider output returns a safe error without the secret", async (t) => {
   process.env.FEATHERLESS_API_KEY = "test-only-secret";
-  mockProvider(t, [{ choices: [{ message: { content: "test-only-secret is not JSON" } }] }]);
+  const broken = { choices: [{ message: { content: '{"reply":[{"text":"test-only-secret says "hi"","cites":[]}],"actions":[]}' } }] };
+  mockProvider(t, [broken, broken]);
   const response = await POST(assistantRequest(payload));
   assert.equal(response.status, 502);
+  assert.equal(requests.length, 2);
   const error = await response.json();
   assert.equal(error.code, "invalid_output");
   assert.ok(!JSON.stringify(error).includes("test-only-secret"));
   assert.ok(!JSON.stringify(errors).includes("test-only-secret"));
+});
+
+test("a plain-text greeting becomes uncited paragraphs with no actions", async (t) => {
+  process.env.FEATHERLESS_API_KEY = "test-only-secret";
+  mockProvider(t, [{ choices: [{ message: { content: "<think>Greet them.</think>Hi! No board card is relevant yet.\n\nAsk me about Daily challenge (c1)." } }] }]);
+  const response = await POST(assistantRequest({ ...payload, message: "hi" }));
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).result, {
+    reply: [
+      { text: "Hi! No board card is relevant yet.", cites: [] },
+      { text: "Ask me about Daily challenge.", cites: [] },
+    ],
+    actions: [],
+  });
+  assert.equal(requests.length, 1);
+});
+
+test("assistant keeps the usable parts of a reply with small format slips", async (t) => {
+  process.env.FEATHERLESS_API_KEY = "test-only-secret";
+  const link = (why) => ({ kind: "link", why, source: "c1", target: "c2", type: "extends", explanation: "A partner extends the challenge." });
+  const output = {
+    reply: [
+      { text: "Missing citations default to none." },
+      { text: "Extra citations are cut.", cites: ["c1", "c2", "c1", "c2", "c1", "c2"], note: "ignored" },
+    ],
+    reply2: [{ text: "Unknown keys are ignored.", cites: [] }],
+    actions: [
+      { kind: "merge", why: "Missing b.", a: "c1" },
+      { kind: "edit", why: "Clarify the challenge.", card: "c1", title: "Short daily challenge" },
+      { kind: "create", why: "Combine them.", title: "Daily study pair", content: "A friend joins a short challenge.", basedOn: ["c1", "c2"] },
+      { kind: "merge", why: "Both support studying.", a: "c1", b: "c2" },
+      link("A fourth valid action is over the limit."),
+    ],
+  };
+  mockProvider(t, [{ choices: [{ message: { content: `Here are my suggestions:\n\n${JSON.stringify(output)}` } }] }]);
+  const response = await POST(assistantRequest(payload));
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(body.result.reply, [
+    { text: "Missing citations default to none.", cites: [] },
+    { text: "Extra citations are cut.", cites: ids },
+  ]);
+  assert.deepEqual(body.result.actions.map((action) => action.kind), ["edit", "create", "merge"]);
+  // One citation over the limit and three repeats; one invalid action and one over the limit.
+  assert.deepEqual(warnings, [["Assistant output items removed", { citations: 4, actions: 2 }]]);
 });
 
 test("mocked provider overload retries and returns the safe overload cause", async (t) => {

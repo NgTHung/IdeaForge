@@ -59,6 +59,8 @@ Each action kind adds its own fields:
 
 If the model handles the `anyOf` that a Zod discriminated union produces poorly, use one action object with a `kind` enum and optional fields, and check the required fields per kind after parsing.
 
+Featherless can't constrain GLM's output, so the route accepts small format slips before validation. A reply with no JSON object, which GLM tends to send for greetings, becomes uncited paragraphs with no actions. In a JSON reply, missing citations default to none, unknown keys are ignored, invalid actions are dropped, and only the first five citations per paragraph and the first three valid actions are kept. Broken JSON still fails with `invalid_output`.
+
 After parsing, the route checks every alias against the request. It removes and deduplicates citations that don't resolve to a card, removes actions that name an unknown card, removes link and merge actions whose two cards are the same, and filters invalid sources from create actions. It drops a create action with no valid source. It also drops link actions that duplicate a saved relationship or another action in the reply. It logs removal counts without card text. The browser receives the reply with real card IDs.
 
 ## Prompt rules
@@ -71,7 +73,7 @@ The system instruction carries the rules that already apply to suggestions and m
 - Similarity isn't agreement. Choose a link type from what the cards say, and propose no link when none is useful.
 - Say when a connection is weak instead of presenting it as a validated opportunity.
 - Prefer combinations across different themes and different authors when they serve the goal.
-- Propose at most three actions, and only when they answer the message.
+- Propose at most three actions, and only when they answer the message. Put every proposed change in actions rather than only describing it in the reply; GLM-5.3-Flash sometimes listed proposed links as text instead.
 - Reply in the language of the user's message.
 
 ## Previews on the canvas

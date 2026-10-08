@@ -213,6 +213,9 @@
 .board-merge-compact-concept .board-merge-first-test { padding: 10px 12px; border-left: 3px solid #7dae94; border-radius: 0 8px 8px 0; background: #f1f8f3; font-size: 13px; }
 .board-merge-first-test strong { display: block; margin-bottom: 3px; color: #245b45; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
 .board-merge-conflict-notice { padding: 9px 11px; border-radius: 8px; background: #fff2d5; color: #724f19; font-size: 12px; line-height: 1.4; }
+.board-merge-excluded { margin-bottom: 12px; padding: 9px 11px; border-radius: 8px; background: #fff2d5; color: #724f19; font-size: 12px; line-height: 1.4; }
+.board-merge-excluded h3 { margin: 0 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.board-merge-excluded p { margin: 4px 0 0; }
 .board-merge-character-hint { display: block; margin-top: 5px; color: #6d8176; font-size: 11px; font-weight: 500; }
 .board-merge-read-full { margin: -4px 0 12px; color: #306951; font-size: 12px; }
 .board-merge-read-full summary, .board-merge-disclosure summary { cursor: pointer; font-weight: 700; }
@@ -251,7 +254,7 @@
 .board-shell[data-theme="dark"] .board-merge-disclosure[open] > summary { border-color: #3d5950; }
 .board-shell[data-theme="dark"] .board-merge-read-full { color: #a6e4bf; }
 .board-shell[data-theme="dark"] .board-merge-character-hint, .board-shell[data-theme="dark"] .board-merge-source-count { color: #a9bdb1; }
-.board-shell[data-theme="dark"] .board-merge-conflict-notice { background: #514326; color: #f1d99d; }
+.board-shell[data-theme="dark"] .board-merge-conflict-notice, .board-shell[data-theme="dark"] .board-merge-excluded { background: #514326; color: #f1d99d; }
 .board-shell[data-theme="dark"] .board-merge-panel input, .board-shell[data-theme="dark"] .board-merge-panel textarea { background: #263633; border-color: #405650; color: #e0eae4; }
 .board-shell[data-theme="dark"] .board-merge-reasoning { background: #283d34; color: #c3dac9; }
 .board-shell[data-theme="dark"] .board-merge-count { background: #2f5743; color: #c1efd0; }

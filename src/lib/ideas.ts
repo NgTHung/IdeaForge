@@ -68,11 +68,24 @@ export const mergeProposalSchema = z.object({
   ...mergeResultFields,
   contributions: z.array(z.object({ sourceId: z.string().min(1).max(100), contribution: z.string().trim().min(1).max(600) }).strict())
     .min(2).max(MAX_MERGE_SOURCES),
-}).strict().superRefine(({ contributions }, context) => {
-  if (new Set(contributions.map(({ sourceId }) => sourceId)).size !== contributions.length) {
-    context.addIssue({ code: "custom", path: ["contributions"], message: "Each source must have one contribution." });
+  // Selected notes the concept leaves out, each with the reason it doesn't fit. Older records have none.
+  // GLM often copies an empty contribution key into these items, so unknown keys are stripped instead of rejected.
+  excluded: z.array(z.object({ sourceId: z.string().min(1).max(100), reason: z.string().trim().min(1).max(300) }))
+    .max(MAX_MERGE_SOURCES - 2).optional(),
+}).strict().superRefine(({ contributions, excluded = [] }, context) => {
+  const ids = [...contributions, ...excluded].map(({ sourceId }) => sourceId);
+  if (new Set(ids).size !== ids.length) {
+    context.addIssue({ code: "custom", path: ["contributions"], message: "Each source must appear once, in contributions or excluded." });
   }
 });
+
+// Returns why a proposal doesn't account for exactly the selected notes, or undefined when it does.
+export function mergeCoverageProblem(proposal: MergeProposal, sourceIds: string[]): string | undefined {
+  const expected = [...sourceIds].sort();
+  const returned = [...proposal.contributions, ...(proposal.excluded ?? [])].map(({ sourceId }) => sourceId).sort();
+  if (expected.length === returned.length && expected.every((id, index) => id === returned[index])) return undefined;
+  return `every source ID (${expected.join(", ")}) must appear exactly once across contributions and excluded, but they contain ${returned.join(", ") || "none"}`;
+}
 
 export const legacyMergeResultSchema = z.object({
   ...mergeResultFields,

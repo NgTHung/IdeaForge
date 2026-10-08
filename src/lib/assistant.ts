@@ -10,6 +10,8 @@ export const MAX_ASSISTANT_MESSAGE_CHARACTERS = 2000;
 export const MAX_ASSISTANT_HISTORY_MESSAGES = 10;
 export const MAX_ASSISTANT_HISTORY_MESSAGE_CHARACTERS = 6400;
 export const MAX_ASSISTANT_CARD_ID_CHARACTERS = 100;
+export const MAX_ASSISTANT_PARAGRAPH_CITES = 5;
+export const MAX_ASSISTANT_ACTIONS = 3;
 
 export const cardIdSchema = z.string().min(1).max(MAX_ASSISTANT_CARD_ID_CHARACTERS);
 const relationshipTypeSchema = z.enum(["synergy", "conflict", "extends"]);
@@ -109,14 +111,14 @@ export function assistantOutputSchema<T extends z.ZodType>(referenceSchema: T) {
   return z.object({
     reply: z.array(z.object({
       text: z.string().trim().min(1).max(800),
-      cites: z.array(referenceSchema).max(5),
+      cites: z.array(referenceSchema).max(MAX_ASSISTANT_PARAGRAPH_CITES),
     }).strict()).min(1).max(8),
     actions: z.array(z.discriminatedUnion("kind", [
       createActionSchema,
       editActionSchema,
       linkActionSchema,
       mergeActionSchema,
-    ])).max(3),
+    ])).max(MAX_ASSISTANT_ACTIONS),
   }).strict();
 }
 

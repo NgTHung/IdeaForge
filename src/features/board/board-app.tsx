@@ -23,8 +23,8 @@ import { clusterAssignmentResponseSchema, clusterNamesResponseSchema, clusterRes
 import { layoutClusters, placeNewNote } from "./cluster-layout";
 import { withResolvedNodeOverlaps, type NodeSize } from "./node-layout";
 import { appendClusterAssignment, memberFingerprint, renameClusterGroup } from "./cluster-state";
-import { addMergedIdea, mergeContext, mergeText, relatedIdeaPosition, mergeDisplayData } from "./merge-board";
-import { initialGoal, MAX_MERGE_SOURCES, MAX_MERGE_TOTAL_CHARACTERS, mergeProposalSchema, type MergeProposal } from "@/lib/ideas";
+import { addMergedIdea, mergeContext, mergeText, relatedIdeaPosition, mergeDisplayData, mergeRecordFor } from "./merge-board";
+import { initialGoal, MAX_MERGE_SOURCES, MAX_MERGE_TOTAL_CHARACTERS, mergeCoverageProblem, mergeProposalSchema, type MergeProposal } from "@/lib/ideas";
 import { historyShortcut } from "./history-shortcut";
 import "./board.css";
 
@@ -570,9 +570,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       if (!payload || typeof payload !== "object" || !("result" in payload) || !("model" in payload) || !("generatedAt" in payload)) throw new Error("The AI returned an incomplete proposal.");
       const parsed = mergeProposalSchema.safeParse(payload.result);
       if (!parsed.success || typeof payload.model !== "string" || typeof payload.generatedAt !== "string") throw new Error("The AI returned an incomplete proposal.");
-      const returnedIds = parsed.data.contributions.map((item) => item.sourceId).sort();
-      const expectedIds = [...ids].sort();
-      if (returnedIds.length !== expectedIds.length || returnedIds.some((id, index) => id !== expectedIds[index])) throw new Error("The AI did not return one contribution for every selected note.");
+      if (mergeCoverageProblem(parsed.data, ids)) throw new Error("The AI did not account for every selected note.");
       if (mergeContext(boardRef.current, ids)?.fingerprint !== context.fingerprint) {
         setMergeError("The source notes or goal changed. Merge again to use the latest text."); return;
       }
@@ -597,13 +595,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     if (!title || !concept) { setMergeError("Give the merged idea a title and description."); return; }
     mergeSaveLock.current = true; setMergeSaving(true);
     const id = createIdeaId();
-    const record = {
-      version: 2 as const,
-      sources: context.sources.map((idea) => ({ id: idea.id, title: idea.title, content: idea.content, author: idea.author || "Unknown contributor" })),
-      goal: context.goal,
-      relationships: context.relationships,
-      proposal: mergePreview.result, model: mergePreview.model, generatedAt: mergePreview.generatedAt,
-    };
+    const record = mergeRecordFor(context, mergePreview.result, mergePreview.model, mergePreview.generatedAt);
     const apply = (current: Board) => {
       if (mergeContext(current, mergePreview.ids)?.fingerprint !== mergePreview.fingerprint) return current;
       const merged = addMergedIdea(current, id, title, concept, record, authorName || "Unknown contributor");
@@ -1426,7 +1418,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         onAcceptAction={acceptAssistantAction} onDiscardAction={discardAssistantPreview} />
     </div>
     {mergePreview && <div className="board-merge-panel" role="dialog" aria-modal="false" aria-label="Merged idea preview">
-      <div className="board-merge-panel-head"><div><span className="board-eyebrow">{mergePreview.ids.length} SOURCE IDEAS</span><h2>Merge preview</h2></div><button type="button" aria-label="Discard merge preview" onClick={discardMerge}>×</button></div>
+      <div className="board-merge-panel-head"><div><span className="board-eyebrow">{mergePreview.result.excluded?.length ? `${mergePreview.result.contributions.length} OF ${mergePreview.ids.length} IDEAS USED` : `${mergePreview.ids.length} SOURCE IDEAS`}</span><h2>Merge preview</h2></div><button type="button" aria-label="Discard merge preview" onClick={discardMerge}>×</button></div>
       <div className="board-merge-preview-content">
         {previewStale && <p className="board-error" role="alert">A source note, its link, or the goal changed. Regenerate before creating this idea.</p>}
         {mergePreview.result.status !== "useful" ? <>
@@ -1452,6 +1444,11 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
             </>; })()}
             {previewContext?.relationships.some((relationship) => relationship.type === "conflict") && <p className="board-merge-conflict-notice" role="note">This set includes a conflict. Review its condition under “Why these ideas fit”.</p>}
           </section>}
+          {mergePreview.result.excluded?.length ? <section className="board-merge-excluded" aria-label="Notes left out">
+            <h3>Left out ({mergePreview.result.excluded.length})</h3>
+            {mergePreview.result.excluded.map((item) => <p key={item.sourceId}><strong>{board.ideas.find((idea) => idea.id === item.sourceId)?.title || "Deleted idea"}</strong> {item.reason}</p>)}
+            <p>The new idea links only to the notes it uses.</p>
+          </section> : null}
           <details className="board-merge-disclosure">
             <summary>Why these ideas fit</summary>
             <div className="board-merge-reasoning">
@@ -1492,6 +1489,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       <details className="board-merge-disclosure"><summary>Why this idea works</summary><div className="board-merge-reasoning">
         <p><strong>Goal</strong> {selectedMergeIdea.merge.goal}</p>
         {selectedMergeDetails?.contributions.map((item, index) => <p key={item.sourceId}><strong>{selectedMergeDetails.sources[index]?.title || `Idea ${index + 1}`} adds</strong> {item.contribution}</p>)}
+        {selectedMergeDetails?.excluded.map((item) => <p key={item.sourceId}><strong>Left out: {board.ideas.find((idea) => idea.id === item.sourceId)?.title || "a deleted idea"}</strong> {item.reason}</p>)}
         {selectedMergeDetails?.relationships.map((relationship, index) => <p key={`${relationship.type}-${relationship.sourceId}-${relationship.targetId}-${index}`}><strong>{relationshipLabels[relationship.type]}</strong>: {relationship.explanation || "No explanation"}{relationship.condition ? ` Condition: ${relationship.condition}` : ""}</p>)}
         <p><strong>Why the combination works</strong> {selectedMergeIdea.merge.proposal.bridge}</p><p><strong>What needs checking</strong> {selectedMergeIdea.merge.proposal.tension}</p>
         {selectedMergeIdea.merge.proposal.assumptions.length > 0 && <p><strong>Assumptions</strong> {selectedMergeIdea.merge.proposal.assumptions.join("; ")}</p>}

@@ -102,12 +102,52 @@ test("generation defaults to GLM-5.3-Flash and omits an unset token limit", asyn
 for (const [label, content] of [
   ["a reasoning block", `<think>Plan the answer.</think>\n${JSON.stringify(result)}`],
   ["a Markdown fence", `\`\`\`json\n${JSON.stringify(result)}\n\`\`\``],
+  ["surrounding prose", `Here is the result:\n\n${JSON.stringify(result)}\n\nLet me know if you need more.`],
 ]) {
   test(`generation accepts JSON wrapped in ${label}`, async (t) => {
     mockProvider(t, [chat(content)]);
     assert.deepEqual(await generateJson(request, schema), result);
   });
 }
+
+test("generation rejects prose with no JSON object unless the caller decodes it", async (t) => {
+  mockProvider(t, [chat("Hello! How can I help?"), chat("Hello again!"), chat("Hello! How can I help?")]);
+  await expectFailure(() => generateJson(request, schema), "invalid_output", 2);
+  assert.deepEqual(await generateJson(request, schema, { decode: (text) => ({ title: text }) }), { title: "Hello! How can I help?" });
+});
+
+test("rejected output gets one repair attempt that shows the model its reply and the problem", async (t) => {
+  process.env.FEATHERLESS_FALLBACK_MODEL = "test-fallback";
+  mockProvider(t, [chat('<think>Draft.</think>{"title": ""}'), generated()]);
+  assert.deepEqual(await generateJson(request, schema), result);
+  assert.deepEqual(models(), ["zai-org/GLM-5.3-Flash", "zai-org/GLM-5.3-Flash"]);
+  const [, repair] = requests;
+  assert.deepEqual(repair.body.messages.slice(0, 2), requests[0].body.messages);
+  assert.deepEqual(repair.body.messages[2], { role: "assistant", content: '{"title": ""}' });
+  assert.match(repair.body.messages[3].content, /^Your previous reply could not be used: title: .+\. Reply again with one corrected JSON object/);
+  assert.deepEqual(logs.map((entry) => entry[1].code), ["invalid_output"]);
+  assert.ok(!JSON.stringify(logs).includes("title"));
+});
+
+test("a caller check sends its problem through the same repair", async (t) => {
+  mockProvider(t, [generated({ title: "Wrong" }), generated()]);
+  const check = ({ title }) => title === result.title ? undefined : "title must name the mocked concept";
+  assert.deepEqual(await generateJson(request, schema, { check }), result);
+  assert.match(requests[1].body.messages[3].content, /could not be used: title must name the mocked concept\./);
+});
+
+test("a single-attempt caller gets no repair", async (t) => {
+  mockProvider(t, [chat("not JSON")]);
+  await expectFailure(() => generateJson(request, schema, { maxAttempts: 1 }), "invalid_output", 1);
+});
+
+test("a repair that overloads still reaches the fallback with the repair messages", async (t) => {
+  process.env.FEATHERLESS_FALLBACK_MODEL = "test-fallback";
+  mockProvider(t, [chat("not JSON"), 503, generated()]);
+  assert.deepEqual(await generateJson(request, schema), result);
+  assert.deepEqual(models(), ["zai-org/GLM-5.3-Flash", "zai-org/GLM-5.3-Flash", "test-fallback"]);
+  assert.equal(requests[2].body.messages[2].content, "not JSON");
+});
 
 test("malformed provider HTTP JSON reports invalid output without retry", async (t) => {
   process.env.FEATHERLESS_FALLBACK_MODEL = "test-fallback";
@@ -177,6 +217,16 @@ test("the attempt timeout aborts each hung fetch with a fresh signal", async (t)
 for (const [label, response] of [
   ["schema mismatch", generated({ title: "" })],
   ["malformed JSON", chat("not JSON")],
+]) {
+  test(`${label} after one repair reports invalid output without fallback`, async (t) => {
+    process.env.FEATHERLESS_FALLBACK_MODEL = "test-fallback";
+    mockProvider(t, [response, response]);
+    await expectFailure(() => generateJson(request, schema), "invalid_output", 2);
+    assert.deepEqual(models(), ["zai-org/GLM-5.3-Flash", "zai-org/GLM-5.3-Flash"]);
+  });
+}
+
+for (const [label, response] of [
   ["empty output", {}],
   ["empty choices", { choices: [] }],
 ]) {

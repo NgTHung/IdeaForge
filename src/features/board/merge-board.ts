@@ -1,4 +1,5 @@
-import { clusterLabelsFor, IDEA_CARD_SIZE, MERGED_IDEA_CARD_SIZE, ideaCardSize, type Board, type Idea, type MergeRecord, type MergeRecordV2, type MergeRelationshipSnapshot } from "./model";
+import type { MergeProposal } from "@/lib/ideas";
+import { clusterLabelsFor, IDEA_CARD_SIZE, MERGED_IDEA_CARD_SIZE, ideaCardSize, type Board, type Idea, type MergeRecord, type MergeRecordV2, type MergeRelationshipSnapshot } from "./model.ts";
 
 export function mergeText(idea: Idea): string {
   if (idea.title.trim().toLowerCase() === "new idea" && !idea.content.trim()) return "";
@@ -53,13 +54,19 @@ export function relatedIdeaPosition(board: Board, parents: Idea[], size: { width
 export type MergeDisplayData = {
   sources: MergeRecord["sources"];
   contributions: { sourceId: string; contribution: string }[];
+  excluded: { sourceId: string; reason: string }[];
   relationships: MergeRelationshipSnapshot[];
 };
 
 export function mergeDisplayData(merge: MergeRecord): MergeDisplayData {
   if ("relationships" in merge) {
     const contributions = new Map(merge.proposal.contributions.map((item) => [item.sourceId, item.contribution]));
-    return { sources: merge.sources, contributions: merge.sources.map((source) => ({ sourceId: source.id, contribution: contributions.get(source.id) ?? "Contribution unavailable." })), relationships: merge.relationships };
+    return {
+      sources: merge.sources,
+      contributions: merge.sources.map((source) => ({ sourceId: source.id, contribution: contributions.get(source.id) ?? "Contribution unavailable." })),
+      excluded: merge.proposal.excluded ?? [],
+      relationships: merge.relationships,
+    };
   }
   return {
     sources: merge.sources,
@@ -67,7 +74,26 @@ export function mergeDisplayData(merge: MergeRecord): MergeDisplayData {
       sourceId: source.id,
       contribution: index === 0 ? merge.proposal.contributionA : merge.proposal.contributionB,
     })),
+    excluded: [],
     relationships: merge.relationship ? [merge.relationship] : [],
+  };
+}
+
+// Only contributing notes become sources; left-out notes stay in the proposal with their reasons.
+export function mergeRecordFor(
+  context: NonNullable<ReturnType<typeof mergeContext>>,
+  proposal: MergeProposal,
+  model: string,
+  generatedAt: string,
+): MergeRecordV2 {
+  const contributing = new Set(proposal.contributions.map((item) => item.sourceId));
+  return {
+    version: 2,
+    sources: context.sources.filter((idea) => contributing.has(idea.id))
+      .map((idea) => ({ id: idea.id, title: idea.title, content: idea.content, author: idea.author || "Unknown contributor" })),
+    goal: context.goal,
+    relationships: context.relationships.filter((link) => contributing.has(link.sourceId) && contributing.has(link.targetId)),
+    proposal, model, generatedAt,
   };
 }
 
