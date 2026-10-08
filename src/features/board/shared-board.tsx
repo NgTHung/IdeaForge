@@ -1,26 +1,53 @@
 "use client";
 
-import { LiveMap, LiveObject } from "@liveblocks/client";
+import { LiveMap, LiveObject, type LsonObject } from "@liveblocks/client";
 import { useCallback } from "react";
 import { initialBoard } from "./fixtures";
 import { BoardApp } from "./board-app";
 import type { Board, ConnectionPair, Idea, Relationship } from "./model";
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
 import { connectionPairKey } from "@/lib/connections";
-import { createBoardStorage, RoomProvider, useMutation, useOthers, useSelf, useStorage, useUpdateMyPresence } from "@/lib/liveblocks";
+import type { BoardMetadata } from "@/lib/board-directory";
+import { boardApiUrl } from "@/lib/board-api-client";
+import { createBoardStorage, RoomProvider, useCanRedo, useCanUndo, useHistory, useMutation, useOthers, useRedo, useSelf, useStorage, useUndo, useUpdateMyPresence } from "@/lib/liveblocks";
 
 const initialTitle = "Student collaboration ideas";
 
-export function SharedBoardRoom({ boardId }: { boardId: string }) {
-  return <RoomProvider id={`ideaforge:${boardId}`} initialStorage={createBoardStorage(
-    initialTitle, initialBoard.ideas, initialBoard.relationships,
+function sameValue(left: unknown, right: unknown) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function updateFields<T extends LsonObject>(target: LiveObject<T>, next: T): boolean {
+  const current = target.toJSON() as Record<string, unknown>;
+  const updated = next as Record<string, unknown>;
+  let changed = false;
+  for (const key of new Set([...Object.keys(current), ...Object.keys(updated)])) {
+    const before = current[key];
+    const after = updated[key];
+    if (sameValue(before, after)) continue;
+    changed = true;
+    if (after === undefined) target.delete(key as keyof T);
+    else target.set(key as keyof T, after as T[keyof T]);
+  }
+  return changed;
+}
+
+export function SharedBoardRoom({ boardId, metadata }: { boardId: string; metadata?: BoardMetadata | null }) {
+  return <RoomProvider key={`ideaforge:${boardId}`} id={`ideaforge:${boardId}`} initialStorage={createBoardStorage(
+    metadata?.title ?? initialTitle, initialBoard.ideas, initialBoard.relationships, metadata?.title,
   )}>
-    <SharedBoardContent />
+    <SharedBoardContent boardId={boardId} metadata={metadata} />
   </RoomProvider>;
 }
 
-function SharedBoardContent() {
+function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?: BoardMetadata | null }) {
   const self = useSelf();
+  const history = useHistory();
+  const undo = useUndo();
+  const redo = useRedo();
+  const canUndo = useCanUndo();
+  const canRedo = useCanRedo();
+  const canWrite = Boolean(self?.canWrite);
   const others = useOthers();
   const updateMyPresence = useUpdateMyPresence();
   const editingLocks = Object.fromEntries(others.flatMap((other) => {
@@ -50,45 +77,73 @@ function SharedBoardContent() {
     };
     const next = update(current);
     if (next === current) return false;
-    if (next.goal !== current.goal) storage.set("goal", next.goal || "Help students build a consistent study habit.");
+    let changed = false;
+    if (next.goal !== current.goal) {
+      if (next.goal === undefined) storage.delete("goal");
+      else storage.set("goal", next.goal);
+      changed = true;
+    }
     const nextIdeas = new Map(next.ideas.map((idea) => [idea.id, idea]));
     const nextRelationships = new Map(next.relationships.map((link) => [link.id, link]));
 
     for (const [id, idea] of ideas.entries()) {
       const updated = nextIdeas.get(id);
-      if (!updated) ideas.delete(id);
+      if (!updated) { ideas.delete(id); changed = true; }
       else {
-        idea.update(updated);
+        changed = updateFields(idea, updated) || changed;
         nextIdeas.delete(id);
       }
     }
-    for (const idea of nextIdeas.values()) ideas.set(idea.id, new LiveObject(idea));
+    for (const idea of nextIdeas.values()) { ideas.set(idea.id, new LiveObject(idea)); changed = true; }
 
     for (const [id, link] of relationships.entries()) {
       const updated = nextRelationships.get(id);
-      if (!updated) relationships.delete(id);
+      if (!updated) { relationships.delete(id); changed = true; }
       else {
-        if (updated.condition === undefined && link.get("condition") !== undefined) link.delete("condition");
-        link.update(updated);
+        changed = updateFields(link, updated) || changed;
         nextRelationships.delete(id);
       }
     }
-    for (const link of nextRelationships.values()) relationships.set(link.id, new LiveObject(link));
+    for (const link of nextRelationships.values()) { relationships.set(link.id, new LiveObject(link)); changed = true; }
 
-    // Dismissals are only added, so a whole-board write from a stale snapshot can't restore a pair another participant dismissed.
-    const addedDismissals = (next.dismissedConnections ?? []).filter((pair) => !dismissed?.has(connectionPairKey(pair.sourceId, pair.targetId)));
-    if (addedDismissals.length) {
+    const nextDismissals = new Map((next.dismissedConnections ?? []).map((pair) => [connectionPairKey(pair.sourceId, pair.targetId), pair]));
+    if (dismissed) {
+      for (const key of dismissed.keys()) {
+        if (!nextDismissals.has(key)) { dismissed.delete(key); changed = true; }
+        else nextDismissals.delete(key);
+      }
+    }
+    if (nextDismissals.size) {
       const target = dismissed ?? new LiveMap<string, ConnectionPair>();
-      for (const pair of addedDismissals) target.set(connectionPairKey(pair.sourceId, pair.targetId), pair);
+      for (const [key, pair] of nextDismissals) { target.set(key, pair); changed = true; }
       if (!dismissed) storage.set("dismissedConnections", target);
     }
-    if (JSON.stringify(next.clusterSnapshot ?? null) !== JSON.stringify(current.clusterSnapshot ?? null)) {
-      storage.set("clusterSnapshot", next.clusterSnapshot ? new LiveObject(next.clusterSnapshot) : null);
+    const nextClusterSnapshot = next.clusterSnapshot ?? null;
+    if (!sameValue(nextClusterSnapshot, current.clusterSnapshot ?? null)) {
+      const currentClusterSnapshot = storage.get("clusterSnapshot");
+      if (nextClusterSnapshot === null) storage.set("clusterSnapshot", null);
+      else if (currentClusterSnapshot) updateFields(currentClusterSnapshot, nextClusterSnapshot);
+      else storage.set("clusterSnapshot", new LiveObject(nextClusterSnapshot));
+      changed = true;
     }
-    return next !== current;
+    return changed;
   }, []);
-  const updateTitle = useMutation(({ storage }, title: string) => storage.set("title", title), []);
+  const updateTitleMutation = useMutation(({ storage }, title: string) => {
+    if (storage.get("title") !== title) storage.set("title", title);
+  }, []);
+  const updateTitle = useCallback(async (title: string) => {
+    if (metadata) {
+      const response = await fetch(boardApiUrl(`/api/boards/${encodeURIComponent(boardId)}/title`), {
+        method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      if (!response.ok) throw new Error("The board title could not be saved. Please try again.");
+    }
+    updateTitleMutation(title);
+  }, [boardId, metadata, updateTitleMutation]);
   const changeBoard = useCallback((update: (board: Board) => Board): boolean => updateBoard(update), [updateBoard]);
+  const changeBoardWithoutHistory = useCallback((update: (board: Board) => Board): boolean =>
+    history.disable(() => updateBoard(update)), [history, updateBoard]);
 
   if (!snapshot) return <main className="board-connection-state" aria-live="polite">Connecting to shared board…</main>;
 
@@ -96,9 +151,12 @@ function SharedBoardContent() {
     sharedBoard={{ goal: snapshot.goal, ideas: snapshot.ideas as Idea[], relationships: snapshot.relationships as Relationship[], dismissedConnections: snapshot.dismissedConnections as ConnectionPair[], clusterSnapshot: snapshot.clusterSnapshot ?? null }}
     sharedTitle={snapshot.title}
     authorName={self?.info?.name?.trim() || "Unknown contributor"}
+    boardDescription={metadata?.description ?? ""}
     editingLocks={editingLocks}
     onEditingIdeaChange={updateEditingIdea}
     onBoardChange={changeBoard}
+    onBackgroundBoardChange={changeBoardWithoutHistory}
     onTitleChange={updateTitle}
+    historyActions={{ undo, redo, canUndo, canRedo, canWrite }}
   />;
 }

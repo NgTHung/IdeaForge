@@ -7,6 +7,8 @@
 .account-email { overflow: hidden; color: #72837d; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .account-popover > button { margin-top: 8px; padding: 10px 12px; border: 1px solid #dce7e0; border-radius: 9px; background: #f7faf8; color: #34564b; font-size: 13px; font-weight: 700; text-align: left; cursor: pointer; }
 .account-popover > button:hover { background: #edf5f0; }
+.account-dashboard-link { margin-top: 5px; padding: 10px 12px; border-radius: 9px; color: #16785f; background: #f0f8f3; font-size: 13px; font-weight: 700; text-decoration: none; }
+.account-dashboard-link:hover { background: #e5f3ea; }
 .account-popover > button:disabled { cursor: wait; opacity: .65; }
 .account-error { margin: 2px 0; color: #963f36; font-size: 12px; }
 .account-signin { padding: 10px 13px; border: 1px solid #d4dfd9; border-radius: 9px; background: #fff; color: #16785f; font-size: 13px; font-weight: 700; text-decoration: none; }

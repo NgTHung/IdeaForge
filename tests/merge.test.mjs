@@ -49,17 +49,18 @@ test("merge returns the validated result from a mocked provider", async (t) => {
     type: "conflict", explanation: "A quiet room and group study compete.", condition: "When the room is shared during individual exams.", sourceId: "a", targetId: "b",
   } };
   const result = {
-    status: "useful", reason: "", title: "Mocked concept", concept: "Mocked concept text", contributionA: "A contributes",
-    contributionB: "B contributes", bridge: "A enables B", tension: "Mocked tension", assumptions: ["Mocked assumption"], nextExperiment: "Mocked experiment",
+    status: "useful", reason: "", title: "Mocked concept", concept: "Mocked concept text",
+    contributions: [{ sourceId: "a", contribution: "A contributes" }, { sourceId: "b", contribution: "B contributes" }],
+    bridge: "A enables B", tension: "Mocked tension", assumptions: ["Mocked assumption"], nextExperiment: "Mocked experiment",
   };
   t.mock.method(globalThis, "fetch", async (_url, init) => {
     const request = JSON.parse(init.body);
-    assert.equal(JSON.parse(request.messages[1].content).relationship.condition, conflictPayload.relationship.condition);
-    assert.match(request.messages[0].content, /exact condition under which the notes conflict/);
+    assert.equal(JSON.parse(request.messages[1].content).relationships[0].condition, conflictPayload.relationship.condition);
+    assert.match(request.messages[0].content, /address its exact condition/);
     return Response.json({ choices: [{ message: { content: JSON.stringify(result) } }] });
   });
   const response = await POST(mergeRequest(conflictPayload));
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
   const body = await response.json();
   assert.deepEqual(body.result, result);
   assert.equal(typeof body.model, "string");

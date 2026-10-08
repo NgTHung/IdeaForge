@@ -14,6 +14,9 @@
 .board-share-notice { position: absolute; z-index: 6; top: 58px; right: 24px; padding: 7px 10px; border-radius: 7px; color: #315f4f; background: #e9f5ee; font-size: 12px; }
 .board-connection-state { display: grid; min-height: 100vh; place-items: center; color: #526d62; background: #f7faf8; font: 600 14px/1.5 system-ui, sans-serif; }
 .board-top-actions > button { border: 1px solid #d4dfd9; background: #f5f7f5; color: #8c9a95; border-radius: 8px; padding: 9px 18px; font-weight: 700; }
+.board-history-controls { display: flex; align-items: center; gap: 4px; }
+.board-history-controls button { border: 1px solid #d4dfd9; border-radius: 8px; padding: 8px 10px; background: #f5f7f5; color: #405c52; font-size: 12px; font-weight: 700; }
+.board-history-controls button:disabled { opacity: .45; cursor: not-allowed; }
 .board-workspace { flex: 1; min-height: 0; display: flex; position: relative; }
 .board-canvas { position: relative; flex: 1; min-width: 0; overflow: hidden; background: #f0f5f1; }
 .board-canvas.placing .react-flow__pane { cursor: crosshair; }
@@ -135,13 +138,14 @@
 .board-message { max-width: 92%; margin-top: 16px; padding: 12px 14px; border-radius: 12px; font-size: 13px; font-weight: 500; line-height: 1.5; white-space: pre-wrap; }
 .board-message.you { margin-left: auto; color: white; background: #168264; }
 .board-message.assistant { color: #36534b; background: #f1f7f3; }
-.board-goal-control { position: relative; flex: 0 0 auto; pointer-events: auto; }
-.board-goal-control summary { display: grid; min-height: 36px; place-items: center; padding: 0 13px; border: 1px solid #dce7e0; border-radius: 10px; background: #f7faf8; color: #3c6655; cursor: pointer; font-size: 12px; font-weight: 700; list-style: none; }
-.board-goal-control summary::-webkit-details-marker { display: none; }
-.board-goal-control summary:hover, .board-goal-control summary:focus-visible { border-color: #a9c9b8; background: #edf6f0; outline: none; }
-.board-goal-field { position: absolute; z-index: 12; top: calc(100% + 8px); left: 0; display: flex; flex-direction: column; gap: 7px; width: min(360px, calc(100vw - 24px)); padding: 12px; border: 1px solid #dce7e0; border-radius: 13px; background: #fff; box-shadow: 0 8px 24px #365b481c; color: #70847c; font-size: 11px; font-weight: 700; pointer-events: auto; }
-.board-goal-field textarea { width: 100%; min-width: 0; min-height: 76px; padding: 8px; border: 1px solid #d5e2da; border-radius: 7px; background: #fbfcfb; color: #465c5d; font: 600 12px/1.4 Arial, Helvetica, sans-serif; resize: vertical; }
-.board-goal-field textarea:focus { border-color: #91bba5; outline: 2px solid #d8ebe0; }
+.board-description-control { position: relative; flex: 0 0 auto; pointer-events: auto; }
+.board-description-control summary { display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid #dce7e0; border-radius: 10px; background: #f7faf8; color: #3c6655; cursor: pointer; list-style: none; }
+.board-description-control summary::-webkit-details-marker { display: none; }
+.board-description-control summary:hover, .board-description-control summary:focus-visible { border-color: #a9c9b8; background: #edf6f0; outline: none; }
+.board-description-control summary svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
+.board-description-popup { position: absolute; z-index: 12; top: calc(100% + 8px); left: 0; width: min(340px, calc(100vw - 24px)); padding: 14px 16px; border: 1px solid #dce7e0; border-radius: 13px; background: #fff; box-shadow: 0 8px 24px #365b481c; color: #70847c; pointer-events: auto; }
+.board-description-popup strong { color: #355a4b; font-size: 12px; }
+.board-description-popup p { margin: 8px 0 0; color: #526b60; font-size: 13px; font-weight: 400; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .board-message.assistant { padding: 12px 14px; }
 .board-assistant-paragraph + .board-assistant-paragraph { margin-top: 12px; padding-top: 11px; border-top: 1px solid #dbe8df; }
 .board-assistant-paragraph p { margin: 0; }
@@ -225,10 +229,10 @@
 .board-shell[data-theme="dark"] .board-card-editing-lock { background: #514326; color: #f1d99d; }
 .board-shell[data-theme="dark"] .board-bubble.is-locked-for-editing .board-bubble-surface { box-shadow: inset 0 0 0 2px #ad9156; }
 .board-shell[data-theme="dark"] .board-merge-details-button { color: #a6e4bf; }
-.board-shell[data-theme="dark"] .board-goal-control summary { background: #263633; border-color: #405650; color: #c6d7ce; }
-.board-shell[data-theme="dark"] .board-goal-control summary:hover, .board-shell[data-theme="dark"] .board-goal-control summary:focus-visible { background: #2a403a; border-color: #527b6d; }
-.board-shell[data-theme="dark"] .board-goal-field { background: #1d2c2a; border-color: #3d5950; color: #bbcec4; }
-.board-shell[data-theme="dark"] .board-goal-field textarea { background: #263633; border-color: #405650; color: #dce8e3; }
+.board-shell[data-theme="dark"] .board-description-control summary { background: #263633; border-color: #405650; color: #c6d7ce; }
+.board-shell[data-theme="dark"] .board-description-control summary:hover, .board-shell[data-theme="dark"] .board-description-control summary:focus-visible { background: #2a403a; border-color: #527b6d; }
+.board-shell[data-theme="dark"] .board-description-popup { background: #1d2c2a; border-color: #3d5950; }
+.board-shell[data-theme="dark"] .board-description-popup strong, .board-shell[data-theme="dark"] .board-description-popup p { color: #c6d7ce; }
 @media (max-width: 760px) {
   .board-merge-panel, .board-merge-details { top: 75px; right: 8px; bottom: 8px; width: min(370px, calc(100vw - 16px)); }
   .board-merge-tray { bottom: 70px; left: 8px; right: 60px; max-width: none; max-height: 35vh; overflow-y: auto; transform: none; flex-wrap: wrap; }
@@ -297,6 +301,7 @@
 .board-shell[data-theme="dark"] .board-zoom button { background: transparent; color: #dce8e3; }
 .board-shell[data-theme="dark"] .board-theme-toggle,
 .board-shell[data-theme="dark"] .board-top-actions > button:not(.board-theme-toggle) { background: #263633; border-color: #405650; color: #c6d7ce; }
+.board-shell[data-theme="dark"] .board-history-controls button { background: #263633; border-color: #405650; color: #c6d7ce; }
 .board-shell[data-theme="dark"] .board-selection-bar button { background: #29453a; color: #a4dfc1; }
 .board-shell[data-theme="dark"] .board-selection-bar button.danger { background: #4b302d; color: #efaaa0; }
 .board-shell[data-theme="dark"] .board-empty p,
@@ -341,8 +346,8 @@
 .board-brand { max-width: min(320px, calc(100vw - 100px)); }
 .board-brand-symbol { flex: 0 0 36px; width: 36px; height: 36px; font-size: 26px; }
 .board-brand input { flex: 1; width: min(26vw, 250px); min-width: 0; padding: 9px; font-size: 15px; font-weight: 700; }
-.board-goal-control summary { min-height: 42px; }
-.board-goal-field { width: min(360px, calc(100vw - 36px)); }
+.board-description-control summary { width: 42px; height: 42px; }
+.board-description-popup { width: min(340px, calc(100vw - 36px)); }
 .board-top-actions { margin-left: auto; }
 .board-theme-toggle { display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 10px; font-size: 23px; font-weight: 700; }
 .board-workspace { width: 100%; }
@@ -435,10 +440,12 @@
   .board-brand { max-width: calc(100vw - 250px); }
   .board-brand-symbol { width: 34px; height: 34px; flex-basis: 34px; }
   .board-brand input { width: min(40vw, 220px); min-width: 0; padding: 7px; font-size: 13px; }
-  .board-goal-control summary { min-height: 40px; }
-  .board-goal-field { width: min(360px, calc(100vw - 20px)); }
+  .board-description-control summary { width: 40px; height: 40px; }
+  .board-description-popup { width: min(340px, calc(100vw - 20px)); }
   .board-top-actions { flex: 0 0 auto; gap: 4px; padding: 6px; }
   .board-top-actions .account-signin { padding: 8px 7px; font-size: 11px; white-space: nowrap; }
+  .board-history-controls { gap: 3px; }
+  .board-history-controls button { padding: 7px 6px; font-size: 11px; }
   .board-theme-toggle { width: 36px; height: 36px; }
   .board-top-actions .board-share-button { width: 36px; min-width: 36px; height: 36px; padding: 0; font-size: 0; }
   .board-top-actions .board-share-button::before { content: "↗"; font-size: 20px; }
