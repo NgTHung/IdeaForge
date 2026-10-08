@@ -25,6 +25,7 @@ import { withResolvedNodeOverlaps, type NodeSize } from "./node-layout";
 import { appendClusterAssignment, memberFingerprint, renameClusterGroup } from "./cluster-state";
 import { addMergedIdea, mergeContext, mergeText, relatedIdeaPosition, mergeDisplayData } from "./merge-board";
 import { initialGoal, MAX_MERGE_SOURCES, MAX_MERGE_TOTAL_CHARACTERS, mergeProposalSchema, type MergeProposal } from "@/lib/ideas";
+import { historyShortcut } from "./history-shortcut";
 import "./board.css";
 
 type Tool = "select" | "hand" | "add" | "connect" | "merge";
@@ -96,8 +97,11 @@ function textExcerpt(text: string, limit = 240): { text: string; shortened: bool
 type BoardAppProps = {
   sharedBoard?: Board;
   sharedTitle?: string;
+  boardDescription?: string;
   onBoardChange?: (update: (board: Board) => Board) => boolean;
-  onTitleChange?: (title: string) => void;
+  onBackgroundBoardChange?: (update: (board: Board) => Board) => boolean;
+  onTitleChange?: (title: string) => void | Promise<void>;
+  historyActions?: { undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean; canWrite: boolean };
   authorName?: string;
   editingLocks?: Record<string, string>;
   onEditingIdeaChange?: (ideaId: string | null) => void;
@@ -114,7 +118,7 @@ function ToolButton({ label, active, disabled, title, onClick, children }: {
     title={title || label} disabled={disabled} onClick={onClick}><span className="board-tool-icon" aria-hidden="true">{children}</span></button>;
 }
 
-export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChange, authorName, editingLocks = {}, onEditingIdeaChange }: BoardAppProps) {
+export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, authorName, editingLocks = {}, onEditingIdeaChange }: BoardAppProps) {
   const [localBoard, setLocalBoard] = useState<Board>(() => normalizeBoardLayout(initialBoard, {}));
   const board = sharedBoard ?? localBoard;
   const setBoard = useCallback<Dispatch<SetStateAction<Board>>>((update) => {
@@ -123,6 +127,10 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   }, [onBoardChange]);
   const [localTitle, setLocalTitle] = useState("Student collaboration ideas");
   const title = sharedTitle ?? localTitle;
+  const [titleDraft, setTitleDraft] = useState<string | null>(null);
+  const [titleError, setTitleError] = useState("");
+  const [dragPositions, setDragPositions] = useState<Record<string, Idea["position"]>>({});
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [shareNotice, setShareNotice] = useState("");
   const [tool, setTool] = useState<Tool>("select");
   const [selection, setSelection] = useState<Selection>(null);
@@ -176,7 +184,12 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   const flow = useRef<ReactFlowInstance<IdeaNode, OrthogonalCanvasEdge> | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const titleInput = useRef<HTMLInputElement>(null);
+  const draftIdeaRef = useRef<Idea | null>(null);
+  const suppressTitleCommit = useRef(false);
   const boardRef = useRef(board);
+  const dragPositionsRef = useRef(new Map<string, Idea["position"]>());
+  const activeDragRef = useRef<{ id: string; position: Idea["position"] } | null>(null);
+  const finishDragRef = useRef<(id: string, position: Idea["position"]) => void>(() => undefined);
   const squashTimers = useRef(new Map<string, number>());
   const squashSequence = useRef(0);
   const clusterRequestSequence = useRef(0);
@@ -200,8 +213,8 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     if (!sharedBoard || sharedLayoutInitialized.current) return;
     sharedLayoutInitialized.current = true;
     // Resolve against the stored board, not this render's snapshot, so edits another participant made since then are kept.
-    if (normalizeBoardLayout(sharedBoard, measuredSizes) !== sharedBoard) onBoardChange?.((current) => normalizeBoardLayout(current, measuredSizes));
-  }, [sharedBoard, onBoardChange, measuredSizes]);
+    if (normalizeBoardLayout(sharedBoard, measuredSizes) !== sharedBoard) onBackgroundBoardChange?.((current) => normalizeBoardLayout(current, measuredSizes));
+  }, [sharedBoard, onBackgroundBoardChange, measuredSizes]);
   function commitBoardChange(update: (current: Board) => Board): boolean {
     if (onBoardChange) {
       let nextBoard: Board | undefined;
@@ -242,7 +255,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   });
   const startConnectDrag = connectDrag.start;
 
-  const frozenId = editor?.id ?? sourceId;
+  const frozenId = editor?.id ?? sourceId ?? activeDragId;
   const applyPositions = useCallback((positions: Map<string, { x: number; y: number }>) => {
     setBoard((current) => ({ ...current, ideas: current.ideas.map((idea) => {
       const position = positions.get(idea.id);
@@ -319,9 +332,21 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     setClusterNamesState("idle");
     setClusterNamesError("");
   }, [board.clusterSnapshot, board.ideas]);
-  function changeTitle(nextTitle: string) {
-    if (onTitleChange) onTitleChange(nextTitle);
+  async function changeTitle(nextTitle: string) {
+    nextTitle = nextTitle.trim();
+    if (!nextTitle) { setTitleError("The board title cannot be empty."); return; }
+    if (nextTitle === title) return;
+    if (onTitleChange) {
+      setTitleError("");
+      try { await onTitleChange(nextTitle); }
+      catch (error) { setTitleError(error instanceof Error ? error.message : "The board title could not be saved."); }
+    }
     else setLocalTitle(nextTitle);
+  }
+  function commitTitleDraft() {
+    if (suppressTitleCommit.current) { suppressTitleCommit.current = false; setTitleDraft(null); return; }
+    if (titleDraft !== null) void changeTitle(titleDraft);
+    setTitleDraft(null);
   }
   const focusCard = useCallback((cardId: string) => {
     if (!boardRef.current.ideas.some((idea) => idea.id === cardId)) return;
@@ -368,7 +393,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     onEditingIdeaChange(editingId ?? null);
     return () => onEditingIdeaChange(null);
   }, [editingId, onEditingIdeaChange]);
-  function cancelInteraction() { connectDrag.cancel(); setEditor(null); setLinkDraft(null); setRelationshipEditor(null); setSourceId(null); setLinkError(""); setCondition(""); setOrganizeOpen(false); setMergePreview(null); setMergeDetailsId(null); setMergeIds([]); setMergeError(""); mergeRequestSequence.current += 1; mergeController.current?.abort(); setMergeBusy(false); setTool("select"); }
+  function cancelInteraction() { connectDrag.cancel(); setEditor(null); setDraftIdeaId(null); draftIdeaRef.current = null; setLinkDraft(null); setRelationshipEditor(null); setSourceId(null); setLinkError(""); setCondition(""); setOrganizeOpen(false); setMergePreview(null); setMergeDetailsId(null); setMergeIds([]); setMergeError(""); mergeRequestSequence.current += 1; mergeController.current?.abort(); setMergeBusy(false); setTool("select"); }
   function removeSelection() {
     if (!selection) return;
     if (selection.kind === "idea") { setUndoPositions(null); setAssignmentUndo(null); }
@@ -378,8 +403,17 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   }
   useEffect(() => {
     function keyDown(event: KeyboardEvent) {
-      const target = event.target as HTMLElement;
-      const typing = Boolean(target.closest("input,textarea,[contenteditable=true],select"));
+      const target = event.target instanceof Element ? event.target : null;
+      const typing = Boolean(target?.closest("input,textarea,select,[contenteditable]:not([contenteditable='false'])"));
+      const historyAction = historyShortcut({ key: event.key, ctrlKey: event.ctrlKey, metaKey: event.metaKey,
+        shiftKey: event.shiftKey, isComposing: event.isComposing, keyCode: event.keyCode, targetIsEditable: typing });
+      if (historyAction && historyActions) {
+        event.preventDefault();
+        if (!historyActions.canWrite) return;
+        if (historyAction === "undo" && historyActions.canUndo) historyActions.undo();
+        if (historyAction === "redo" && historyActions.canRedo) historyActions.redo();
+        return;
+      }
       if (event.key === "Escape") { cancelInteraction(); setSelection(null); return; }
       if (typing) return;
       if (event.code === "Space") { event.preventDefault(); setSpaceDown(true); }
@@ -394,8 +428,8 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   function makeIdea(position: { x: number; y: number }) {
     const idea: Idea = { id: createIdeaId(), title: "New idea", content: "", position, pinned: false, parentIds: [], author: authorName || "Unknown contributor" };
     setDraftIdeaId(idea.id);
+    draftIdeaRef.current = idea;
     setUndoPositions(null);
-    setBoard((current) => normalizeBoardLayout(createIdea(current, idea), measuredSizes, current.ideas.map((item) => item.id)));
     setTool("select"); openEditor(idea); physics.reheat();
   }
   function addAtCenter() {
@@ -443,15 +477,26 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     }
     if (!editor.title.trim()) { setEditError("Give this idea a title before saving."); titleInput.current?.focus(); return; }
     const isNewIdea = draftIdeaId === editor.id;
-    const updatedIdea = { ...boardRef.current.ideas.find((idea) => idea.id === editor.id)!, title: editor.title.trim(), content: editor.content.trim() };
-    const updatedBoard = updateIdea(boardRef.current, editor.id, { title: updatedIdea.title, content: updatedIdea.content });
+    const updated = boardRef.current.ideas.find((idea) => idea.id === editor.id);
+    const draft = isNewIdea ? draftIdeaRef.current : updated;
+    if (!draft) { setEditor(null); setDraftIdeaId(null); draftIdeaRef.current = null; return; }
+    const updatedIdea = { ...draft, title: editor.title.trim(), content: editor.content.trim() };
     setUndoPositions(null);
     setAssignmentUndo(null);
-    setBoard(updatedBoard);
-    boardRef.current = updatedBoard;
+    const saved = commitBoardChange((current) => isNewIdea
+      ? normalizeBoardLayout(createIdea(current, updatedIdea), measuredSizes, current.ideas.map((item) => item.id))
+      : updateIdea(current, editor.id, { title: updatedIdea.title, content: updatedIdea.content }));
+    if (!saved) {
+      setEditor(null);
+      setDraftIdeaId(null);
+      draftIdeaRef.current = null;
+      return;
+    }
+    const updatedBoard = boardRef.current;
     setEditor(null);
     if (isNewIdea) {
       setDraftIdeaId(null);
+      draftIdeaRef.current = null;
       if (autoPlaceNewNotes && clusterText(updatedIdea)) void assignNewNote(updatedBoard, updatedIdea);
     }
   }
@@ -693,21 +738,22 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
       setClusterError("Group names must be 1 to 40 characters.");
       return;
     }
-    const current = boardRef.current;
-    const snapshot = current.clusterSnapshot;
+    const snapshot = boardRef.current.clusterSnapshot;
     if (!snapshot || !snapshot.result.groups.some((group) => group.id === editingGroupName.id)) {
       setEditingGroupName(null);
       setClusterError("This group is no longer available. Organize the canvas again.");
       return;
     }
-    const updatedBoard = { ...current, clusterSnapshot: renameClusterGroup(snapshot, editingGroupName.id, label) };
     if (manualNameRevision.current !== snapshot.revision) {
       manualNameRevision.current = snapshot.revision;
       manuallyNamedGroups.current.clear();
     }
     manuallyNamedGroups.current.add(editingGroupName.id);
-    setBoard(updatedBoard);
-    boardRef.current = updatedBoard;
+    commitBoardChange((current) => {
+      const latestSnapshot = current.clusterSnapshot;
+      return latestSnapshot && latestSnapshot.revision === snapshot.revision && latestSnapshot.result.groups.some((group) => group.id === editingGroupName.id)
+        ? { ...current, clusterSnapshot: renameClusterGroup(latestSnapshot, editingGroupName.id, label) } : current;
+    });
     setEditingGroupName(null);
     setClusterError("");
     setClusterNotice("Group name saved.");
@@ -750,21 +796,23 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
         snapshot.result.groups.some((group) => !parsed.data.names.some((item) => item.groupId === group.id))) {
         throw new Error("The AI returned invalid group names. Try again.");
       }
-      const latest = boardRef.current;
-      const latestSnapshot = latest.clusterSnapshot;
-      if (!latestSnapshot || latestSnapshot.stale || latestSnapshot.revision !== snapshot.revision ||
-        memberFingerprint(latest.ideas, latestSnapshot) !== sourceFingerprint) return;
-      let namedSnapshot = latestSnapshot;
-      const manualIds = manualNameRevision.current === snapshot.revision ? manuallyNamedGroups.current : new Set<string>();
-      for (const item of parsed.data.names) {
-        if (item.suggestedName && !manualIds.has(item.groupId) && namedSnapshot.result.groups.some((group) => group.id === item.groupId)) {
-          namedSnapshot = renameClusterGroup(namedSnapshot, item.groupId, item.suggestedName);
+      const applyNames = (latest: Board) => {
+        const latestSnapshot = latest.clusterSnapshot;
+        if (!latestSnapshot || latestSnapshot.stale || latestSnapshot.revision !== snapshot.revision ||
+          memberFingerprint(latest.ideas, latestSnapshot) !== sourceFingerprint) return latest;
+        let namedSnapshot = latestSnapshot;
+        const manualIds = manualNameRevision.current === snapshot.revision ? manuallyNamedGroups.current : new Set<string>();
+        for (const item of parsed.data.names) {
+          if (item.suggestedName && !manualIds.has(item.groupId) && namedSnapshot.result.groups.some((group) => group.id === item.groupId)) {
+            namedSnapshot = renameClusterGroup(namedSnapshot, item.groupId, item.suggestedName);
+          }
         }
-      }
-      if (namedSnapshot !== latestSnapshot) {
-        const namedBoard = { ...latest, clusterSnapshot: namedSnapshot };
-        setBoard(namedBoard);
-        boardRef.current = namedBoard;
+        return namedSnapshot === latestSnapshot ? latest : { ...latest, clusterSnapshot: namedSnapshot };
+      };
+      if (onBackgroundBoardChange ?? onBoardChange) (onBackgroundBoardChange ?? onBoardChange)!(applyNames);
+      else {
+        const namedBoard = applyNames(boardRef.current);
+        if (namedBoard !== boardRef.current) { boardRef.current = namedBoard; setLocalBoard(namedBoard); }
       }
       clusterNamesContext.current = null;
       clusterNamesController.current = null;
@@ -995,7 +1043,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
           ideas: current.ideas.map((idea) => idea.id === savedIdea.id ? { ...idea, position: nextPosition } : idea),
         };
       };
-      if (onBoardChange) onBoardChange(commit);
+      if (onBackgroundBoardChange ?? onBoardChange) (onBackgroundBoardChange ?? onBoardChange)!(commit);
       else setLocalBoard(commit);
       if (!committed) {
         setAssignmentRetryId(savedIdea.id);
@@ -1077,6 +1125,38 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     setClusterNotice("The new note returned to its previous position.");
   }
 
+  function finishDrag(id: string, position: Idea["position"]) {
+    const active = activeDragRef.current;
+    if (!active || active.id !== id) return;
+    activeDragRef.current = null;
+    setActiveDragId(null);
+    dragPositionsRef.current.delete(id);
+    setDragPositions((current) => { const next = { ...current }; delete next[id]; return next; });
+    const pinned = Boolean(boardRef.current.ideas.find((idea) => idea.id === id)?.pinned);
+    const resolved = commitBoardChange((current) => normalizeBoardLayout(moveIdea(current, id, position), measuredSizes, [id]));
+    if (resolved) {
+      const latest = boardRef.current;
+      physics.syncPositions(new Map(latest.ideas.map((idea) => [idea.id, idea.position])));
+      physics.dragStop(id, position, pinned);
+      setUndoPositions(null);
+      setAssignmentUndo(null);
+    }
+  }
+  useEffect(() => { finishDragRef.current = finishDrag; });
+  useEffect(() => {
+    const finishActiveDrag = () => {
+      const active = activeDragRef.current;
+      if (active) finishDragRef.current(active.id, active.position);
+    };
+    window.addEventListener("pointerup", finishActiveDrag);
+    window.addEventListener("pointercancel", finishActiveDrag);
+    return () => {
+      window.removeEventListener("pointerup", finishActiveDrag);
+      window.removeEventListener("pointercancel", finishActiveDrag);
+      finishActiveDrag();
+    };
+  }, []);
+
   const previewMergeIds = assistantPreview?.action.kind === "merge" ? [assistantPreview.action.a, assistantPreview.action.b] : [];
   const assistantPreviewIdea = useMemo(() => {
     if (assistantPreview?.action.kind !== "create") return null;
@@ -1101,7 +1181,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   }, [assistantPreview, board, authorName]);
   const nodes: IdeaNode[] = board.ideas.map((idea) => ({
     ...nodeLayouts[idea.id],
-    id: idea.id, type: "idea", position: idea.position, selected: selection?.kind === "idea" && selection.id === idea.id || mergeIds.includes(idea.id) || previewMergeIds.includes(idea.id),
+    id: idea.id, type: "idea", position: dragPositions[idea.id] ?? idea.position, selected: selection?.kind === "idea" && selection.id === idea.id || mergeIds.includes(idea.id) || previewMergeIds.includes(idea.id),
     className: chosenLink && (chosenLink.source === idea.id || chosenLink.target === idea.id) ? "is-related" : previewMergeIds.includes(idea.id) ? "is-merge-source" : editingLocks[idea.id] ? "is-locked-for-editing" : undefined,
     draggable: tool !== "connect" && editor?.id !== idea.id,
     data: { idea, editingBy: editingLocks[idea.id], connecting: tool === "connect", source: sourceId === idea.id, editing: editor?.id === idea.id, squash: squashes[idea.id] ?? null,
@@ -1145,7 +1225,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     const previews = suggestions.enabled ? suggestions.previews.filter((preview) => isCurrentConnection(board, preview)) : [];
     const present = new Set(board.ideas.map((idea) => idea.id));
     const links: DisplayLink[] = [
-      ...board.relationships.map((link) => ({ id: link.id, source: link.source, target: link.target, label: relationshipLabels[link.type], type: link.type, provisional: false, ancestry: false, assistant: false })),
+      ...board.relationships.filter((link) => present.has(link.source) && present.has(link.target)).map((link) => ({ id: link.id, source: link.source, target: link.target, label: relationshipLabels[link.type], type: link.type, provisional: false, ancestry: false, assistant: false })),
       ...previews.map((preview) => ({ id: preview.id, source: preview.sourceId, target: preview.targetId, label: relationshipLabels[preview.type], type: preview.type, provisional: true, ancestry: false, assistant: false })),
       ...board.ideas.flatMap((idea) => [...new Set(idea.parentIds)].filter((parentId) => present.has(parentId)).map((parentId) => ({
         id: `ancestry:${parentId}:${idea.id}`, source: parentId, target: idea.id, provisional: false, ancestry: true, assistant: false,
@@ -1207,12 +1287,20 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
   return <main className="board-shell" data-theme={theme}>
     <header className="board-topbar" aria-label="Board controls"><div className="board-brand">
       <Link href="/" className="board-brand-home" aria-label="IdeaForge home" title="IdeaForge home"><span className="board-brand-symbol" aria-hidden="true">✳</span></Link>
-      <input aria-label="Board title" value={title} maxLength={80} onChange={(event) => changeTitle(event.target.value)} /></div>
-      <details className="board-goal-control"><summary>Goal</summary>
-        <label className="board-goal-field"><span>Board goal</span><textarea aria-label="Board goal" rows={2} value={board.goal ?? "Help students build a consistent study habit."} maxLength={500}
-          onChange={(event) => setBoard((current) => ({ ...current, goal: event.target.value }))} /></label>
+      <input aria-label="Board title" value={titleDraft ?? title} maxLength={80} onChange={(event) => setTitleDraft(event.target.value)}
+        onBlur={commitTitleDraft} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); if (event.key === "Escape") { suppressTitleCommit.current = true; setTitleDraft(null); event.currentTarget.blur(); } }} /></div>
+      {titleError && <span className="board-title-save-error" role="alert">{titleError}</span>}
+      <details className="board-description-control"><summary aria-label="Board description" title="Board description">
+        <svg aria-hidden="true" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.25" /><path d="M10 9v4M10 6.6v.1" /></svg>
+      </summary>
+        <div className="board-description-popup"><strong>Board description</strong>
+          <p>{boardDescription.trim() || "No description was added for this board."}</p></div>
       </details>
       <div className="board-top-actions">{onBoardChange && <><ActiveMembers /><button className="board-share-button" type="button" onClick={() => void copyBoardLink()}>Share</button></>}
+        {historyActions && <div className="board-history-controls" role="group" aria-label="Board history">
+          <button type="button" aria-label="Undo" title="Undo (Ctrl/Cmd+Z)" disabled={!historyActions.canUndo || !historyActions.canWrite} onClick={historyActions.undo}>Undo</button>
+          <button type="button" aria-label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" disabled={!historyActions.canRedo || !historyActions.canWrite} onClick={historyActions.redo}>Redo</button>
+        </div>}
         <AccountMenu />
         <button className="board-theme-toggle" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} aria-pressed={theme === "dark"} onClick={() => setTheme((value) => value === "dark" ? "light" : "dark")}>{theme === "dark" ? "☼" : "◐"}</button></div>
       {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
@@ -1234,19 +1322,15 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
           onNodeDragStart={(_, node) => {
             dragRevisions.current.set(node.id, (dragRevisions.current.get(node.id) ?? 0) + 1);
             if (node.id === activeAssignmentId.current) assignmentController.current?.abort();
+            const startPosition = boardRef.current.ideas.find((idea) => idea.id === node.id)?.position ?? node.position;
+            activeDragRef.current = { id: node.id, position: startPosition };
+            setActiveDragId(node.id);
+            dragPositionsRef.current.set(node.id, startPosition);
+            setDragPositions((current) => ({ ...current, [node.id]: startPosition }));
             physics.dragStart(node.id);
           }}
-          onNodeDrag={(_, node) => { physics.drag(node.id, node.position); setBoard((current) => moveIdea(current, node.id, node.position)); }}
-          onNodeDragStop={(_, node) => {
-            const pinned = Boolean(boardRef.current.ideas.find((idea) => idea.id === node.id)?.pinned);
-            const fixedIds = [node.id];
-            const resolved = normalizeBoardLayout(moveIdea(boardRef.current, node.id, node.position), measuredSizes, fixedIds);
-            boardRef.current = resolved;
-            setBoard((current) => normalizeBoardLayout(moveIdea(current, node.id, node.position), measuredSizes, fixedIds));
-            physics.syncPositions(new Map(resolved.ideas.map((idea) => [idea.id, idea.position])));
-            physics.dragStop(node.id, node.position, pinned);
-            setUndoPositions(null); setAssignmentUndo(null);
-          }}
+          onNodeDrag={(_, node) => { physics.drag(node.id, node.position); activeDragRef.current = { id: node.id, position: node.position }; setActiveDragId(node.id); dragPositionsRef.current.set(node.id, node.position); setDragPositions((current) => ({ ...current, [node.id]: node.position })); }}
+          onNodeDragStop={(_, node) => finishDrag(node.id, node.position)}
           panOnDrag={tool === "hand" || spaceDown} nodesDraggable={tool !== "hand" && !spaceDown && tool !== "connect"}
           nodesConnectable={false} elementsSelectable={true} elevateEdgesOnSelect={false} zoomOnDoubleClick={false} minZoom={0.15} maxZoom={1.8} defaultViewport={{ x: 185, y: 180, zoom: 0.72 }}>
           <Background variant={BackgroundVariant.Dots} gap={23} size={1.5} color={theme === "dark" ? "#405b52" : "#b6c9bf"} />
@@ -1296,7 +1380,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
             </div>)}
           </div>}
           <div className="board-organize-actions"><button type="button" className="primary" onClick={() => void organizeBoard()} disabled={clusterBusy || assignmentBusy || clusterInput.cards.length < 2 || clusterInput.cards.length > 50 || clusterInput.tooLongCount > 0}>{clusterBusy ? "Organizing…" : "Organize canvas"}</button></div>
-          {undoPositions && !clusterStale && undoAfterFingerprint === positionFingerprint(board.ideas) && <button type="button" className="board-organize-undo" onClick={undoOrganize}>Undo layout</button>}
+          {!onBoardChange && undoPositions && !clusterStale && undoAfterFingerprint === positionFingerprint(board.ideas) && <button type="button" className="board-organize-undo" onClick={undoOrganize}>Undo layout</button>}
         </section>}
         {lockNotice && <aside className="board-layout-status" role="status"><span>{lockNotice}</span><button type="button" onClick={() => setLockNotice("")}>Dismiss</button></aside>}
         {!organizeOpen && (clusterNotice || clusterError || assignmentBusy || clusterNamesState === "pending" || clusterNamesState === "error") && <aside className="board-layout-status" role={clusterError ? "alert" : "status"}>
@@ -1307,7 +1391,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
             const idea = current.ideas.find((item) => item.id === assignmentRetryId);
             if (idea) void assignNewNote(current, idea);
           }}>Retry placement</button>}
-          {undoPlacementAvailable && <button type="button" onClick={undoAutomaticPlacement}>Undo placement</button>}
+          {!onBoardChange && undoPlacementAvailable && <button type="button" onClick={undoAutomaticPlacement}>Undo placement</button>}
         </aside>}
         {board.ideas.length === 0 && <div className="board-empty"><span>✳</span><h2>Your board is ready</h2><p>Start with one thought. You can connect it to others as your map grows.</p><button onClick={addAtCenter}>＋ Add your first idea</button></div>}
         {(mergeIds.length > 0 || tool === "merge") && mergeIds.every((id) => board.ideas.some((idea) => idea.id === id)) && !mergePreview && <div className="board-merge-tray" role="region" aria-label="Merge selected ideas">
@@ -1322,7 +1406,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
             {selectedMergeContext?.relationships.length ? <span>Using {selectedMergeContext.relationships.length} relationship{selectedMergeContext.relationships.length === 1 ? "" : "s"} between selected notes.</span> : null}
             {selectedMergeContext?.sources.some((idea) => mergeText(idea).length > 4000) && <span className="board-error">Each note must be at most 4,000 characters.</span>}
             {selectedMergeContext && selectedMergeContext.sources.reduce((total, idea) => total + mergeText(idea).length, 0) > MAX_MERGE_TOTAL_CHARACTERS && <span className="board-error">Combined text exceeds {MAX_MERGE_TOTAL_CHARACTERS.toLocaleString()} characters.</span>}</div>
-          {mergeIds.length === 1 && undoPlacementAvailable && <button type="button" onClick={undoAutomaticPlacement}>Undo placement</button>}
+          {!onBoardChange && mergeIds.length === 1 && undoPlacementAvailable && <button type="button" onClick={undoAutomaticPlacement}>Undo placement</button>}
           {mergeError && <span className="board-error" role="alert">{mergeError}</span>}
           {mergeIds.length === 0 ? <button type="button" onClick={() => selectTool("select")}>Cancel</button> : <button type="button" onClick={() => { discardMerge(); setMergeIds([]); }}>Clear</button>}
           {mergeIds.length >= 2 && <button type="button" className="primary" disabled={mergeBusy || !selectedMergeContext?.goal || selectedMergeContext.sources.some((idea) => !mergeText(idea) || mergeText(idea).length > 4000) || Boolean(selectedMergeContext && selectedMergeContext.sources.reduce((total, idea) => total + mergeText(idea).length, 0) > MAX_MERGE_TOTAL_CHARACTERS)} onClick={() => void generateMerge()}>{mergeBusy ? "Generating…" : `Merge ${mergeIds.length} ideas`}</button>}
@@ -1421,7 +1505,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
       {selectedAssistantIdea.assistant.sources.map((source, index) => <div className="board-merge-source" key={`${source.id}-${index}`}><strong>Source {index + 1}: {source.title || "Untitled idea"}</strong><span>By {source.author}</span><p>{source.content || "No description"}</p></div>)}
       <small>Created by {selectedAssistantIdea.author || "Unknown contributor"} with {selectedAssistantIdea.assistant.model} on {new Date(selectedAssistantIdea.assistant.generatedAt).toLocaleString()}.</small>
     </div>}
-    {editor && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditor(null); }}><form className="board-dialog" onSubmit={saveEdit} aria-label="Edit idea">
+    {editor && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) { setEditor(null); setDraftIdeaId(null); draftIdeaRef.current = null; } }}><form className="board-dialog" onSubmit={saveEdit} aria-label="Edit idea">
       <span className="board-eyebrow">IDEA DETAILS</span><h2>Edit idea</h2><label>Title<input ref={titleInput} value={editor.title} maxLength={120} onChange={(event) => { setEditor({ ...editor, title: event.target.value }); setEditError(""); }} /></label>
       <label>Content<textarea value={editor.content} maxLength={4000} rows={6} onChange={(event) => setEditor({ ...editor, content: event.target.value })} placeholder="What makes this idea useful?" /></label>
       {draftIdeaId === editor.id && <label className="board-auto-place-toggle"><input type="checkbox" checked={autoPlaceNewNotes} disabled={!clusterSnapshot || clusterStale || assignmentBusy} onChange={(event) => {
@@ -1435,7 +1519,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
           setAssignmentBusy(false);
         }
       }} /><span><strong>Place new notes in an existing group</strong><small>{clusterStale ? "Organize the canvas again before auto placement." : clusterSnapshot ? "Applies to new notes created from this browser." : "Organize the canvas first to create groups."}</small></span></label>}
-      {editError && <p className="board-error" role="alert">{editError}</p>}<div className="board-dialog-actions"><button type="button" onClick={() => setEditor(null)}>Cancel</button><button className="primary" type="submit">Save idea</button></div></form></div>}
+      {editError && <p className="board-error" role="alert">{editError}</p>}<div className="board-dialog-actions"><button type="button" onClick={() => { setEditor(null); setDraftIdeaId(null); draftIdeaRef.current = null; }}>Cancel</button><button className="primary" type="submit">Save idea</button></div></form></div>}
     {(linkDraft || relationshipEditor) && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) cancelInteraction(); }}><form className="board-dialog" onSubmit={confirmLink} aria-label={relationshipEditor ? "Edit relationship" : "Choose relationship"}>
       <span className="board-eyebrow">{relationshipEditor ? "EDIT RELATIONSHIP" : "CONNECT IDEAS"}</span><h2>{relationshipEditor ? "Edit relationship" : "How are they related?"}</h2><p className="board-link-direction">{board.ideas.find((idea) => idea.id === (relationshipEditor ?? linkDraft)?.source)?.title} → {board.ideas.find((idea) => idea.id === (relationshipEditor ?? linkDraft)?.target)?.title}</p>
       <label>Relationship<select value={relationshipType} onChange={(event) => setRelationshipType(event.target.value as RelationshipType)}>{Object.entries(relationshipLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>

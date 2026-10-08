@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { authClient } from "@/lib/auth-client";
+import { joinBoardByLink, loadBoardContext } from "@/lib/board-api-client";
+import type { BoardMetadata } from "@/lib/board-directory";
 import { SharedBoardRoom } from "./shared-board";
 import "./guest-entry.css";
 
@@ -15,6 +17,8 @@ export function SharedBoardEntry({ boardId }: { boardId: string }) {
   const [entered, setEntered] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [metadata, setMetadata] = useState<BoardMetadata | null>(null);
+  const [metadataLoaded, setMetadataLoaded] = useState(false);
   const profileStarted = useRef(false);
 
   useEffect(() => {
@@ -26,17 +30,27 @@ export function SharedBoardEntry({ boardId }: { boardId: string }) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    void loadBoardContext(boardId).then((value) => {
+      if (!cancelled) setMetadata(value);
+    }).catch(() => {
+      // Existing public UUID rooms without directory records stay accessible.
+    }).finally(() => { if (!cancelled) setMetadataLoaded(true); });
+    return () => { cancelled = true; };
+  }, [boardId]);
+
+  useEffect(() => {
     if (isPending || !nameLoaded || !session || entered || profileStarted.current || error) return;
     profileStarted.current = true;
     const accountName = session.user.name?.trim().slice(0, 60) || session.user.email?.trim().slice(0, 60) || "Guest";
     let cancelled = false;
-    void saveDisplayName(accountName).then(() => {
+    void joinBoardByLink(boardId).catch(() => undefined).then(() => saveDisplayName(accountName)).then(() => {
       if (!cancelled) setEntered(true);
     }).catch(() => {
       if (!cancelled) setError("Could not prepare your board session. Please reload to try again.");
     });
     return () => { cancelled = true; };
-  }, [entered, error, isPending, nameLoaded, session]);
+  }, [boardId, entered, error, isPending, nameLoaded, session]);
 
   async function join(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,8 +70,8 @@ export function SharedBoardEntry({ boardId }: { boardId: string }) {
     }
   }
 
-  if (entered) return <SharedBoardRoom boardId={boardId} />;
-  if (isPending || !nameLoaded || session && !error || busy && !error) {
+  if (entered && metadataLoaded) return <SharedBoardRoom boardId={boardId} metadata={metadata} />;
+  if (isPending || !nameLoaded || entered && !metadataLoaded || session && !error || busy && !error) {
     return <main className="guest-entry-loading" aria-live="polite">Preparing your board…</main>;
   }
 
