@@ -63,6 +63,33 @@ export type ConnectionPair = { sourceId: string; targetId: string };
 export type Board = { goal?: string; ideas: Idea[]; relationships: Relationship[]; dismissedConnections?: ConnectionPair[]; clusterSnapshot?: ClusterSnapshot | null };
 
 export const IDEA_CARD_SIZE = { width: 272, height: 148 } as const;
+export const MERGED_IDEA_CARD_SIZE = { width: 320, height: 184 } as const;
+
+let clusterLabelContext: CanvasRenderingContext2D | null | undefined;
+
+export function clusterLabelsFor(board: Pick<Board, "clusterSnapshot">): Map<string, string> {
+  const result = board.clusterSnapshot?.result;
+  if (!result) return new Map();
+  const labels = new Map(result.groups.map((group) => [group.id, group.label]));
+  return new Map(result.assignments.flatMap((assignment) => {
+    const label = labels.get(assignment.clusterId);
+    return label ? [[assignment.noteId, label] as const] : [];
+  }));
+}
+
+export function ideaCardSize(idea: Pick<Idea, "merge" | "pinned">, clusterLabel?: string) {
+  const base = idea.merge ? MERGED_IDEA_CARD_SIZE : IDEA_CARD_SIZE;
+  if (!clusterLabel) return base;
+  let labelWidth: number;
+  if (typeof document !== "undefined") {
+    clusterLabelContext ??= document.createElement("canvas").getContext("2d");
+    if (clusterLabelContext) {
+      clusterLabelContext.font = "800 9px Arial, Helvetica, sans-serif";
+      labelWidth = clusterLabelContext.measureText(clusterLabel).width + Math.max(0, clusterLabel.length - 1) * 0.35;
+    } else labelWidth = clusterLabel.length * 5.5;
+  } else labelWidth = clusterLabel.length * 5.5;
+  return { ...base, width: Math.max(base.width, Math.ceil(labelWidth + (idea.merge ? 76 : 96) + (idea.pinned ? 52 : 0))) };
+}
 
 export const relationshipLabels: Record<RelationshipType, string> = {
   synergy: "Works well together",

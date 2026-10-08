@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { forceCollide, forceLink, forceManyBody, forceSimulation, type Simulation, type SimulationLinkDatum, type SimulationNodeDatum } from "d3-force";
-import { IDEA_CARD_SIZE, type Board } from "./model";
+import { clusterLabelsFor, IDEA_CARD_SIZE, MERGED_IDEA_CARD_SIZE, ideaCardSize, type Board } from "./model";
 import { resolveNodeOverlaps } from "./node-layout";
 
 type Particle = SimulationNodeDatum & { id: string; x: number; y: number; pinned: boolean };
@@ -10,10 +10,10 @@ type Spring = SimulationLinkDatum<Particle> & { source: string | Particle; targe
 export type Contact = { first: string; second: string; axis: "x" | "y" };
 
 // Card centers share one simulation. Weak forces and slow cooling make movement soft without drawing cards to the origin.
-const CARD_CENTER = { x: IDEA_CARD_SIZE.width / 2, y: IDEA_CARD_SIZE.height / 2 };
+const CARD_CENTER = { x: MERGED_IDEA_CARD_SIZE.width / 2, y: MERGED_IDEA_CARD_SIZE.height / 2 };
 const CONTACT_GAP = 42;
 const MOTION = {
-  collisionRadius: Math.ceil(Math.hypot(IDEA_CARD_SIZE.width + 48, IDEA_CARD_SIZE.height + 48) / 2),
+  collisionRadius: Math.ceil(Math.hypot(MERGED_IDEA_CARD_SIZE.width + 48, MERGED_IDEA_CARD_SIZE.height + 48) / 2),
   collisionStrength: 0.4,
   repulsion: -55,
   linkDistance: 345,
@@ -39,6 +39,7 @@ export function usePhysics(board: Board, enabled: boolean, frozenId: string | nu
 
   function checkContacts() {
     const nodes = [...particles.current.values()];
+    const clusterLabels = clusterLabelsFor(latest.current.board);
     const currentContacts = new Set<string>();
     const impacts: Contact[] = [];
     for (let firstIndex = 0; firstIndex < nodes.length; firstIndex += 1) {
@@ -47,15 +48,19 @@ export function usePhysics(board: Board, enabled: boolean, frozenId: string | nu
         const second = nodes[secondIndex];
         const dx = Math.abs(first.x - second.x);
         const dy = Math.abs(first.y - second.y);
-        const gapX = Math.max(0, dx - IDEA_CARD_SIZE.width);
-        const gapY = Math.max(0, dy - IDEA_CARD_SIZE.height);
+        const firstIdea = latest.current.board.ideas.find((idea) => idea.id === first.id);
+        const secondIdea = latest.current.board.ideas.find((idea) => idea.id === second.id);
+        const firstSize = firstIdea ? ideaCardSize(firstIdea, clusterLabels.get(first.id)) : IDEA_CARD_SIZE;
+        const secondSize = secondIdea ? ideaCardSize(secondIdea, clusterLabels.get(second.id)) : IDEA_CARD_SIZE;
+        const gapX = Math.max(0, dx - (firstSize.width + secondSize.width) / 2);
+        const gapY = Math.max(0, dy - (firstSize.height + secondSize.height) / 2);
         if (Math.hypot(gapX, gapY) > CONTACT_GAP) continue;
         const key = [first.id, second.id].sort().join(":");
         currentContacts.add(key);
         if (!activeContacts.current.has(key)) impacts.push({
           first: first.id,
           second: second.id,
-          axis: dx / IDEA_CARD_SIZE.width >= dy / IDEA_CARD_SIZE.height ? "x" : "y",
+          axis: dx / ((firstSize.width + secondSize.width) / 2) >= dy / ((firstSize.height + secondSize.height) / 2) ? "x" : "y",
         });
       }
     }
@@ -82,7 +87,7 @@ export function usePhysics(board: Board, enabled: boolean, frozenId: string | nu
             return node ? { ...idea, position: { x: node.x - CARD_CENTER.x, y: node.y - CARD_CENTER.y } } : idea;
           });
           const fixed = new Set([latest.current.frozenId].filter((id): id is string => Boolean(id)));
-          const resolved = resolveNodeOverlaps(ideas, {}, fixed);
+          const resolved = resolveNodeOverlaps(ideas, {}, fixed, clusterLabelsFor(latest.current.board));
           for (const [id, position] of resolved) {
             const node = particles.current.get(id);
             if (!node || node.x - CARD_CENTER.x === position.x && node.y - CARD_CENTER.y === position.y) continue;

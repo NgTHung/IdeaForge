@@ -9,6 +9,7 @@
 .connection-suggestions button:disabled { opacity: .5; }
 .connection-suggestions p { line-height: 1.5; overflow-wrap: anywhere; }
 .connection-suggestions-status, .connection-suggestions-hint { color: #63796e; }
+.connection-suggestions-status.is-empty-guidance { white-space: nowrap; }
 .connection-accepted-notice { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 12px; border: 1px solid #bfe0d5; border-radius: 8px; background: #e7f4ef; color: #1f5f52; animation: connection-accepted-fade 4s linear forwards; }
 .connection-accepted-notice svg { flex: none; }
 .connection-accepted-notice span { flex: 1; }

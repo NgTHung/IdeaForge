@@ -5,7 +5,7 @@ import { ReactFlow, Background, BackgroundVariant, type NodeChange, type ReactFl
 import Link from "next/link";
 import { createIdeaId } from "./id";
 import { initialBoard } from "./fixtures";
-import { createIdea, createRelationship, deleteIdea, deleteRelationship, IDEA_CARD_SIZE, moveIdea, relationshipLabels, setIdeaPinned, updateIdea, updateRelationship,
+import { clusterLabelsFor, createIdea, createRelationship, deleteIdea, deleteRelationship, IDEA_CARD_SIZE, ideaCardSize, moveIdea, relationshipLabels, setIdeaPinned, updateIdea, updateRelationship,
   type Board, type Idea, type Relationship, type RelationshipType } from "./model";
 import { Bubble, type IdeaNode } from "./bubble";
 import { OrthogonalEdge, type OrthogonalCanvasEdge } from "./orthogonal-edge";
@@ -82,7 +82,7 @@ function nodeSizeMap(layouts: Record<string, Pick<IdeaNode, "measured" | "draggi
 }
 
 function normalizeBoardLayout(board: Board, measured: Record<string, NodeSize | undefined>, fixedIds: string[] = []) {
-  return withResolvedNodeOverlaps(board, measured, new Set(fixedIds));
+  return withResolvedNodeOverlaps(board, measured, new Set(fixedIds), clusterLabelsFor(board));
 }
 
 type BoardAppProps = {
@@ -403,8 +403,8 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     if (!flow.current || !canvas.current || board.ideas.length === 0) return;
     const minX = Math.min(...board.ideas.map((idea) => idea.position.x));
     const minY = Math.min(...board.ideas.map((idea) => idea.position.y));
-    const width = Math.max(...board.ideas.map((idea) => idea.position.x + IDEA_CARD_SIZE.width)) - minX;
-    const height = Math.max(...board.ideas.map((idea) => idea.position.y + IDEA_CARD_SIZE.height)) - minY;
+    const width = Math.max(...board.ideas.map((idea) => idea.position.x + ideaCardSize(idea, clusterLabels.get(idea.id)).width)) - minX;
+    const height = Math.max(...board.ideas.map((idea) => idea.position.y + ideaCardSize(idea, clusterLabels.get(idea.id)).height)) - minY;
     const availableWidth = Math.max(240, canvas.current.clientWidth - 230);
     const availableHeight = Math.max(180, canvas.current.clientHeight - 260);
     const zoom = Math.max(0.15, Math.min(0.95, availableWidth / width, availableHeight / height));
@@ -836,7 +836,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
         const rectangles = (group?.noteIds ?? []).flatMap((id) => {
           const idea = resolvedLayoutBoard.ideas.find((candidate) => candidate.id === id);
           if (!idea) return [];
-          const size = measured[id] ?? IDEA_CARD_SIZE;
+          const size = measured[id] ?? ideaCardSize(idea, clusterLabels.get(id));
           return [{ left: idea.position.x, top: idea.position.y, right: idea.position.x + size.width, bottom: idea.position.y + size.height }];
         });
         if (!rectangles.length) return bubble;
@@ -1095,7 +1095,6 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
     draggable: tool !== "connect" && editor?.id !== idea.id,
     data: { idea, editingBy: editingLocks[idea.id], connecting: tool === "connect", source: sourceId === idea.id, editing: editor?.id === idea.id, squash: squashes[idea.id] ?? null,
       mergeIndex: mergeIds.includes(idea.id) ? mergeIds.indexOf(idea.id) + 1 : previewMergeIds.indexOf(idea.id) + 1,
-      mergeSourceCount: idea.merge?.sources.length,
       onMergeDetails: idea.merge ? () => setMergeDetailsId(idea.id) : undefined,
       onAssistantDetails: idea.assistant ? () => setAssistantDetailsId(idea.id) : undefined,
       onSelect: (additive) => {
@@ -1152,12 +1151,12 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
       })));
     }
     const routingIdeas = assistantPreviewIdea ? [...board.ideas, assistantPreviewIdea] : board.ideas;
-    const routes = routeCanvasEdges(routingIdeas, links, measuredSizes);
+    const routes = routeCanvasEdges(routingIdeas, links, measuredSizes, clusterLabels);
     return links.flatMap((link) => {
       const route = routes.get(link.id);
       return route ? [{ ...link, route }] : [];
     });
-  }, [board, measuredSizes, suggestions.previews, suggestions.enabled, assistantPreview, assistantPreviewIdea]);
+  }, [board, measuredSizes, clusterLabels, suggestions.previews, suggestions.enabled, assistantPreview, assistantPreviewIdea]);
   const edgeFocus = useMemo(() => {
     const nodes = new Set<string>();
     if (hoveredIdeaId) nodes.add(hoveredIdeaId);
@@ -1239,7 +1238,7 @@ export function BoardApp({ sharedBoard, sharedTitle, onBoardChange, onTitleChang
           }}
           panOnDrag={tool === "hand" || spaceDown} nodesDraggable={tool !== "hand" && !spaceDown && tool !== "connect"}
           nodesConnectable={false} elementsSelectable={true} elevateEdgesOnSelect={false} zoomOnDoubleClick={false} minZoom={0.15} maxZoom={1.8} defaultViewport={{ x: 185, y: 180, zoom: 0.72 }}>
-          <Background variant={BackgroundVariant.Dots} gap={23} size={1.3} color={theme === "dark" ? "#354c49" : "#cad7d2"} />
+          <Background variant={BackgroundVariant.Dots} gap={23} size={1.5} color={theme === "dark" ? "#405b52" : "#b6c9bf"} />
         </ReactFlow>
         {connectDrag.preview?.active && <svg className="board-connection-preview" aria-hidden="true">
           <path d={orthogonalPreviewPath({ x: connectDrag.preview.x1, y: connectDrag.preview.y1 }, { x: connectDrag.preview.x2, y: connectDrag.preview.y2 })} />
