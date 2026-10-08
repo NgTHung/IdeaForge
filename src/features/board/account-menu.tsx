@@ -59,6 +59,7 @@ export function AccountMenu() {
       <span className="account-popover-label">SIGNED IN AS</span>
       <strong title={name}>{name}</strong>
       {session.user.name && <span className="account-email">{session.user.email}</span>}
+      <Link className="account-dashboard-link" href="/dashboard" onClick={() => setOpen(false)}>My dashboard</Link>
       {error && <p className="account-error" role="alert">{error}</p>}
       <button type="button" disabled={signOutBusy} onClick={() => void signOut()}>
         {signOutBusy ? "Signing out…" : "Sign out"}

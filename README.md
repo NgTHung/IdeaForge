@@ -36,7 +36,7 @@ Set `API_ORIGIN` to `http://localhost:4000`, `APP_ORIGIN` to `http://localhost:3
 
 To enable Google sign-in, set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`. Add `http://localhost:4000/api/auth/callback/google` as an authorized redirect URI in Google Cloud. To enable email/password sign-up, configure all SMTP variables. New email/password accounts must verify their address, and password resets use the same SMTP service. The API accepts credentialed requests only from `APP_ORIGIN`.
 
-This API foundation does not yet create boards or restrict Liveblocks room access. Until board membership and sharing checks are implemented, the existing demo authorization policy still applies.
+Sign in before creating a board. **Create board** asks for a goal or topic and optional description, then saves board metadata, ownership, and an owner membership in MongoDB. The canvas lives in the referenced Liveblocks room. Open `/dashboard` to see your boards and joined shared boards. A signed-in user joins a shared board when they open its UUID link; anonymous guests can still edit with the link. Invitations are not supported yet. A valid UUID board link still grants anyone with the link full edit access, matching the current demo policy; MongoDB membership does not restrict Liveblocks access yet.
 
 ### Configuration
 

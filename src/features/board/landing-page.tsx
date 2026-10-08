@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useRef, useState, type FormEvent } from "react";
 import { boardIdSchema } from "@/lib/rooms";
+import { authClient } from "@/lib/auth-client";
 import { AccountMenu } from "./account-menu";
 import "./landing.css";
 
 export function LandingPage() {
   const router = useRouter();
+  const { data: session, isPending } = authClient.useSession();
   const [boardLink, setBoardLink] = useState("");
   const [joinError, setJoinError] = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -20,7 +22,7 @@ export function LandingPage() {
     if (createStarted.current) return;
     createStarted.current = true;
     setIsCreating(true);
-    router.push(`/board/${crypto.randomUUID()}`);
+    router.push(session ? "/boards/new" : "/login?returnTo=%2Fboards%2Fnew");
   }
 
   function joinBoard(event: FormEvent<HTMLFormElement>) {
@@ -60,8 +62,8 @@ export function LandingPage() {
         <section className="landing-card landing-create-card">
           <span className="landing-card-icon" aria-hidden="true">＋</span>
           <h2>Create a board</h2>
-          <button className="landing-primary" type="button" disabled={isCreating} onClick={createBoard}>
-            {isCreating ? "Creating…" : "Create board"}
+          <button className="landing-primary" type="button" disabled={isCreating || isPending} onClick={createBoard}>
+            {isCreating ? "Opening…" : "Create board"}
           </button>
         </section>
         <section className="landing-card">

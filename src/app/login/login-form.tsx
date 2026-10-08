@@ -5,8 +5,14 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { authClient } from "@/lib/auth-client";
+import { safeReturnPath } from "@/lib/board-directory";
+import { signupPasswordError, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
 
 type Mode = "signin" | "signup";
+
+function getReturnPath() {
+  return safeReturnPath(new URLSearchParams(window.location.search).get("returnTo"));
+}
 
 export function LoginForm() {
   const router = useRouter();
@@ -15,34 +21,43 @@ export function LoginForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (session) router.replace("/");
+    if (session) router.replace(getReturnPath());
   }, [router, session]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (mode === "signup") {
+      const passwordError = signupPasswordError(password);
+      if (passwordError) { setError(passwordError); return; }
+      if (password !== confirmPassword) { setError("Passwords do not match."); return; }
+    }
     setBusy(true);
     setError("");
     setMessage("");
 
     try {
       if (mode === "signup") {
+        const verifyCallback = new URL("/login", window.location.origin);
+        verifyCallback.searchParams.set("verified", "1");
+        verifyCallback.searchParams.set("returnTo", getReturnPath());
         const result = await authClient.signUp.email({
           name: name.trim(),
           email: email.trim(),
           password,
-          callbackURL: `${window.location.origin}/login?verified=1`,
+          callbackURL: verifyCallback.toString(),
         });
         if (result.error) throw new Error(result.error.message);
         setMessage("Check your email for a verification link, then sign in.");
       } else {
         const result = await authClient.signIn.email({ email: email.trim(), password });
         if (result.error) throw new Error(result.error.message);
-        router.replace("/");
+        router.replace(getReturnPath());
         router.refresh();
       }
     } catch (cause) {
@@ -56,7 +71,9 @@ export function LoginForm() {
     setBusy(true);
     setError("");
     try {
-      const result = await authClient.signIn.social({ provider: "google", callbackURL: window.location.origin });
+      const result = await authClient.signIn.social({
+        provider: "google", callbackURL: new URL(getReturnPath(), window.location.origin).toString(),
+      });
       if (result.error) throw new Error(result.error.message);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Google sign-in is unavailable. Try again.");
@@ -84,11 +101,13 @@ export function LoginForm() {
       <form onSubmit={(event) => void submit(event)}>
         {mode === "signup" && <label htmlFor="auth-name">Name<input id="auth-name" name="name" autoComplete="name" required maxLength={80} value={name} onChange={(event) => setName(event.target.value)} /></label>}
         <label htmlFor="auth-email">Email<input id="auth-email" name="email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-        <label htmlFor="auth-password">Password<input id="auth-password" name="password" type="password" autoComplete={mode === "signin" ? "current-password" : "new-password"} minLength={8} maxLength={128} required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+        <label htmlFor="auth-password">Password<input id="auth-password" name="password" type="password" autoComplete={mode === "signin" ? "current-password" : "new-password"} minLength={mode === "signup" ? PASSWORD_MIN_LENGTH : undefined} maxLength={PASSWORD_MAX_LENGTH} required value={password} onChange={(event) => { setPassword(event.target.value); setError(""); }} aria-describedby={mode === "signup" ? "auth-password-help" : undefined} /></label>
+        {mode === "signup" && <small id="auth-password-help" className="auth-field-help">At least 8 characters, with a letter and a number.</small>}
+        {mode === "signup" && <label htmlFor="auth-confirm-password">Confirm password<input id="auth-confirm-password" name="confirmPassword" type="password" autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} maxLength={PASSWORD_MAX_LENGTH} required value={confirmPassword} onChange={(event) => { setConfirmPassword(event.target.value); setError(""); }} /></label>}
         <button className="auth-submit" type="submit" disabled={busy}>{busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}</button>
       </form>
 
-      <p className="auth-switch">{mode === "signin" ? "New to IdeaForge?" : "Already have an account?"} <button type="button" disabled={busy} onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setMessage(""); }}>{mode === "signin" ? "Create account" : "Sign in"}</button></p>
+      <p className="auth-switch">{mode === "signin" ? "New to IdeaForge?" : "Already have an account?"} <button type="button" disabled={busy} onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setConfirmPassword(""); setError(""); setMessage(""); }}>{mode === "signin" ? "Create account" : "Sign in"}</button></p>
       <Link className="auth-back" href="/">Back to the demo board</Link>
     </section>
   </main>;
