@@ -30,6 +30,8 @@
 .connection-suggestion-field select { font-weight: 500; }
 .connection-suggestion-field textarea { resize: vertical; }
 .connection-explanation { margin: 0; padding: 9px 10px; border-radius: 8px; background: #f2f7f4; color: #536b60; font-size: 12px; }
+.connection-explanation p { margin: 0 0 5px; }
+.connection-explanation p:last-child { margin-bottom: 0; }
 .connection-suggestion-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 8px; }
 .connection-suggestion-actions button { height: 36px; min-height: 36px; padding: 0 10px; border-radius: 8px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .connection-suggestion-utilities { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }

@@ -7,6 +7,7 @@ import type { Board, AssistantSourceSnapshot } from "./model";
 import { assistantHistoryFor } from "./assistant-chat-history";
 import { assistantActionIsCurrent, makeAssistantActionDraft, type AssistantActionDraft } from "./assistant-actions";
 import { createIdeaId } from "./id";
+import { MarkdownText } from "./markdown-text";
 
 type ChatMessage =
   | { id: string; role: "user"; text: string; completed: boolean }
@@ -86,14 +87,14 @@ function AssistantActionCard({
 
   return <section className="board-assistant-action" aria-label={title}>
     <strong>{title}</strong>
-    <p>{current.action.why}</p>
+    <MarkdownText>{current.action.why}</MarkdownText>
     {current.action.kind === "create" && <>
       <label>Proposed title<input maxLength={120} value={current.title} onChange={(event) => change({ title: event.target.value })} /></label>
       <label>Proposed content<textarea maxLength={4000} rows={3} value={current.content} onChange={(event) => change({ content: event.target.value })} /></label>
     </>}
     {current.action.kind === "edit" && <>
-      <div className="board-assistant-edit-compare"><div><small>Current</small><span>{sourceTitle(editCardId)}</span><p>{current.sources.find((source) => source.id === editCardId)?.content || "No description"}</p></div>
-        <div><small>Proposed</small><span>{current.title || "Untitled card"}</span><p>{current.content || "No description"}</p></div></div>
+      <div className="board-assistant-edit-compare"><div><small>Current</small><span>{sourceTitle(editCardId)}</span><MarkdownText>{current.sources.find((source) => source.id === editCardId)?.content || "No description"}</MarkdownText></div>
+        <div><small>Proposed</small><span>{current.title || "Untitled card"}</span><MarkdownText>{current.content || "No description"}</MarkdownText></div></div>
       <label>New title<input maxLength={120} value={current.title} onChange={(event) => change({ title: event.target.value })} /></label>
       <label>New content<textarea maxLength={4000} rows={3} value={current.content} onChange={(event) => change({ content: event.target.value })} /></label>
     </>}
@@ -239,7 +240,7 @@ export function ChatSidebar({
           ? <div key={message.id} className="board-message you">{message.text}</div>
           : <article key={message.id} className="board-message assistant">
             {message.response.result.reply.map((paragraph, index) => <div className="board-assistant-paragraph" key={`${message.id}-${index}`}>
-              <p>{paragraph.text}</p>
+              <MarkdownText>{paragraph.text}</MarkdownText>
               {paragraph.cites.length > 0 && <div className="board-citations" aria-label="Cited cards">
                 {paragraph.cites.map((cardId) => {
                   const source = message.snapshot.find((card) => card.id === cardId);
