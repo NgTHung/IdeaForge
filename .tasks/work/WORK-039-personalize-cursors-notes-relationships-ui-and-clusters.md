@@ -1,13 +1,13 @@
 ---
 id: "WORK-039"
 title: "Personalize the board with styles and playful animations"
-status: "To Do"
+status: In Progress
 priority: "Medium"
 type: "Feature"
 risk: "Medium"
 impact: "Adds personal appearance preferences, named cluster decorations, and animations for board activity."
 tags: ["enhancement", "ready-for-agent"]
-last_updated: "2026-10-09"
+last_updated: 2026-10-09
 ---
 
 ## Summary
