@@ -23,6 +23,27 @@ const safeErrorNames = new Set([
   "MongoNetworkError", "MongoNetworkTimeoutError", "MongoServerError",
 ]);
 
+const mongoParseReasons = new Map([
+  ['Invalid scheme, expected connection string to start with "mongodb://" or "mongodb+srv://"', "invalid_scheme"],
+  ["Invalid connection string", "invalid_uri"],
+  ["Protocol and host list are required in the uri", "invalid_uri"],
+  ["URI malformed", "invalid_percent_encoding"],
+  ["Password contains unescaped characters", "unescaped_password"],
+  ["URI contained empty userinfo section", "empty_credentials"],
+  ["mongodb+srv URI cannot have multiple service names", "srv_multiple_hosts"],
+  ["mongodb+srv URI cannot have port number", "srv_port"],
+  ["Multiple text records not allowed", "invalid_dns_txt"],
+  ["Text record may only set any of: authSource, replicaSet, loadBalanced", "invalid_dns_txt"],
+  ["Cannot have empty URI params in DNS TXT Record", "invalid_dns_txt"],
+]);
+
+function mongoParseReason(message: string) {
+  // Driver messages can contain credentials. Return only fixed reason codes.
+  if (message.startsWith("Username contains unescaped characters ")) return "unescaped_username";
+  if (/^options? .+ (?:is|are) not supported$/.test(message)) return "unsupported_options";
+  return mongoParseReasons.get(message) ?? "unknown_parse_error";
+}
+
 export async function apiResponse(run: () => Promise<Response>): Promise<Response> {
   try {
     const response = await run();
@@ -34,7 +55,10 @@ export async function apiResponse(run: () => Promise<Response>): Promise<Respons
       console.error("API request failed", { cause: "server_configuration", fields: error.fields });
     } else if (!(error instanceof HttpError)) {
       const cause = error instanceof Error && safeErrorNames.has(error.name) ? error.name : "unexpected_error";
-      console.error("API request failed", { cause });
+      const diagnostic = error instanceof Error && cause === "MongoParseError"
+        ? { cause, reason: mongoParseReason(error.message) }
+        : { cause };
+      console.error("API request failed", diagnostic);
     }
     return Response.json({ error: error instanceof HttpError ? error.message : "The request could not be completed." }, {
       status: error instanceof HttpError ? error.status : 500,

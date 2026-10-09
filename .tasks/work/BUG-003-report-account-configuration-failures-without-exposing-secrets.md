@@ -1,7 +1,7 @@
 ---
 id: "BUG-003"
 title: "Report account configuration failures without exposing secrets"
-status: In Progress
+status: Done
 priority: "High"
 type: "Bug"
 tags: ["bug", "ready-for-agent"]
@@ -18,8 +18,10 @@ A preview social sign-in returns only a generic 500, and the error wrapper suppr
 - [x] Partial Google or SMTP configuration identifies the missing keys; errors and logs never include secret values, database URIs, or raw exception messages.
 - [x] Tests cover configuration failures and safe diagnostics, and lint, typecheck, and production build pass.
 - [x] Preview setup documents required environment scope, callback registration, and redeployment; verification distinguishes reproduced behavior from inaccessible Vercel logs.
-- [ ] MongoDB parse failures log a fixed reason code without copying driver messages or credentials; tests verify real parser failures and URIs without a database path.
+- [x] MongoDB parse failures log a fixed reason code without copying driver messages or credentials; tests verify real parser failures and URIs without a database path.
 
 ## Verification
 
 All 139 tests, lint, typecheck, and a production build without account credentials passed. The actual social sign-in route returned a no-store 503 naming missing MongoDB and auth secret keys. With configured local settings it returned 200 and a Google authorization URL with the expected localhost callback. Tests ensure responses and logs exclude invalid secret values, database URIs, and raw exception messages. The Vercel project denied log and environment access with 403, so the preview failure itself is not confirmed; the new diagnostics and documented Preview setup provide the next check after redeployment.
+
+The MongoDB diagnostic update passed all 141 tests, lint, typecheck, and production build. Real driver parser tests cover malformed credentials, SRV format errors, and unsupported options. Both URI schemes accept a separately selected database without a database path. DNS TXT error tests use simulated driver exceptions. The built social sign-in endpoint, using a deliberately malformed placeholder URI, returned a no-store 500 and logged only the MongoParseError category and invalid_percent_encoding reason. The reported preview parse failure still requires its new reason code to identify the cause.
