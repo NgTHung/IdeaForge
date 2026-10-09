@@ -1,6 +1,6 @@
 import "server-only";
 
-import { AiError, generateJson } from "./ai";
+import { generateJson } from "./ai";
 import { clusterNamesRequestSchema } from "./cluster-contract";
 import type { ClusterNamesRequest, ClusterNamesResponse } from "./cluster-contract";
 import { z } from "zod";
@@ -39,16 +39,19 @@ export async function suggestClusterNames(input: unknown): Promise<ClusterNamesR
   const parsed = clusterNamesRequestSchema.safeParse(input);
   if (!parsed.success) throw new TypeError("Invalid cluster naming request.");
   const groups = boundedGroups(parsed.data);
+  const requestedIds = groups.map((group) => group.id);
   const modelResult = await generateJson({
     system: namingInstructions,
     prompt: JSON.stringify({ groups }),
     maxOutputTokens: 1024,
-  }, modelNamesSchema);
-
-  const requestedIds = groups.map((group) => group.id);
-  const returnedIds = modelResult.names.map((item) => item.groupId);
-  if (new Set(returnedIds).size !== returnedIds.length || requestedIds.length !== returnedIds.length ||
-    requestedIds.some((id) => !returnedIds.includes(id))) throw new AiError("invalid_output");
+  }, modelNamesSchema, {
+    check: ({ names }) => {
+      const returnedIds = names.map((item) => item.groupId);
+      if (new Set(returnedIds).size === returnedIds.length && requestedIds.length === returnedIds.length &&
+        requestedIds.every((id) => returnedIds.includes(id))) return undefined;
+      return `names must have exactly one entry for each group ID (${requestedIds.join(", ")}), but it has ${returnedIds.join(", ") || "none"}`;
+    },
+  });
 
   const usedNames = new Set<string>();
   const byId = new Map(modelResult.names.map((item) => [item.groupId, item.suggestedName]));

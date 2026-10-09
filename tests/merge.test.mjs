@@ -77,3 +77,43 @@ test("merge reports invalid provider output with a safe error", async (t) => {
   assert.equal(error.code, "invalid_output");
   assert.ok(!JSON.stringify(error).includes("test-only-secret"));
 });
+
+test("merge repairs a proposal whose contributions miss a source", async (t) => {
+  process.env.FEATHERLESS_API_KEY = "test-only-secret";
+  const result = {
+    status: "useful", reason: "", title: "Mocked concept", concept: "Mocked concept text",
+    contributions: [{ sourceId: "a", contribution: "A contributes" }, { sourceId: "b", contribution: "B contributes" }],
+    bridge: "A enables B", tension: "Mocked tension", assumptions: ["Mocked assumption"], nextExperiment: "Mocked experiment",
+  };
+  const replies = [{ ...result, contributions: [result.contributions[0], { sourceId: "c", contribution: "Unknown source" }] }, result];
+  const requests = [];
+  t.mock.method(globalThis, "fetch", async (_url, init) => {
+    requests.push(JSON.parse(init.body));
+    return Response.json({ choices: [{ message: { content: JSON.stringify(replies.shift()) } }] });
+  });
+  const response = await POST(mergeRequest(payload));
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).result, result);
+  assert.equal(requests.length, 2);
+  assert.match(requests[1].messages[3].content, /every source ID \(a, b\) must appear exactly once across contributions and excluded, but they contain a, c\./);
+});
+
+test("merge accepts a proposal that leaves out a note with a reason", async (t) => {
+  process.env.FEATHERLESS_API_KEY = "test-only-secret";
+  const sources = [...payload.sources, { id: "c", text: "C" }];
+  const result = {
+    status: "useful", reason: "", title: "Mocked concept", concept: "Mocked concept text",
+    contributions: [{ sourceId: "a", contribution: "A contributes" }, { sourceId: "b", contribution: "B contributes" }],
+    excluded: [{ sourceId: "c", reason: "C solves a different problem" }],
+    bridge: "A enables B", tension: "Mocked tension", assumptions: [], nextExperiment: "Mocked experiment",
+  };
+  let providerRequest;
+  t.mock.method(globalThis, "fetch", async (_url, init) => {
+    providerRequest = JSON.parse(init.body);
+    return Response.json({ choices: [{ message: { content: JSON.stringify(result) } }] });
+  });
+  const response = await POST(mergeRequest({ ...payload, sources }));
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).result, result);
+  assert.match(providerRequest.messages[0].content, /List each left-out source in excluded/);
+});
