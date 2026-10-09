@@ -40,6 +40,23 @@ When migrating an existing setup, keep the MongoDB database and `BETTER_AUTH_SEC
 
 Sign in before creating a board. **Create board** asks for a goal or topic and optional description, then saves board metadata, ownership, and an owner membership in MongoDB. The canvas lives in the referenced Liveblocks room. Open `/dashboard` to see your boards and joined shared boards. A signed-in user joins a shared board when they open its UUID link; anonymous guests can still edit with the link. Invitations are not supported yet. A valid UUID board link still grants anyone with the link full edit access, matching the current demo policy; MongoDB membership does not restrict Liveblocks access yet.
 
+### Google sign-in on Vercel
+
+Better Auth constructs Google's callback from `APP_ORIGIN`. Set it to the stable URL you use to open the app. This repository passes `APP_ORIGIN` as Better Auth's `baseURL`, so setting `BETTER_AUTH_URL` alone does not change the callback.
+
+In Google Cloud Console, open APIs & Services, then Credentials, and edit the Web application OAuth client matching `GOOGLE_CLIENT_ID`. Add the full callback URL under Authorized redirect URIs. Authorized JavaScript origins do not register callbacks. Use these values for local development and the current production domain:
+
+| Environment | `APP_ORIGIN` | Authorized redirect URI |
+| --- | --- | --- |
+| Local | `http://localhost:3000` | `http://localhost:3000/api/auth/callback/google` |
+| Production | `https://idea-forge-wine.vercel.app` | `https://idea-forge-wine.vercel.app/api/auth/callback/google` |
+
+If you use another production domain, replace both production URLs. In Vercel Project Settings, set `APP_ORIGIN`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET` for the Production environment. Keep `BETTER_AUTH_SECRET` and the MongoDB settings configured. Redeploy after changing environment variables; existing deployments retain their earlier settings.
+
+For preview sign-in, use a stable staging or branch hostname. Set that preview's `APP_ORIGIN` to the hostname and register its exact callback with the corresponding Google OAuth client. Each generated deployment hostname needs a separate callback registration. Pointing preview auth at production would send the callback to a different host from the one that started sign-in.
+
+If Google returns `redirect_uri_mismatch`, inspect `redirect_uri` in the error details. Compare its protocol, hostname, port, and path with the registered callback for the client in use. A callback on port 4000 belongs to the former Express service; the migrated local app uses port 3000. See [Google's OAuth requirements](https://developers.google.com/identity/protocols/oauth2/web-server), [Better Auth's Google setup](https://better-auth.com/docs/authentication/google), and [Vercel environment variables](https://vercel.com/docs/environment-variables).
+
 ### Configuration
 
 | Variable | Needed for | Notes |
