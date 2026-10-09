@@ -154,6 +154,7 @@ For Organize, the browser sends eligible note text and the selected group count 
 
 ## Log
 
+- **2026-10-09: shared free drawing added to boards.** A separate pencil and eraser toolbar sits below the board tools. Liveblocks Presence shares the active pencil stroke, and Liveblocks Storage saves each completed stroke and erased stroke. Both render below relationship lines and idea cards. Existing board write access controls the tools. This adds a small drawing layer without changing the board's idea and relationship model.
 - **2026-10-09: dashboard highlights the latest board.** Show the most recently metadata-edited board in a featured card above the collection, and keep it in the normal grid. Remove the aggregate board-count label and creation-date tooltip; the edit time still reflects board metadata, not canvas activity.
 - **2026-10-09: owners can delete boards from the dashboard.** A signed-in owner can permanently remove the board's Liveblocks room, MongoDB metadata, and membership records. Shared members cannot delete another person's board.
 - **2026-10-09: account configuration failures identify invalid settings.** Missing or invalid server settings return HTTP 503 with declared environment variable names. Logs contain those names or an allowlisted exception category, never setting values or raw exception messages. The generic 500 response still covers unexpected failures. This makes preview setup errors diagnosable without exposing credentials. `work:BUG-003` tracks the change.

@@ -17,6 +17,7 @@ Done:
 - Account popover on the landing screen and shared boards, with the signed-in user's name and sign-out action.
 - Authenticated board creation at `/boards/new` and a personal dashboard at `/dashboard`. MongoDB stores board metadata, ownership, and membership with a pointer to each Liveblocks room; signed-in link visitors join as editors, and UUID links keep the current public edit policy.
 - Dashboard features the most recently metadata-edited board above the collection and retains it in the grid; owners can permanently delete their boards from the collection.
+- Shared boards show active pencil strokes through Liveblocks Presence, and Liveblocks Storage saves completed strokes and whole-stroke erasures beneath ideas and links.
 - Accounts, sessions, board metadata, and `/healthz` run in Next.js App Router handlers. Browser requests use the app origin, and the separate Express service is removed. MongoDB clients and account configuration initialize on demand.
 - Suggested Links across the board. The panel starts minimized, and automatic checks are off until enabled. When enabled, checks wait two seconds after saved text or goal changes. Up to three suggestions use the same canvas line and label as saved links; people can change the type, request an AI explanation, accept, or dismiss them. Dismissals save with the board for every participant. Suggestions shortlist pairs locally and classify them with Jev, exclude linked, dismissed, and merge-lineage pairs, and become invalid when source text changes. MongoDB caches results and enforces shared request allowances. Manual refresh works while automatic checks are off.
 - Merge endpoint with Zod validation and JSON output from GLM-5.3-Flash on Featherless
@@ -30,6 +31,7 @@ In progress:
 
 Verified:
 
+- On 2026-10-09, free drawing passed lint, a focused TypeScript check, and an isolated production build. The regular typecheck could not write `.next/types/routes.d.ts` in the working copy (`EPERM`). The two-client Liveblocks check was attempted with configured credentials, but authorization returned HTTP 503, so room broadcast and reload persistence remain unverified against the live service.
 - On 2026-10-09, PR #30 was reconciled with the Next.js backend migration. Dashboard deletion now uses the same-origin `DELETE /api/boards/[id]` handler and initializes Liveblocks only when an owner deletes a board. All 147 tests, lint, typecheck, and production build passed. Mocked deletion tests cover owner access, origin checks, room failures, already-missing rooms, and directory cleanup. Live MongoDB and Liveblocks deletion, live Gemini, and browser interactions were not exercised in this pass.
 
 - On 2026-10-09, the most recently metadata-edited board is highlighted above the full collection and remains in the grid. The aggregate board-count label and creation-date tooltip are removed. Owned cards keep the confirmed delete action for the owner's board and its Liveblocks room and MongoDB records. Lint, typecheck, and production build pass. Live MongoDB and Liveblocks deletion were not exercised.

@@ -4,7 +4,7 @@ import { LiveMap, LiveObject, type LsonObject } from "@liveblocks/client";
 import { useCallback } from "react";
 import { initialBoard } from "./fixtures";
 import { BoardApp } from "./board-app";
-import type { Board, ConnectionPair, Idea, Relationship } from "./model";
+import type { Board, ConnectionPair, FreeDrawStroke, Idea, Relationship } from "./model";
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
 import { connectionPairKey } from "@/lib/connections";
 import type { BoardMetadata } from "@/lib/board-directory";
@@ -49,6 +49,11 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
   const canWrite = Boolean(self?.canWrite);
   const others = useOthers();
   const updateMyPresence = useUpdateMyPresence();
+  const updateDrawingPresence = useCallback((drawing: FreeDrawStroke | null) => updateMyPresence({ drawing }), [updateMyPresence]);
+  const liveDrawings = others.flatMap((other) => {
+    const drawing = other.presence.drawing;
+    return drawing ? [{ ...drawing, id: `live-${other.id}` }] : [];
+  });
   const editingLocks = Object.fromEntries(others.flatMap((other) => {
     const ideaId = other.presence.editingIdeaId;
     return ideaId ? [[ideaId, other.info?.name?.trim() || "Another participant"]] : [];
@@ -59,18 +64,21 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     goal: root.goal,
     ideas: Object.values(root.ideas),
     relationships: Object.values(root.relationships),
+    drawings: Object.values(root.drawings ?? {}),
     dismissedConnections: Object.values(root.dismissedConnections ?? {}),
     clusterSnapshot: root.clusterSnapshot as ClusterSnapshot | undefined,
   }));
   const updateBoard = useMutation(({ storage }, update: (board: Board) => Board) => {
     const ideas = storage.get("ideas");
     const relationships = storage.get("relationships");
+    const drawings = storage.get("drawings");
     const savedClusterSnapshot = storage.get("clusterSnapshot");
     const dismissed = storage.get("dismissedConnections");
     const current: Board = {
       goal: storage.get("goal"),
       ideas: [...ideas.entries()].map(([, idea]) => idea.toJSON() as Idea),
       relationships: [...relationships.entries()].map(([, link]) => link.toJSON() as Relationship),
+      drawings: [...drawings?.entries() ?? []].map(([, stroke]) => stroke.toJSON() as FreeDrawStroke),
       dismissedConnections: [...dismissed?.values() ?? []],
       clusterSnapshot: savedClusterSnapshot?.toJSON() as ClusterSnapshot | undefined,
     };
@@ -84,6 +92,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     }
     const nextIdeas = new Map(next.ideas.map((idea) => [idea.id, idea]));
     const nextRelationships = new Map(next.relationships.map((link) => [link.id, link]));
+    const nextDrawings = new Map((next.drawings ?? []).map((stroke) => [stroke.id, stroke]));
 
     for (const [id, idea] of ideas.entries()) {
       const updated = nextIdeas.get(id);
@@ -104,6 +113,24 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
       }
     }
     for (const link of nextRelationships.values()) { relationships.set(link.id, new LiveObject(link)); changed = true; }
+
+    let savedDrawings = drawings;
+    if (!savedDrawings && nextDrawings.size) {
+      savedDrawings = new LiveMap<string, LiveObject<FreeDrawStroke>>();
+      storage.set("drawings", savedDrawings);
+      changed = true;
+    }
+    if (savedDrawings) {
+      for (const [id, stroke] of savedDrawings.entries()) {
+        const updated = nextDrawings.get(id);
+        if (!updated) { savedDrawings.delete(id); changed = true; }
+        else {
+          changed = updateFields(stroke, updated) || changed;
+          nextDrawings.delete(id);
+        }
+      }
+      for (const stroke of nextDrawings.values()) { savedDrawings.set(stroke.id, new LiveObject(stroke)); changed = true; }
+    }
 
     const nextDismissals = new Map((next.dismissedConnections ?? []).map((pair) => [connectionPairKey(pair.sourceId, pair.targetId), pair]));
     if (dismissed) {
@@ -147,7 +174,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
   if (!snapshot) return <main className="board-connection-state" aria-live="polite">Connecting to shared board…</main>;
 
   return <BoardApp
-    sharedBoard={{ goal: snapshot.goal, ideas: snapshot.ideas as Idea[], relationships: snapshot.relationships as Relationship[], dismissedConnections: snapshot.dismissedConnections as ConnectionPair[], clusterSnapshot: snapshot.clusterSnapshot ?? null }}
+    sharedBoard={{ goal: snapshot.goal, ideas: snapshot.ideas as Idea[], relationships: snapshot.relationships as Relationship[], drawings: snapshot.drawings as FreeDrawStroke[], dismissedConnections: snapshot.dismissedConnections as ConnectionPair[], clusterSnapshot: snapshot.clusterSnapshot ?? null }}
     sharedTitle={snapshot.title}
     authorName={self?.info?.name?.trim() || "Unknown contributor"}
     boardDescription={metadata?.description ?? ""}
@@ -157,5 +184,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     onBackgroundBoardChange={changeBoardWithoutHistory}
     onTitleChange={updateTitle}
     historyActions={{ undo, redo, canUndo, canRedo, canWrite }}
+    liveDrawings={liveDrawings}
+    onDrawingPreviewChange={updateDrawingPresence}
   />;
 }
