@@ -2,17 +2,16 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { registerHooks } from "node:module";
 import { test } from "node:test";
-import express from "express";
-import { createServer } from "node:http";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
+    if (context.parentURL?.startsWith(new URL("../src/", import.meta.url).href) && specifier.startsWith(".") && !/\.[a-z]+$/.test(specifier)) return nextResolve(`${specifier}.ts`, context);
     return nextResolve(specifier, context);
   },
 });
 
-const { createBoardDirectoryRouter } = await import("../src/server/board-directory-router.ts");
+const { createBoardDirectoryHandlers } = await import("../src/server/board-directory.ts");
 const { safeReturnPath, createBoardSchema } = await import("../src/lib/board-directory.ts");
 
 function fakeDatabase() {
@@ -31,10 +30,13 @@ function fakeDatabase() {
     deleteOne: async (query) => { const index = docs.findIndex((document) => matches(document, query)); if (index >= 0) docs.splice(index, 1); return { deletedCount: index >= 0 ? 1 : 0 }; },
     find: (query) => ({ sort() { return this; }, toArray: async () => docs.filter((document) => matches(document, query)).map((document) => structuredClone(document)) }),
     findOne: async (query) => structuredClone(docs.find((document) => matches(document, query)) ?? null),
-    updateOne: async (query, update) => {
+    updateOne: async (query, update, options) => {
       const document = docs.find((candidate) => matches(candidate, query));
-      if (!document) return { matchedCount: 0 };
-      Object.assign(document, update.$set);
+      if (!document) {
+        if (options?.upsert) docs.push(structuredClone({ ...query, ...update.$setOnInsert }));
+        return { matchedCount: 0 };
+      }
+      if (update.$set) Object.assign(document, update.$set);
       return { matchedCount: 1 };
     },
   });
@@ -46,18 +48,17 @@ function fakeDatabase() {
 
 async function withApi({ userId = null } = {}, run) {
   const db = fakeDatabase();
-  const app = express();
-  app.use(express.json());
-  app.use("/api/boards", createBoardDirectoryRouter({
-    database: db.database,
-    appOrigin: "http://app.example",
+  const handlers = createBoardDirectoryHandlers({
+    getDatabase: () => db.database,
+    getAppOrigin: () => "http://app.example",
     getSession: async () => userId ? { user: { id: userId } } : null,
-  }));
-  const server = createServer(app);
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const { port } = server.address();
-  try { await run({ db, fetch: (path, init = {}) => fetch(`http://127.0.0.1:${port}/api/boards${path}`, init) }); }
-  finally { await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
+  });
+  await run({ db, handlers, fetch: (path, init = {}) => {
+    const request = new Request(`http://app.example/api/boards${path}`, init);
+    if (path === "/") return request.method === "POST" ? handlers.create(request) : handlers.list(request);
+    const [, id, operation] = path.split("/");
+    return handlers[operation](request, id);
+  } });
 }
 
 test("board details are trimmed, required, bounded, and reject client ownership fields", () => {
@@ -145,4 +146,99 @@ test("dashboard queries only owned and joined boards; public context preserves l
     assert.equal(db.boards.find((board) => board.id === joinedId).title, "Renamed board");
     assert.ok(db.boards.find((board) => board.id === joinedId).updatedAt >= now);
   });
+});
+
+test("mutations reject missing and foreign origins before reading a session or database", async () => {
+  const handlers = createBoardDirectoryHandlers({
+    getAppOrigin: () => "http://app.example",
+    getDatabase: () => { throw new Error("Database should not be opened"); },
+    getSession: () => { throw new Error("Session should not be read"); },
+  });
+  for (const origin of [undefined, "http://evil.example", "null"]) {
+    for (const [method, handler] of [["POST", handlers.create], ["POST", handlers.join], ["PATCH", handlers.title]]) {
+      const response = await handler(new Request("http://app.example/api/boards", {
+        method, headers: origin ? { origin } : {}, body: "{}",
+      }), randomUUID());
+      assert.equal(response.status, 403);
+      assert.equal(response.headers.get("cache-control"), "no-store");
+    }
+  }
+});
+
+test("board handlers reject malformed, oversized, and invalid JSON without saving", async () => {
+  await withApi({ userId: "owner" }, async ({ db, fetch }) => {
+    for (const [body, status] of [["{", 400], ["null", 400], [JSON.stringify({ title: "" }), 400],
+      [JSON.stringify({ title: "Goal", ownerId: "attacker" }), 400], ["x".repeat(1024 * 1024 + 1), 413]]) {
+      const response = await fetch("/", { method: "POST", headers: { origin: "http://app.example" }, body });
+      assert.equal(response.status, status);
+      assert.equal(response.headers.get("cache-control"), "no-store");
+    }
+    assert.equal(db.boards.length, 0);
+  });
+});
+
+test("invalid and missing boards return JSON errors, and link holders can rename without a session", async () => {
+  await withApi({}, async ({ db, fetch }) => {
+    assert.equal((await fetch("/not-a-uuid/context")).status, 400);
+    assert.equal((await fetch(`/${randomUUID()}/context`)).status, 404);
+    const id = randomUUID();
+    const now = new Date();
+    db.boards.push({ id, title: "Before", description: "", ownerId: "owner", liveblocksRoomId: `ideaforge:${id}`, createdAt: now, updatedAt: now });
+    const response = await fetch(`/${id}/title`, {
+      method: "PATCH", headers: { origin: "http://app.example" }, body: JSON.stringify({ title: "After" }),
+    });
+    assert.equal(response.status, 204);
+    assert.equal(await response.text(), "");
+    assert.equal(db.boards[0].title, "After");
+    assert.equal((await fetch(`/${id}/join`, { method: "POST", headers: { origin: "http://app.example" } })).status, 401);
+    assert.equal((await fetch(`/${id}/title`, { method: "PATCH", headers: { origin: "http://app.example" }, body: "{" })).status, 400);
+    assert.equal((await fetch(`/${id}/title`, { method: "PATCH", headers: { origin: "http://app.example" }, body: '{"title":""}' })).status, 400);
+    assert.equal((await fetch(`/${randomUUID()}/title`, { method: "PATCH", headers: { origin: "http://app.example" }, body: '{"title":"Valid"}' })).status, 404);
+  });
+});
+
+test("joining twice retains the original membership role and date", async () => {
+  await withApi({ userId: "viewer" }, async ({ db, fetch }) => {
+    const id = randomUUID();
+    const now = new Date();
+    db.boards.push({ id, title: "Board", description: "", ownerId: "owner", liveblocksRoomId: `ideaforge:${id}`, createdAt: now, updatedAt: now });
+    db.memberships.push({ boardId: id, userId: "viewer", role: "viewer", joinedAt: now });
+    for (let i = 0; i < 2; i++) assert.equal((await fetch(`/${id}/join`, { method: "POST", headers: { origin: "http://app.example" } })).status, 204);
+    assert.equal(db.memberships.length, 1);
+    assert.equal(db.memberships[0].role, "viewer");
+    assert.deepEqual(db.memberships[0].joinedAt, now);
+    assert.equal((await fetch(`/${randomUUID()}/join`, { method: "POST", headers: { origin: "http://app.example" } })).status, 404);
+  });
+});
+
+test("index failures retry and unexpected errors do not expose database credentials", async (t) => {
+  t.mock.method(console, "error", () => {});
+  const db = fakeDatabase();
+  const original = db.database.collection;
+  let fail = true;
+  db.database.collection = (name) => ({ ...original(name), createIndex: async () => {
+    if (fail) throw new Error("mongodb://user:secret@database");
+  } });
+  const handlers = createBoardDirectoryHandlers({ getDatabase: () => db.database, getAppOrigin: () => "http://app.example", getSession: async () => ({ user: { id: "owner" } }) });
+  const response = await handlers.list(new Request("http://app.example/api/boards"));
+  assert.equal(response.status, 500);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.deepEqual(await response.json(), { error: "The request could not be completed." });
+  fail = false;
+  assert.equal((await handlers.list(new Request("http://app.example/api/boards"))).status, 200);
+});
+
+test("a failed owner membership insert removes the new board", async (t) => {
+  t.mock.method(console, "error", () => {});
+  const db = fakeDatabase();
+  const original = db.database.collection;
+  db.database.collection = (name) => name === "boards" ? original(name) : {
+    ...original(name), insertOne: async () => { throw new Error("Membership unavailable"); },
+  };
+  const handlers = createBoardDirectoryHandlers({ getDatabase: () => db.database, getAppOrigin: () => "http://app.example", getSession: async () => ({ user: { id: "owner" } }) });
+  const response = await handlers.create(new Request("http://app.example/api/boards", {
+    method: "POST", headers: { origin: "http://app.example" }, body: '{"title":"Goal"}',
+  }));
+  assert.equal(response.status, 500);
+  assert.equal(db.boards.length, 0);
 });
