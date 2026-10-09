@@ -1,13 +1,15 @@
 "use client";
 
 import { LiveMap, LiveObject, type LsonObject } from "@liveblocks/client";
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { initialBoard } from "./fixtures";
 import { BoardApp } from "./board-app";
 import type { Board, ConnectionPair, FreeDrawStroke, Idea, IdeaVote, Relationship } from "./model";
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
 import { connectionPairKey } from "@/lib/connections";
 import { voteKey } from "./idea-voting";
+import { cursorColorForMember } from "./cursor-color";
+import type { LiveCursor } from "./live-cursors";
 import type { BoardMetadata } from "@/lib/board-directory";
 import { createBoardStorage, RoomProvider, useCanRedo, useCanUndo, useHistory, useMutation, useOthers, useRedo, useSelf, useStorage, useUndo, useUpdateMyPresence } from "@/lib/liveblocks";
 
@@ -51,9 +53,52 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
   const others = useOthers();
   const updateMyPresence = useUpdateMyPresence();
   const updateDrawingPresence = useCallback((drawing: FreeDrawStroke | null) => updateMyPresence({ drawing }), [updateMyPresence]);
+  const cursorUpdateTimer = useRef<number | null>(null);
+  const pendingCursor = useRef<{ x: number; y: number } | null>(null);
+  const lastCursorUpdate = useRef(0);
+  const hasPublishedCursor = useRef(false);
+  const updateCursorPresence = useCallback((cursor: { x: number; y: number } | null) => {
+    pendingCursor.current = cursor;
+    if (!cursor) {
+      if (cursorUpdateTimer.current !== null) window.clearTimeout(cursorUpdateTimer.current);
+      cursorUpdateTimer.current = null;
+      pendingCursor.current = null;
+      if (hasPublishedCursor.current) updateMyPresence({ cursor: null });
+      hasPublishedCursor.current = false;
+      return;
+    }
+    if (cursorUpdateTimer.current !== null) return;
+    const delay = Math.max(0, 50 - (Date.now() - lastCursorUpdate.current));
+    cursorUpdateTimer.current = window.setTimeout(() => {
+      cursorUpdateTimer.current = null;
+      const next = pendingCursor.current;
+      if (!next) return;
+      updateMyPresence({ cursor: next });
+      hasPublishedCursor.current = true;
+      lastCursorUpdate.current = Date.now();
+    }, delay);
+  }, [updateMyPresence]);
+  useEffect(() => {
+    function clearCursor() { updateCursorPresence(null); }
+    function onVisibilityChange() { if (document.visibilityState === "hidden") clearCursor(); }
+    window.addEventListener("blur", clearCursor);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("blur", clearCursor);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      if (cursorUpdateTimer.current !== null) window.clearTimeout(cursorUpdateTimer.current);
+      cursorUpdateTimer.current = null;
+      pendingCursor.current = null;
+    };
+  }, [updateCursorPresence]);
   const liveDrawings = others.flatMap((other) => {
     const drawing = other.presence.drawing;
     return drawing ? [{ ...drawing, id: `live-${other.id}` }] : [];
+  });
+  const liveCursors: LiveCursor[] = others.flatMap((other) => {
+    const cursor = other.presence.cursor;
+    return cursor ? [{ connectionId: other.connectionId, name: other.info?.name?.trim() || "Guest",
+      color: cursorColorForMember(other.id ?? String(other.connectionId)), x: cursor.x, y: cursor.y }] : [];
   });
   const editingLocks = Object.fromEntries(others.flatMap((other) => {
     const ideaId = other.presence.editingIdeaId;
@@ -200,6 +245,8 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     sharedTitle={snapshot.title}
     authorName={self?.info?.name?.trim() || "Unknown contributor"}
     voteUserId={self?.id}
+    liveCursors={liveCursors}
+    onCursorMove={updateCursorPresence}
     boardDescription={metadata?.description ?? ""}
     editingLocks={editingLocks}
     onEditingIdeaChange={updateEditingIdea}

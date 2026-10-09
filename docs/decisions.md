@@ -70,7 +70,7 @@ MVP: one shared board for about four participants and 30 to 50 short cards. Thes
 Stretch:
 
 - A board assistant that proposes create, edit, link, and merge actions as previews. A board this size fits in one prompt, so the assistant uses the whole board as context and needs no retrieval. Work may start when its technical prerequisites are ready. The design is in [Board assistant](assistant.md).
-- Live cursors, started only after the MVP works on the deployed app.
+- Live cursors are a stretch feature. Work started at the user's request before the Day 3 exit checks.
 
 Deferred:
 
@@ -154,6 +154,7 @@ For Organize, the browser sends eligible note text and the selected group count 
 
 ## Log
 
+- **2026-10-09: live cursor work moved ahead of the Day 3 gate.** At the user's request, implement shared board cursors before the Day 3 demo journey is verified. The feature remains stretch work and uses Liveblocks Presence.
 - **2026-10-09: shared idea voting added to the MVP.** Participants can cast one upvote or downvote per idea from a list in the board header. A participant can change or remove their vote, and the score is the sum of active votes. Votes sync with the board and stay separate from idea text and merge source snapshots.
 
 - **2026-10-09: shared free drawing added to boards.** A separate pencil and eraser toolbar sits below the board tools. Liveblocks Presence shares the active pencil stroke, and Liveblocks Storage saves each completed stroke and erased stroke. Both render below relationship lines and idea cards. Existing board write access controls the tools. This adds a small drawing layer without changing the board's idea and relationship model.

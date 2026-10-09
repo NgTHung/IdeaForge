@@ -489,6 +489,10 @@
 .board-free-draw-input rect { pointer-events: none; }
 .board-free-draw-input.is-active rect { pointer-events: all; }
 .board-free-draw-eraser-cursor { fill: #ffffff40; stroke: var(--board-draw-color, #176c52); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.board-live-cursors { position: absolute; inset: 0; z-index: 5; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.board-live-cursor { position: absolute; display: flex; align-items: center; transform: translate(-50%, -50%); pointer-events: none; }
+.board-live-cursor-dot { width: 12px; height: 12px; flex: 0 0 12px; border: 2px solid #fff; border-radius: 50%; background: currentColor; box-shadow: 0 1px 4px #10221c66; }
+.board-live-cursor-name { position: absolute; top: 9px; left: 9px; max-width: 180px; overflow: hidden; padding: 3px 7px; border: 1px solid #ffffffbb; border-radius: 999px; color: #fff; box-shadow: 0 2px 8px #10221c33; font-size: 10px; font-weight: 700; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 .board-shell[data-theme="dark"] .board-draw-toolbar { border-color: #344744; background: #1c2a29; }
 .board-shell[data-theme="dark"] .board-draw-toolbar[data-active="true"] { border-color: #5c9b82; background: #1e342c; box-shadow: 0 0 0 2px #5c9b8233, 0 8px 26px #07151155; }
 .board-shell[data-theme="dark"] .board-draw-toolbar-label { color: #9eb5aa; }

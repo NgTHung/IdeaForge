@@ -17,6 +17,7 @@ import { acceptAssistantCreate, assistantActionIsCurrent, type AssistantActionDr
 import { AccountMenu } from "./account-menu";
 import { ActiveMembers } from "./active-members";
 import { IdeaVotes } from "./idea-votes";
+import { LiveCursors, type LiveCursor } from "./live-cursors";
 import { useConnectDrag } from "./use-connect-drag";
 import { usePhysics, type Contact } from "./use-physics";
 import { useConnectionSuggestions } from "./use-connection-suggestions";
@@ -111,6 +112,8 @@ type BoardAppProps = {
   editingLocks?: Record<string, string>;
   onEditingIdeaChange?: (ideaId: string | null) => void;
   voteUserId?: string;
+  liveCursors?: LiveCursor[];
+  onCursorMove?: (position: { x: number; y: number } | null) => void;
 };
 
 function ZoomReadout({ zoom }: { zoom: number }) {
@@ -124,7 +127,7 @@ function ToolButton({ label, active, disabled, title, onClick, children }: {
     title={title || label} disabled={disabled} onClick={onClick}><span className="board-tool-icon" aria-hidden="true">{children}</span></button>;
 }
 
-export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId }: BoardAppProps) {
+export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove }: BoardAppProps) {
   const [localBoard, setLocalBoard] = useState<Board>(() => normalizeBoardLayout(initialBoard, {}));
   const board = sharedBoard ?? localBoard;
   const setBoard = useCallback<Dispatch<SetStateAction<Board>>>((update) => {
@@ -1311,7 +1314,11 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
     </header>
     <div className="board-workspace">
-      <div ref={canvas} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""} ${drawTool ? `drawing-${drawTool}` : ""}`}>
+      <div ref={canvas} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""} ${drawTool ? `drawing-${drawTool}` : ""}`}
+        onPointerMove={(event) => {
+          if (!(event.target instanceof Element) || !event.target.closest(".react-flow") || !flow.current) { onCursorMove?.(null); return; }
+          onCursorMove?.(flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }));
+        }} onPointerLeave={() => onCursorMove?.(null)}>
         <ReactFlow<IdeaNode, OrthogonalCanvasEdge> nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodesChange={onNodesChange} onInit={(instance) => { flow.current = instance; setZoom(instance.getZoom()); }} onMove={(_, viewport) => setZoom(viewport.zoom)}
           onPaneClick={(event) => { if (tool === "add" && flow.current) { const point = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }); makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 }); }
             else { setSelection(null); setMergeIds([]); if (tool === "connect") { setSourceId(null); setLinkDraft(null); setTool("select"); } } }}
@@ -1339,6 +1346,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           panOnDrag={!drawTool && (tool === "hand" || spaceDown)} nodesDraggable={!drawTool && tool !== "hand" && !spaceDown && tool !== "connect"}
           nodesConnectable={false} elementsSelectable={!drawTool} elevateEdgesOnSelect={false} zoomOnDoubleClick={false} minZoom={0.15} maxZoom={1.8} defaultViewport={{ x: 185, y: 180, zoom: 0.72 }}>
           <Background variant={BackgroundVariant.Dots} gap={23} size={1.5} color={theme === "dark" ? "#405b52" : "#b6c9bf"} />
+          <LiveCursors cursors={liveCursors} />
           <FreeDrawLayer
             key={`${drawTool ?? "off"}-${canWriteBoard ? "write" : "read"}`}
             strokes={board.drawings ?? []}
