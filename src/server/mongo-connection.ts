@@ -1,6 +1,9 @@
+import 'server-only';
 import { MongoClient } from 'mongodb';
 
-const clients = new Map<string, MongoClient>();
+// Keep one pool per URI across route bundles and development reloads.
+const mongoGlobal = globalThis as typeof globalThis & { ideaForgeMongoClients?: Map<string, MongoClient> };
+const clients = mongoGlobal.ideaForgeMongoClients ??= new Map<string, MongoClient>();
 
 export function mongoConnection(uri: string, name: string) {
   let client = clients.get(uri);

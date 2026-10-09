@@ -1,11 +1,11 @@
+import "server-only";
 import { z } from "zod";
 
-const optionalNonempty = z.string().trim().min(1).optional();
+const optionalNonempty = z.preprocess((value) => typeof value === "string" && !value.trim() ? undefined : value,
+  z.string().trim().min(1).optional());
 
 const envSchema = z.object({
-  API_PORT: z.coerce.number().int().positive().default(4000),
-  API_ORIGIN: z.url().default("http://localhost:4000"),
-  APP_ORIGIN: z.url().default("http://localhost:3000"),
+  APP_ORIGIN: z.url({ protocol: /^https?$/ }).default("http://localhost:3000").transform((value) => new URL(value).origin),
   MONGODB_URI: z.string().trim().min(1),
   MONGODB_DB_NAME: z.string().trim().min(1).default("ideaforge_dev"),
   BETTER_AUTH_SECRET: z.string().min(32),
@@ -27,11 +27,14 @@ const envSchema = z.object({
   }
 });
 
-const parsed = envSchema.safeParse(process.env);
+let env: z.infer<typeof envSchema> | undefined;
 
-if (!parsed.success) {
-  const details = parsed.error.issues.map(({ path, message }) => `${path.join(".") || "environment"}: ${message}`).join("\n");
-  throw new Error(`Invalid API configuration:\n${details}`);
+export function getServerEnv() {
+  if (env) return env;
+  const parsed = envSchema.safeParse(process.env);
+  if (!parsed.success) {
+    const details = parsed.error.issues.map(({ path, message }) => `${path.join(".") || "environment"}: ${message}`).join("\n");
+    throw new Error(`Invalid server configuration:\n${details}`);
+  }
+  return env = parsed.data;
 }
-
-export const env = parsed.data;

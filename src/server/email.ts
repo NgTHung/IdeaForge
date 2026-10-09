@@ -1,7 +1,9 @@
+import "server-only";
 import nodemailer from "nodemailer";
-import { env } from "./env";
+import { getServerEnv } from "./env";
 
 export async function sendAccountEmail(to: string, subject: string, url: string) {
+  const env = getServerEnv();
   if (!env.SMTP_HOST || !env.SMTP_USER || !env.SMTP_PASSWORD || !env.SMTP_FROM) {
     throw new Error("Configure SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM to send account email.");
   }

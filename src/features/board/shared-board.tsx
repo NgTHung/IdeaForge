@@ -8,7 +8,6 @@ import type { Board, ConnectionPair, Idea, Relationship } from "./model";
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
 import { connectionPairKey } from "@/lib/connections";
 import type { BoardMetadata } from "@/lib/board-directory";
-import { boardApiUrl } from "@/lib/board-api-client";
 import { createBoardStorage, RoomProvider, useCanRedo, useCanUndo, useHistory, useMutation, useOthers, useRedo, useSelf, useStorage, useUndo, useUpdateMyPresence } from "@/lib/liveblocks";
 
 const initialTitle = "Student collaboration ideas";
@@ -133,7 +132,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
   }, []);
   const updateTitle = useCallback(async (title: string) => {
     if (metadata) {
-      const response = await fetch(boardApiUrl(`/api/boards/${encodeURIComponent(boardId)}/title`), {
+      const response = await fetch(`/api/boards/${encodeURIComponent(boardId)}/title`, {
         method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title }),
       });

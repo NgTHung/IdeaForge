@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { authClient } from "@/lib/auth-client";
-import { boardApiUrl } from "@/lib/board-api-client";
 import { BOARD_DESCRIPTION_MAX_LENGTH, BOARD_TITLE_MAX_LENGTH, createBoardSchema } from "@/lib/board-directory";
 import "./board-pages.css";
 
@@ -30,7 +29,7 @@ export function CreateBoardPage() {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(boardApiUrl("/api/boards"), {
+      const response = await fetch("/api/boards", {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(parsed.data),
       });

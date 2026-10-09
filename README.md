@@ -22,7 +22,7 @@ Requirements: Node.js 24+ and npm.
 
 ```bash
 npm ci
-cp .env.example .env.local   # add keys here (optional)
+cp .env.example .env.local   # add account settings and provider keys here
 npm run dev
 ```
 
@@ -30,11 +30,13 @@ Open http://localhost:3000. Set `LIVEBLOCKS_SECRET_KEY` to create and use shared
 
 ### Account API setup
 
-The Express account API runs separately from the Next.js frontend. Copy `.env.example` to `.env`, set `MONGODB_URI` to the Atlas connection string and `MONGODB_DB_NAME` to `ideaforge_dev`, and generate `BETTER_AUTH_SECRET` with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`. Keep `.env` out of Git. The MongoDB username and password belong in the URI; URL-encode special characters in them.
+Next.js serves accounts, sessions, board metadata, and AI routes in the same process. In `.env.local`, set `MONGODB_URI` to the Atlas connection string and `MONGODB_DB_NAME` to `ideaforge_dev`, and generate `BETTER_AUTH_SECRET` with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`. Keep `.env.local` out of Git. The MongoDB username and password belong in the URI; URL-encode special characters in them.
 
-Set `API_ORIGIN` to `http://localhost:4000`, `APP_ORIGIN` to `http://localhost:3000`, and `NEXT_PUBLIC_API_URL` to `http://localhost:4000`. Run `npm run dev` and `npm run api:dev` in separate terminals. The API checks its MongoDB connection at startup and reports health at `/healthz`.
+Set `APP_ORIGIN` to `http://localhost:3000` and run `npm run dev`. Account and board requests use relative URLs on the app origin. `/healthz` pings MongoDB and returns `{ "status": "ok" }` when the database responds. Configuration and connections initialize on demand, so builds and the landing screen work without account credentials. Account routes require the MongoDB settings and auth secret at runtime.
 
-To enable Google sign-in, set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`. Add `http://localhost:4000/api/auth/callback/google` as an authorized redirect URI in Google Cloud. To enable email/password sign-up, configure all SMTP variables. New email/password accounts must verify their address, and password resets use the same SMTP service. The API accepts credentialed requests only from `APP_ORIGIN`.
+To enable Google sign-in, set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env.local`. Add `http://localhost:3000/api/auth/callback/google` as an authorized redirect URI in Google Cloud. To enable email/password sign-up, configure all SMTP variables. New email/password accounts must verify their address, and password resets use the same SMTP service. Better Auth trusts `APP_ORIGIN`, and board mutations require that origin.
+
+When migrating an existing setup, keep the MongoDB database and `BETTER_AUTH_SECRET`, set `APP_ORIGIN` to the app URL, and remove `API_PORT`, `API_ORIGIN`, and `NEXT_PUBLIC_API_URL`. Update the Google redirect URI to use the app URL and configure the same server-side settings on your host. Run `npm run build` and `npm start` for production. No separate API server or database migration is needed.
 
 Sign in before creating a board. **Create board** asks for a goal or topic and optional description, then saves board metadata, ownership, and an owner membership in MongoDB. The canvas lives in the referenced Liveblocks room. Open `/dashboard` to see your boards and joined shared boards. A signed-in user joins a shared board when they open its UUID link; anonymous guests can still edit with the link. Invitations are not supported yet. A valid UUID board link still grants anyone with the link full edit access, matching the current demo policy; MongoDB membership does not restrict Liveblocks access yet.
 
@@ -51,7 +53,9 @@ Sign in before creating a board. **Create board** asks for a goal or topic and o
 | `GEMINI_EMBEDDING_FALLBACK_MODEL` | Optional embedding fallback | Must be an embedding model; generation fallback is never used for embeddings |
 | `TYPESAFE_API_KEY` | Automatic relationship classification | Server-side TypeSafe credential; no generation-model fallback |
 | `JEV_MODEL` | Relationship classifier | Defaults to `jev-1.13.0` |
-| `MONGODB_URI` / `MONGODB_DB_NAME` | Suggestion cache and allowances | Shared across server workers; database defaults to `ideaforge_dev` |
+| `MONGODB_URI` / `MONGODB_DB_NAME` | Accounts, board metadata, suggestion cache, and allowances | Shared across server workers; database defaults to `ideaforge_dev` |
+| `APP_ORIGIN` | Accounts and board mutations | App URL, defaulting to `http://localhost:3000`; also sets OAuth and account email URLs |
+| `BETTER_AUTH_SECRET` | Accounts and board routes | Server-only secret of at least 32 characters; keep it when migrating |
 | `CONNECTION_JEV_DAILY_REQUEST_LIMIT` | Automatic suggestion allowance | Defaults to 200 provider requests per UTC day across the app; 0 disables new calls |
 | `CONNECTION_EXPLANATION_DAILY_REQUEST_LIMIT` | Requested explanation allowance | Defaults to 20 generation requests per UTC day across the app; 0 disables new calls |
 | `LIVEBLOCKS_SECRET_KEY` | Shared boards | Get one at https://liveblocks.io/dashboard. Used by `/api/liveblocks-auth` |
@@ -62,7 +66,7 @@ Except for relationship explanations, each Featherless or Gemini attempt has a 3
 
 Relationship classification and explanations each make one provider attempt, without retry or fallback. Classification sends at most 24 pairs and 48 KB per batch, with a 20-second provider timeout and a shared 30-second board cooldown. Pair judgments and board results expire after 24 hours. Repeated unchanged boards reuse their result; remaining candidates wait for a board change or cache expiry. Explanation results are cached by goal, source text, type, direction, and model. Failed provider attempts still consume the allowance. Merge and Organize requests use their existing policies outside these suggestion allowances.
 
-For access on this machine through Tailscale, bind the frontend to `0.0.0.0` and open `http://100.102.144.120:3000`. Account API origin settings must match the address used by the browser.
+For access on this machine through Tailscale, bind Next.js to `0.0.0.0` and open `http://100.102.144.120:3000`. `APP_ORIGIN` must match the address used by the browser.
 
 ## Scripts
 
@@ -71,13 +75,17 @@ For access on this machine through Tailscale, bind the frontend to `0.0.0.0` and
 | `npm run dev` | Start the development server |
 | `npm run build` / `npm start` | Production build and server |
 | `npm run lint` | ESLint |
-| `npm test` | Board model, clustering, and AI retry, fallback, validation, and error tests with mocked provider responses |
+| `npm test` | Board models, account configuration, board handlers, clustering, and AI contracts with mocked storage and provider responses |
 | `npm run typecheck` | Generate route types and run `tsc` |
 
 ## Project structure
 
 ```text
 src/app/                         Pages and route handlers
+src/app/api/auth/                Better Auth account endpoints
+src/app/api/boards/              Board metadata, dashboard, membership, and title endpoints
+src/app/api/session/             Current account user endpoint
+src/app/healthz/                 MongoDB health endpoint
 src/app/api/merge/               AI merge endpoint (Zod-validated, Featherless)
 src/app/api/similarity/          Embedding similarity endpoint
 src/app/api/similarity/clusters/  User-count clustering endpoint
@@ -87,10 +95,10 @@ src/lib/ideas.ts                 Merge request and result schemas
 src/lib/ai.ts                    Server-only Featherless generation and Gemini embedding calls, validation, and error responses
 src/lib/similarity.ts            Embedding similarity and its cache
 src/lib/cluster-algorithm.ts     Deterministic average-linkage grouping and score summaries
-src/server/                      Express account API (Better Auth, MongoDB)
+src/server/                      Server-only account configuration, Better Auth, MongoDB, and board handlers
 ```
 
-**Stack:** Next.js (App Router), React, TypeScript, React Flow, d3-force, Liveblocks, Featherless (GLM-5.3-Flash), Gemini embeddings (`@google/genai`), Zod, Express, Better Auth, MongoDB.
+**Stack:** Next.js (App Router), React, TypeScript, React Flow, d3-force, Liveblocks, Featherless (GLM-5.3-Flash), Gemini embeddings (`@google/genai`), Zod, Better Auth, MongoDB.
 
 ## Status
 
