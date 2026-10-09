@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { ServerConfigurationError } from "./http";
 
 const optionalNonempty = z.preprocess((value) => typeof value === "string" && !value.trim() ? undefined : value,
   z.string().trim().min(1).optional());
@@ -18,12 +19,16 @@ const envSchema = z.object({
   SMTP_FROM: optionalNonempty,
 }).superRefine((value, context) => {
   if (Boolean(value.GOOGLE_CLIENT_ID) !== Boolean(value.GOOGLE_CLIENT_SECRET)) {
-    context.addIssue({ code: "custom", message: "Set both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET." });
+    context.addIssue({ code: "custom", path: [value.GOOGLE_CLIENT_ID ? "GOOGLE_CLIENT_SECRET" : "GOOGLE_CLIENT_ID"],
+      message: "Set both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET." });
   }
 
-  const smtpValues = [value.SMTP_HOST, value.SMTP_USER, value.SMTP_PASSWORD, value.SMTP_FROM];
-  if (smtpValues.some(Boolean) && !smtpValues.every(Boolean)) {
-    context.addIssue({ code: "custom", message: "Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM together." });
+  const smtpKeys = ["SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM"] as const;
+  if (smtpKeys.some((key) => Boolean(value[key]))) {
+    for (const key of smtpKeys.filter((key) => !value[key])) {
+      context.addIssue({ code: "custom", path: [key],
+        message: "Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM together." });
+    }
   }
 });
 
@@ -33,8 +38,9 @@ export function getServerEnv() {
   if (env) return env;
   const parsed = envSchema.safeParse(process.env);
   if (!parsed.success) {
-    const details = parsed.error.issues.map(({ path, message }) => `${path.join(".") || "environment"}: ${message}`).join("\n");
-    throw new Error(`Invalid server configuration:\n${details}`);
+    const keys = new Set(Object.keys(envSchema.shape));
+    const fields = [...new Set(parsed.error.issues.map(({ path }) => String(path[0])).filter((key) => keys.has(key)))];
+    throw new ServerConfigurationError(fields);
   }
   return env = parsed.data;
 }

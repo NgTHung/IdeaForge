@@ -9,6 +9,20 @@ export class HttpError extends Error {
   }
 }
 
+export class ServerConfigurationError extends HttpError {
+  readonly fields: string[];
+
+  constructor(fields: string[]) {
+    super(503, `Server configuration is missing or invalid. Check: ${fields.join(", ")}.`);
+    this.fields = fields;
+  }
+}
+
+const safeErrorNames = new Set([
+  "TypeError", "RangeError", "MongoParseError", "MongoServerSelectionError",
+  "MongoNetworkError", "MongoNetworkTimeoutError", "MongoServerError",
+]);
+
 export async function apiResponse(run: () => Promise<Response>): Promise<Response> {
   try {
     const response = await run();
@@ -16,7 +30,12 @@ export async function apiResponse(run: () => Promise<Response>): Promise<Respons
     headers.set("Cache-Control", "no-store");
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
   } catch (error) {
-    if (!(error instanceof HttpError)) console.error("API request failed");
+    if (error instanceof ServerConfigurationError) {
+      console.error("API request failed", { cause: "server_configuration", fields: error.fields });
+    } else if (!(error instanceof HttpError)) {
+      const cause = error instanceof Error && safeErrorNames.has(error.name) ? error.name : "unexpected_error";
+      console.error("API request failed", { cause });
+    }
     return Response.json({ error: error instanceof HttpError ? error.message : "The request could not be completed." }, {
       status: error instanceof HttpError ? error.status : 500,
       headers: { "Cache-Control": "no-store" },

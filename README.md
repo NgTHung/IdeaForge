@@ -57,6 +57,10 @@ For preview sign-in, use a stable staging or branch hostname. Set that preview's
 
 If Google returns `redirect_uri_mismatch`, inspect `redirect_uri` in the error details. Compare its protocol, hostname, port, and path with the registered callback for the client in use. A callback on port 4000 belongs to the former Express service; the migrated local app uses port 3000. See [Google's OAuth requirements](https://developers.google.com/identity/protocols/oauth2/web-server), [Better Auth's Google setup](https://better-auth.com/docs/authentication/google), and [Vercel environment variables](https://vercel.com/docs/environment-variables).
 
+If `/api/auth/sign-in/social` fails before opening Google, check the Preview environment settings in Vercel. Production variables do not automatically apply to previews. Include `MONGODB_URI`, `MONGODB_DB_NAME`, `BETTER_AUTH_SECRET` (at least 32 characters), `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET`. Set `APP_ORIGIN` to the preview hostname you are testing, and check for branch-specific overrides. Redeploy the preview after changing these settings.
+
+Missing or invalid server settings return HTTP 503 with the affected variable names. The function log records `cause: "server_configuration"` and those names, without their values. Set both Google credentials together. If you configure SMTP, set its host, user, password, and sender together; leave all four empty if you only need Google sign-in. `/healthz` checks MongoDB connectivity. An unexpected HTTP 500 logs an error category such as `MongoServerSelectionError`, without its raw message or connection string; check database credentials, Atlas network access, and database availability when that category appears.
+
 ### Configuration
 
 | Variable | Needed for | Notes |
