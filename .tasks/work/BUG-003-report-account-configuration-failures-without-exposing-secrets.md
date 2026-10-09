@@ -1,7 +1,7 @@
 ---
 id: "BUG-003"
 title: "Report account configuration failures without exposing secrets"
-status: Done
+status: In Progress
 priority: "High"
 type: "Bug"
 tags: ["bug", "ready-for-agent"]
@@ -18,6 +18,7 @@ A preview social sign-in returns only a generic 500, and the error wrapper suppr
 - [x] Partial Google or SMTP configuration identifies the missing keys; errors and logs never include secret values, database URIs, or raw exception messages.
 - [x] Tests cover configuration failures and safe diagnostics, and lint, typecheck, and production build pass.
 - [x] Preview setup documents required environment scope, callback registration, and redeployment; verification distinguishes reproduced behavior from inaccessible Vercel logs.
+- [ ] MongoDB parse failures log a fixed reason code without copying driver messages or credentials; tests verify real parser failures and URIs without a database path.
 
 ## Verification
 
