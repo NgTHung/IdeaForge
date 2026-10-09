@@ -77,7 +77,7 @@ Deferred:
 - Retrieval over uploaded documents.
 - Continuous physics.
 - Drawing tools and extra shapes.
-- Voting and private contribution rounds.
+- Private contribution rounds.
 - A trained relationship model.
 - Zoom-out summaries.
 - Critic personas. If added later, they should match the target audience and be labeled as simulated feedback.
@@ -153,6 +153,8 @@ For Organize, the browser sends eligible note text and the selected group count 
 - The merge route exports `maxDuration = 95` to cover three 30-second AI attempts and the retry delay. Keep Fluid compute enabled when deploying; its duration limits support this budget. See [Vercel function duration](https://vercel.com/docs/functions/configuring-functions/duration).
 
 ## Log
+
+- **2026-10-09: shared idea voting added to the MVP.** Participants can cast one upvote or downvote per idea from a list in the board header. A participant can change or remove their vote, and the score is the sum of active votes. Votes sync with the board and stay separate from idea text and merge source snapshots.
 
 - **2026-10-09: shared free drawing added to boards.** A separate pencil and eraser toolbar sits below the board tools. Liveblocks Presence shares the active pencil stroke, and Liveblocks Storage saves each completed stroke and erased stroke. Both render below relationship lines and idea cards. Existing board write access controls the tools. This adds a small drawing layer without changing the board's idea and relationship model.
 - **2026-10-09: dashboard highlights the latest board.** Show the most recently metadata-edited board in a featured card above the collection, and keep it in the normal grid. Remove the aggregate board-count label and creation-date tooltip; the edit time still reflects board metadata, not canvas activity.
