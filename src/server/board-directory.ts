@@ -39,10 +39,11 @@ function parseBoardId(value: string) {
   return id.data;
 }
 
-export function createBoardDirectoryHandlers({ getDatabase, getSession, getAppOrigin }: {
+export function createBoardDirectoryHandlers({ getDatabase, getSession, getAppOrigin, deleteRoom }: {
   getDatabase: () => Db;
   getSession: (request: Request) => Promise<{ user?: { id?: string } } | null>;
   getAppOrigin: () => string;
+  deleteRoom?: (roomId: string) => Promise<void>;
 }) {
   let indexesReady: Promise<void> | undefined;
 
@@ -131,6 +132,28 @@ export function createBoardDirectoryHandlers({ getDatabase, getSession, getAppOr
           $setOnInsert: { boardId: id, userId, role: "editor", joinedAt: new Date() },
         }, { upsert: true });
       }
+      return new Response(null, { status: 204 });
+    }),
+
+    delete: (request: Request, value: string) => apiResponse(async () => {
+      requireOrigin(request, getAppOrigin());
+      const userId = await signedInUser(request, "Sign in before deleting a board.");
+      const id = parseBoardId(value);
+      const { boards, memberships } = await collections();
+      const board = await boards.findOne({ id, ownerId: userId });
+      if (!board) throw new HttpError(404, "This board is no longer available.");
+      if (!deleteRoom) throw new HttpError(503, "Board deletion is temporarily unavailable.");
+
+      try {
+        await deleteRoom(board.liveblocksRoomId);
+      } catch (error) {
+        const roomWasAlreadyDeleted = typeof error === "object" && error !== null && "status" in error && error.status === 404;
+        if (!roomWasAlreadyDeleted) throw error;
+      }
+
+      await memberships.deleteMany({ boardId: id });
+      const result = await boards.deleteOne({ id, ownerId: userId });
+      if (!result.deletedCount) throw new HttpError(404, "This board is no longer available.");
       return new Response(null, { status: 204 });
     }),
 

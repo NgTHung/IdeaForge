@@ -28,6 +28,13 @@ function fakeDatabase() {
     createIndex: async (keys, options) => { indexes.push({ keys, options }); return "index"; },
     insertOne: async (document) => { docs.push(structuredClone(document)); return { insertedId: "test" }; },
     deleteOne: async (query) => { const index = docs.findIndex((document) => matches(document, query)); if (index >= 0) docs.splice(index, 1); return { deletedCount: index >= 0 ? 1 : 0 }; },
+    deleteMany: async (query) => {
+      let deletedCount = 0;
+      for (let index = docs.length - 1; index >= 0; index--) {
+        if (matches(docs[index], query)) { docs.splice(index, 1); deletedCount++; }
+      }
+      return { deletedCount };
+    },
     find: (query) => ({ sort() { return this; }, toArray: async () => docs.filter((document) => matches(document, query)).map((document) => structuredClone(document)) }),
     findOne: async (query) => structuredClone(docs.find((document) => matches(document, query)) ?? null),
     updateOne: async (query, update, options) => {
@@ -46,18 +53,19 @@ function fakeDatabase() {
   };
 }
 
-async function withApi({ userId = null } = {}, run) {
+async function withApi({ userId = null, deleteRoom } = {}, run) {
   const db = fakeDatabase();
   const handlers = createBoardDirectoryHandlers({
     getDatabase: () => db.database,
     getAppOrigin: () => "http://app.example",
     getSession: async () => userId ? { user: { id: userId } } : null,
+    deleteRoom,
   });
   await run({ db, handlers, fetch: (path, init = {}) => {
     const request = new Request(`http://app.example/api/boards${path}`, init);
     if (path === "/") return request.method === "POST" ? handlers.create(request) : handlers.list(request);
     const [, id, operation] = path.split("/");
-    return handlers[operation](request, id);
+    return handlers[request.method === "DELETE" ? "delete" : operation](request, id);
   } });
 }
 
@@ -155,7 +163,7 @@ test("mutations reject missing and foreign origins before reading a session or d
     getSession: () => { throw new Error("Session should not be read"); },
   });
   for (const origin of [undefined, "http://evil.example", "null"]) {
-    for (const [method, handler] of [["POST", handlers.create], ["POST", handlers.join], ["PATCH", handlers.title]]) {
+    for (const [method, handler] of [["POST", handlers.create], ["POST", handlers.join], ["PATCH", handlers.title], ["DELETE", handlers.delete]]) {
       const response = await handler(new Request("http://app.example/api/boards", {
         method, headers: origin ? { origin } : {}, body: "{}",
       }), randomUUID());
@@ -241,4 +249,44 @@ test("a failed owner membership insert removes the new board", async (t) => {
   }));
   assert.equal(response.status, 500);
   assert.equal(db.boards.length, 0);
+});
+
+test("board deletion requires the owner and removes only that room and its directory records", async () => {
+  for (const userId of [null, "member", "owner"]) {
+    const deletedRooms = [];
+    await withApi({ userId, deleteRoom: async (roomId) => deletedRooms.push(roomId) }, async ({ db, fetch }) => {
+      const id = randomUUID();
+      const otherId = randomUUID();
+      const now = new Date();
+      for (const boardId of [id, otherId]) {
+        db.boards.push({ id: boardId, title: "Board", description: "", ownerId: "owner", liveblocksRoomId: `ideaforge:${boardId}`, createdAt: now, updatedAt: now });
+        db.memberships.push({ boardId, userId: "owner", role: "owner", joinedAt: now });
+        db.memberships.push({ boardId, userId: "member", role: "editor", joinedAt: now });
+      }
+      const response = await fetch(`/${id}`, { method: "DELETE", headers: { origin: "http://app.example" } });
+      assert.equal(response.status, userId === "owner" ? 204 : userId === null ? 401 : 404);
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      assert.deepEqual(deletedRooms, userId === "owner" ? [`ideaforge:${id}`] : []);
+      assert.equal(db.boards.length, userId === "owner" ? 1 : 2);
+      assert.equal(db.memberships.length, userId === "owner" ? 2 : 4);
+      assert.ok(db.boards.some((board) => board.id === otherId));
+      assert.equal((await fetch("/invalid-id", { method: "DELETE", headers: { origin: "http://app.example" } })).status, userId === null ? 401 : 400);
+    });
+  }
+});
+
+test("failed room deletion keeps directory records and an already deleted room allows cleanup", async (t) => {
+  t.mock.method(console, "error", () => {});
+  for (const failure of [undefined, { status: 404 }, { status: 503 }]) {
+    await withApi({ userId: "owner", deleteRoom: failure ? async () => { throw failure; } : undefined }, async ({ db, fetch }) => {
+      const id = randomUUID();
+      const now = new Date();
+      db.boards.push({ id, title: "Board", description: "", ownerId: "owner", liveblocksRoomId: `ideaforge:${id}`, createdAt: now, updatedAt: now });
+      db.memberships.push({ boardId: id, userId: "owner", role: "owner", joinedAt: now });
+      const response = await fetch(`/${id}`, { method: "DELETE", headers: { origin: "http://app.example" } });
+      assert.equal(response.status, failure?.status === 404 ? 204 : failure ? 500 : 503);
+      assert.equal(db.boards.length, failure?.status === 404 ? 0 : 1);
+      assert.equal(db.memberships.length, failure?.status === 404 ? 0 : 1);
+    });
+  }
 });
