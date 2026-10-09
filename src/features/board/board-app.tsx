@@ -6,7 +6,7 @@ import Link from "next/link";
 import { createIdeaId } from "./id";
 import { initialBoard } from "./fixtures";
 import { clusterLabelsFor, createIdea, createRelationship, deleteIdea, deleteRelationship, IDEA_CARD_SIZE, ideaCardSize, moveIdea, relationshipLabels, setIdeaPinned, updateIdea, updateRelationship,
-  type Board, type FreeDrawStroke, type Idea, type Relationship, type RelationshipType } from "./model";
+  type Board, type FreeDrawStroke, type Idea, type IdeaDescriptionRecord, type Relationship, type RelationshipType } from "./model";
 import { FreeDrawLayer, type FreeDrawTool } from "./free-draw-layer";
 import { Bubble, type IdeaNode } from "./bubble";
 import { MarkdownText } from "./markdown-text";
@@ -32,17 +32,15 @@ import { appendClusterAssignment, memberFingerprint, renameClusterGroup } from "
 import { addMergedIdea, mergeContext, mergeText, relatedIdeaPosition, mergeDisplayData, mergeRecordFor } from "./merge-board";
 import { initialGoal, MAX_MERGE_SOURCES, MAX_MERGE_TOTAL_CHARACTERS, mergeCoverageProblem, mergeProposalSchema, type MergeProposal } from "@/lib/ideas";
 import { historyShortcut } from "./history-shortcut";
-import { canApplyIdeaDescription, ideaDescriptionGoal, isTitleOnlyIdea, type IdeaDescriptionRequestState } from "./description-generation";
+import { canFillEditorDescription, canRequestIdeaDescription, fitIdeaDescriptionContext, ideaDescriptionGoal, type IdeaDescriptionContext, type IdeaDescriptionRequestState } from "./description-generation";
 import { ideaDescriptionResponseSchema } from "@/lib/idea-description-contract";
 import "./board.css";
 
 type Tool = "select" | "hand" | "add" | "connect" | "merge";
 type Selection = { kind: "idea" | "relationship"; id: string } | null;
 type MergePreview = { ids: string[]; fingerprint: string; result: MergeProposal; model: string; generatedAt: string; title: string; concept: string };
-type DescriptionStatus =
-  | { kind: "pending"; autoPlace: boolean; goal: string }
-  | { kind: "error"; autoPlace: boolean; goal: string; message: string }
-  | { kind: "question"; autoPlace: boolean; goal: string; message: string };
+type EditorDraft = { id: string; title: string; content: string };
+type DescriptionStatus = { kind: "pending" | "error" | "question"; message?: string } | null;
 const nodeTypes = { idea: Bubble, assistantPreview: Bubble };
 const edgeTypes = { orthogonal: OrthogonalEdge };
 const AUTO_PLACE_KEY = "ideaforge-auto-place-new-notes";
@@ -104,6 +102,15 @@ function textExcerpt(text: string, limit = 240): { text: string; shortened: bool
   const boundary = characters.slice(0, limit).lastIndexOf(" ");
   const cutoff = boundary > limit * 0.7 ? boundary : limit;
   return { text: `${characters.slice(0, cutoff).join("").trimEnd()}…`, shortened: true };
+}
+
+function boundedDescriptionText(text: string, limit: number): string {
+  let result = "";
+  for (const character of text.trim()) {
+    if (result.length + character.length > limit) break;
+    result += character;
+  }
+  return result.trimEnd();
 }
 
 type BoardAppProps = {
@@ -170,10 +177,10 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const [explanation, setExplanation] = useState("");
   const [condition, setCondition] = useState("");
   const [linkError, setLinkError] = useState("");
-  const [editor, setEditor] = useState<{ id: string; title: string; content: string } | null>(null);
+  const [editor, setEditor] = useState<EditorDraft | null>(null);
   const [editorPreview, setEditorPreview] = useState(false);
   const [editError, setEditError] = useState("");
-  const [descriptionStatuses, setDescriptionStatuses] = useState<Record<string, DescriptionStatus>>({});
+  const [descriptionStatus, setDescriptionStatus] = useState<DescriptionStatus>(null);
   const [lockNotice, setLockNotice] = useState("");
   const [physicsEnabled, setPhysicsEnabled] = useState(!onBoardChange);
   const [chatOpen, setChatOpen] = useState(false);
@@ -207,7 +214,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const flow = useRef<ReactFlowInstance<IdeaNode, OrthogonalCanvasEdge> | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const titleInput = useRef<HTMLInputElement>(null);
-  const editorDraftRef = useRef<{ id: string; title: string; content: string } | null>(null);
+  const editorDraftRef = useRef<EditorDraft | null>(null);
+  const editorGeneratedRef = useRef<IdeaDescriptionRecord | null>(null);
   const draftIdeaRef = useRef<Idea | null>(null);
   const suppressTitleCommit = useRef(false);
   const boardRef = useRef(board);
@@ -226,11 +234,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const assignmentRequestSequence = useRef(0);
   const assignmentController = useRef<AbortController | null>(null);
   const activeAssignmentId = useRef<string | null>(null);
-  const descriptionRequests = useRef(new Map<string, { request: IdeaDescriptionRequestState; controller: AbortController; autoPlace: boolean }>());
+  const descriptionRequest = useRef<{ request: IdeaDescriptionRequestState; controller: AbortController } | null>(null);
   const descriptionSequence = useRef(0);
-  const pendingAutoPlacement = useRef(new Set<string>());
-  const autoPlacementStarted = useRef(new Set<string>());
-  const assignNewNoteHandler = useRef<(savedBoard: Board, savedIdea: Idea) => Promise<void>>(async () => undefined);
   const mergeController = useRef<AbortController | null>(null);
   const mergeRequestSequence = useRef(0);
   const mergeSaveLock = useRef(false);
@@ -238,53 +243,10 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const autoPlacePreference = useRef(autoPlaceNewNotes);
   const boardTitleRef = useRef(title);
   const canWriteRef = useRef(canWriteBoard);
-  const placeNoteOnce = useCallback((ideaId: string) => {
-    if (!autoPlacePreference.current || !canWriteRef.current || autoPlacementStarted.current.has(ideaId)) return;
-    const savedBoard = boardRef.current;
-    const savedIdea = savedBoard.ideas.find((idea) => idea.id === ideaId);
-    if (!savedIdea || !clusterText(savedIdea)) return;
-    autoPlacementStarted.current.add(ideaId);
-    void assignNewNoteHandler.current(savedBoard, savedIdea);
-  }, []);
-  const settlePendingPlacement = useCallback((ideaId: string) => {
-    if (!pendingAutoPlacement.current.has(ideaId) || editorDraftRef.current?.id === ideaId) return;
-    pendingAutoPlacement.current.delete(ideaId);
-    placeNoteOnce(ideaId);
-  }, [placeNoteOnce]);
-  const queueOrSettlePlacement = useCallback((ideaId: string) => {
-    pendingAutoPlacement.current.add(ideaId);
-    settlePendingPlacement(ideaId);
-  }, [settlePendingPlacement]);
   useEffect(() => { boardTitleRef.current = title; }, [title]);
   useEffect(() => { canWriteRef.current = canWriteBoard; }, [canWriteBoard]);
   useEffect(() => { autoPlacePreference.current = autoPlaceNewNotes; }, [autoPlaceNewNotes]);
-  useEffect(() => { assignNewNoteHandler.current = assignNewNote; });
   useEffect(() => { boardRef.current = board; }, [board]);
-  useEffect(() => {
-    const staleIds = new Set<string>();
-    for (const [ideaId, pending] of descriptionRequests.current) {
-      if (canApplyIdeaDescription(board, pending.request, pending.request.token,
-        ideaDescriptionGoal(board, title), canWriteBoard)) continue;
-      pending.controller.abort();
-      descriptionRequests.current.delete(ideaId);
-      staleIds.add(ideaId);
-      if (pending.autoPlace) queueOrSettlePlacement(ideaId);
-    }
-    for (const [ideaId, status] of Object.entries(descriptionStatuses)) {
-      if (status.kind === "pending" && descriptionRequests.current.has(ideaId)) continue;
-      const idea = board.ideas.find((candidate) => candidate.id === ideaId);
-      if (!idea || !isTitleOnlyIdea(idea) || ideaDescriptionGoal(board, title) !== status.goal) staleIds.add(ideaId);
-    }
-    if (staleIds.size) setDescriptionStatuses((current) => {
-      let next = current;
-      for (const id of staleIds) {
-        if (!(id in next)) continue;
-        if (next === current) next = { ...current };
-        delete next[id];
-      }
-      return next;
-    });
-  }, [board, title, canWriteBoard, descriptionStatuses, queueOrSettlePlacement]);
   useEffect(() => {
     if (!sharedBoard || sharedLayoutInitialized.current) return;
     sharedLayoutInitialized.current = true;
@@ -310,8 +272,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   }
   useEffect(() => () => {
     for (const timer of squashTimers.current.values()) window.clearTimeout(timer);
-    for (const pending of descriptionRequests.current.values()) pending.controller.abort();
-    descriptionRequests.current.clear();
+    descriptionRequest.current?.controller.abort();
+    descriptionRequest.current = null;
   }, []);
   useEffect(() => {
     const savedTheme = window.localStorage.getItem("ideaforge-theme");
@@ -376,6 +338,29 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   }, [board.ideas]);
   const clusterStale = Boolean(clusterSnapshot?.stale || clusterSnapshot && !clusterSnapshot.result.notePairs);
   const clusterLabels = useMemo(() => new Map(clusterResult?.assignments.map((assignment) => [assignment.noteId, clusterResult.groups.find((group) => group.id === assignment.clusterId)?.label ?? ""])), [clusterResult]);
+  const getIdeaDescriptionContext = useCallback((draft: EditorDraft): IdeaDescriptionContext => {
+    const boardTitle = boundedDescriptionText(boardTitleRef.current.trim() || "Untitled board", 80);
+    const boardDescriptionText = boundedDescriptionText(boardDescription, 600);
+    const seedContentText = boundedDescriptionText(draft.content, 1200);
+    const clusterLabel = !clusterStale && boardRef.current.ideas.some((idea) => idea.id === draft.id)
+      ? boundedDescriptionText(clusterLabels.get(draft.id) ?? "", 100) : "";
+    return fitIdeaDescriptionContext(draft.title.trim(), {
+      goal: boundedDescriptionText(ideaDescriptionGoal(boardRef.current, boardTitle), 500),
+      boardTitle,
+      ...(boardDescriptionText ? { boardDescription: boardDescriptionText } : {}),
+      ...(seedContentText ? { seedContent: seedContentText } : {}),
+      ...(clusterLabel ? { clusterLabel } : {}),
+    });
+  }, [boardDescription, clusterStale, clusterLabels]);
+  useEffect(() => {
+    const pending = descriptionRequest.current;
+    const current = editorDraftRef.current;
+    if (!pending || !current || canFillEditorDescription(current, pending.request, pending.request.token,
+      getIdeaDescriptionContext(current), canWriteBoard)) return;
+    pending.controller.abort();
+    descriptionRequest.current = null;
+    setDescriptionStatus(null);
+  }, [board, title, boardDescription, clusterLabels, clusterStale, canWriteBoard, getIdeaDescriptionContext]);
   const clusterColors = useMemo(() => new Map(clusterResult?.groups.flatMap((group, index) => group.noteIds.map((id) => [id, index % 5] as const))), [clusterResult]);
   const chosenIdea = selection?.kind === "idea" ? board.ideas.find((idea) => idea.id === selection.id) : undefined;
   const chosenLink = selection?.kind === "relationship" ? board.relationships.find((link) => link.id === selection.id) : undefined;
@@ -453,18 +438,31 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     setLockNotice("");
     setMergeIds([]);
     setSelection({ kind: "idea", id: idea.id });
+    descriptionRequest.current?.controller.abort();
+    descriptionRequest.current = null;
+    editorGeneratedRef.current = null;
+    setDescriptionStatus(null);
     setEditorDraft({ id: idea.id, title: idea.title, content: idea.content });
     setEditorPreview(false);
     setEditError("");
   }
-  function setEditorDraft(next: { id: string; title: string; content: string } | null) {
+  function setEditorDraft(next: EditorDraft | null) {
+    const pending = descriptionRequest.current;
+    if (pending && (!next || next.id !== pending.request.ideaId ||
+      next.title.trim() !== pending.request.title || next.content !== pending.request.content)) {
+      pending.controller.abort();
+      descriptionRequest.current = null;
+      setDescriptionStatus(null);
+    } else if (next && (next.title !== editorDraftRef.current?.title || next.content !== editorDraftRef.current?.content)) {
+      setDescriptionStatus(null);
+    }
     editorDraftRef.current = next;
     setEditor(next);
   }
-  function closeEditor(placePending = true) {
-    const ideaId = editorDraftRef.current?.id;
+  function closeEditor() {
     setEditorDraft(null);
-    if (placePending && ideaId) settlePendingPlacement(ideaId);
+    editorGeneratedRef.current = null;
+    setDescriptionStatus(null);
   }
   function openRelationshipEditor(relationship: Relationship) {
     setLinkDraft(null);
@@ -486,11 +484,10 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     if (!selection) return;
     if (selection.kind === "idea") { setUndoPositions(null); setAssignmentUndo(null); }
     if (selection.kind === "idea") {
-      cancelDescriptionRequest(selection.id);
       setBoard((current) => normalizeBoardLayout(deleteIdea(current, selection.id), measuredSizes));
     }
     else setBoard((current) => deleteRelationship(current, selection.id));
-    setSelection(null); closeEditor(false); setLinkDraft(null); setSourceId(null);
+    setSelection(null); closeEditor(); setLinkDraft(null); setSourceId(null);
   }
   useEffect(() => {
     function keyDown(event: KeyboardEvent) {
@@ -574,72 +571,53 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     const isNewIdea = draftIdeaId === editor.id;
     const updated = boardRef.current.ideas.find((idea) => idea.id === editor.id);
     const draft = isNewIdea ? draftIdeaRef.current : updated;
-    if (!draft) { closeEditor(false); setDraftIdeaId(null); draftIdeaRef.current = null; return; }
-    const updatedIdea = { ...draft, title: editor.title.trim(), content: editor.content.trim() };
+    if (!draft) { closeEditor(); setDraftIdeaId(null); draftIdeaRef.current = null; return; }
+    const generated = editorGeneratedRef.current;
+    const updatedIdea = { ...draft, title: editor.title.trim(), content: editor.content.trim(),
+      ...(generated && editor.content.trim() ? { descriptionGeneration: generated } : {}) };
     setUndoPositions(null);
     setAssignmentUndo(null);
     const saved = commitBoardChange((current) => isNewIdea
       ? normalizeBoardLayout(createIdea(current, updatedIdea), measuredSizes, current.ideas.map((item) => item.id))
-      : updateIdea(current, editor.id, { title: updatedIdea.title, content: updatedIdea.content }));
+      : updateIdea(current, editor.id, { title: updatedIdea.title, content: updatedIdea.content,
+        ...(generated && updatedIdea.content ? { descriptionGeneration: generated } : {}) }));
     if (!saved) {
-      closeEditor(false);
+      closeEditor();
       setDraftIdeaId(null);
       draftIdeaRef.current = null;
       return;
     }
     const updatedBoard = boardRef.current;
-    closeEditor(false);
+    closeEditor();
     if (isNewIdea) {
       setDraftIdeaId(null);
       draftIdeaRef.current = null;
-      const shouldAutoPlace = autoPlaceNewNotes && Boolean(clusterText(updatedIdea));
-      if (isTitleOnlyIdea(updatedIdea)) {
-        if (shouldAutoPlace) pendingAutoPlacement.current.add(updatedIdea.id);
-        void requestIdeaDescription(updatedIdea, ideaDescriptionGoal(updatedBoard, title), shouldAutoPlace);
-      } else if (shouldAutoPlace) {
-        pendingAutoPlacement.current.add(updatedIdea.id);
-        settlePendingPlacement(updatedIdea.id);
-      }
-    } else if (pendingAutoPlacement.current.has(updatedIdea.id)) {
-      settlePendingPlacement(updatedIdea.id);
+      if (autoPlaceNewNotes && clusterText(updatedIdea)) void assignNewNote(updatedBoard, updatedIdea);
     }
   }
 
-  function clearDescriptionStatus(ideaId: string) {
-    setDescriptionStatuses((current) => {
-      if (!(ideaId in current)) return current;
-      const next = { ...current };
-      delete next[ideaId];
-      return next;
-    });
-  }
-  function cancelDescriptionRequest(ideaId: string) {
-    descriptionRequests.current.get(ideaId)?.controller.abort();
-    descriptionRequests.current.delete(ideaId);
-    pendingAutoPlacement.current.delete(ideaId);
-    clearDescriptionStatus(ideaId);
-  }
-  function changedEditorDraft(request: IdeaDescriptionRequestState) {
+  async function requestIdeaDescription() {
     const draft = editorDraftRef.current;
-    return Boolean(draft?.id === request.ideaId &&
-      (draft.title.trim() !== request.title || draft.content.trim()));
-  }
-  async function requestIdeaDescription(idea: Idea, goal: string, autoPlace: boolean) {
-    if (!canWriteRef.current || !isTitleOnlyIdea(idea)) return;
-    const previous = descriptionRequests.current.get(idea.id);
-    if (previous) return;
+    if (!draft || !canWriteRef.current || !canRequestIdeaDescription(draft.title) || descriptionRequest.current) return;
+    if (draft.content.trim() && !window.confirm("Replace the current content with generated content?")) return;
     const controller = new AbortController();
     const request: IdeaDescriptionRequestState = {
-      ideaId: idea.id, title: idea.title, goal, token: ++descriptionSequence.current,
+      ideaId: draft.id, title: draft.title.trim(), content: draft.content,
+      ...getIdeaDescriptionContext(draft), token: ++descriptionSequence.current,
     };
-    const pending = { request, controller, autoPlace };
-    descriptionRequests.current.set(idea.id, pending);
-    setDescriptionStatuses((current) => ({ ...current, [idea.id]: { kind: "pending", autoPlace, goal } }));
+    const pending = { request, controller };
+    descriptionRequest.current = pending;
+    setDescriptionStatus({ kind: "pending" });
 
     try {
       const response = await fetch("/api/ideas/description", {
         method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
-        body: JSON.stringify({ title: request.title, goal: request.goal }),
+        body: JSON.stringify({
+          title: request.title, goal: request.goal, boardTitle: request.boardTitle,
+          ...(request.boardDescription ? { boardDescription: request.boardDescription } : {}),
+          ...(request.seedContent ? { seedContent: request.seedContent } : {}),
+          ...(request.clusterLabel ? { clusterLabel: request.clusterLabel } : {}),
+        }),
       });
       const payload: unknown = await response.json().catch(() => null);
       if (!response.ok) {
@@ -649,82 +627,39 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       }
       const parsed = ideaDescriptionResponseSchema.safeParse(payload);
       if (!parsed.success) throw new Error("The description service returned an invalid response. Try again.");
-      if (descriptionRequests.current.get(idea.id) !== pending) return;
-      if (changedEditorDraft(request)) {
-        descriptionRequests.current.delete(idea.id);
-        clearDescriptionStatus(idea.id);
-        if (autoPlace) queueOrSettlePlacement(idea.id);
-        return;
+      if (descriptionRequest.current !== pending) return;
+      const current = editorDraftRef.current;
+      const valid = current && canFillEditorDescription(current, request, pending.request.token,
+        getIdeaDescriptionContext(current), canWriteRef.current);
+      descriptionRequest.current = null;
+      if (!valid || !current) { setDescriptionStatus(null); return; }
+      if (parsed.data.description) {
+        editorGeneratedRef.current = {
+          generatedContent: parsed.data.description, title: request.title, goal: request.goal,
+          context: {
+            boardTitle: request.boardTitle,
+            ...(request.boardDescription ? { boardDescription: request.boardDescription } : {}),
+            ...(request.seedContent ? { seedContent: request.seedContent } : {}),
+            ...(request.clusterLabel ? { clusterLabel: request.clusterLabel } : {}),
+          },
+          model: parsed.data.model, generatedAt: parsed.data.generatedAt,
+        };
+        setEditorDraft({ ...current, content: parsed.data.description });
+        setDescriptionStatus(null);
+      } else {
+        setDescriptionStatus({ kind: "question", message: parsed.data.question ?? "Add details to clarify this idea." });
       }
-
-      let canUseResponse = canApplyIdeaDescription(boardRef.current, request, request.token,
-        ideaDescriptionGoal(boardRef.current, boardTitleRef.current), canWriteRef.current);
-      let applied = false;
-      if (parsed.data.description && canUseResponse) {
-        const committed = commitBoardChange((current) => {
-          canUseResponse = canApplyIdeaDescription(current, request,
-            descriptionRequests.current.get(idea.id)?.request.token,
-            ideaDescriptionGoal(current, boardTitleRef.current), canWriteRef.current);
-          if (!canUseResponse) return current;
-          applied = true;
-          return updateIdea(current, idea.id, {
-            content: parsed.data.description!,
-            descriptionGeneration: {
-              generatedContent: parsed.data.description!, title: request.title, goal: request.goal,
-              model: parsed.data.model, generatedAt: parsed.data.generatedAt,
-            },
-          });
-        });
-        applied = committed && applied;
-      }
-      if (descriptionRequests.current.get(idea.id) !== pending) return;
-      descriptionRequests.current.delete(idea.id);
-      if (applied && parsed.data.description) {
-        const draft = editorDraftRef.current;
-        if (draft?.id === idea.id && draft.title.trim() === request.title && !draft.content.trim()) {
-          setEditorDraft({ ...draft, content: parsed.data.description });
-        }
-        clearDescriptionStatus(idea.id);
-      } else if (canUseResponse && parsed.data.question) {
-        setDescriptionStatuses((current) => ({ ...current, [idea.id]: { kind: "question", autoPlace, goal, message: parsed.data.question! } }));
-      } else clearDescriptionStatus(idea.id);
-      if (autoPlace) queueOrSettlePlacement(idea.id);
     } catch (error) {
-      if (descriptionRequests.current.get(idea.id) !== pending) return;
-      descriptionRequests.current.delete(idea.id);
-      if (controller.signal.aborted) {
-        clearDescriptionStatus(idea.id);
-        if (autoPlace) queueOrSettlePlacement(idea.id);
+      if (descriptionRequest.current !== pending) return;
+      descriptionRequest.current = null;
+      const current = editorDraftRef.current;
+      if (controller.signal.aborted || !current || !canFillEditorDescription(current, request, request.token,
+        getIdeaDescriptionContext(current), canWriteRef.current)) {
+        setDescriptionStatus(null);
         return;
       }
-      if (changedEditorDraft(request)) {
-        clearDescriptionStatus(idea.id);
-        if (autoPlace) queueOrSettlePlacement(idea.id);
-        return;
-      }
-      const currentBoard = boardRef.current;
-      const stillCurrent = canApplyIdeaDescription(currentBoard, request, request.token,
-        ideaDescriptionGoal(currentBoard, boardTitleRef.current), canWriteRef.current);
-      if (stillCurrent) {
-        setDescriptionStatuses((current) => ({ ...current, [idea.id]: {
-          kind: "error", autoPlace, goal,
-          message: error instanceof Error ? error.message : "The description could not be generated. Try again.",
-        } }));
-      } else clearDescriptionStatus(idea.id);
-      if (autoPlace) queueOrSettlePlacement(idea.id);
+      setDescriptionStatus({ kind: "error", message: error instanceof Error ? error.message : "The description could not be generated. Try again." });
     }
-  }
-  function retryIdeaDescription(ideaId: string) {
-    const status = descriptionStatuses[ideaId];
-    if (status?.kind !== "error" || !canWriteRef.current) return;
-    const currentBoard = boardRef.current;
-    const idea = currentBoard.ideas.find((candidate) => candidate.id === ideaId);
-    const goal = ideaDescriptionGoal(currentBoard, boardTitleRef.current);
-    if (!idea || !isTitleOnlyIdea(idea) || goal !== status.goal) {
-      clearDescriptionStatus(ideaId);
-      return;
-    }
-    void requestIdeaDescription(idea, goal, status.autoPlace);
   }
 
   function selectMergeNote(id: string, additive: boolean) {
@@ -1408,8 +1343,6 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       mergeIndex: mergeIds.includes(idea.id) ? mergeIds.indexOf(idea.id) + 1 : previewMergeIds.indexOf(idea.id) + 1,
       onMergeDetails: idea.merge ? () => setMergeDetailsId(idea.id) : undefined,
       onAssistantDetails: idea.assistant ? () => setAssistantDetailsId(idea.id) : undefined,
-      descriptionStatus: descriptionStatuses[idea.id],
-      onRetryDescription: descriptionStatuses[idea.id]?.kind === "error" ? () => retryIdeaDescription(idea.id) : undefined,
       onSelect: (additive) => {
         if (tool === "merge") selectMergeNote(idea.id, true);
         else selectMergeNote(idea.id, additive || mergeIds.length === 1);
@@ -1798,6 +1731,12 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     {editor && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) { closeEditor(); setDraftIdeaId(null); draftIdeaRef.current = null; } }}><form className="board-dialog" onSubmit={saveEdit} aria-label="Edit idea">
       <span className="board-eyebrow">IDEA DETAILS</span><h2>Edit idea</h2><label>Title<input ref={titleInput} value={editor.title} maxLength={120} onChange={(event) => { setEditorDraft({ ...editor, title: event.target.value }); setEditError(""); }} /></label>
       <label>Content<textarea value={editor.content} maxLength={4000} rows={6} onChange={(event) => setEditorDraft({ ...editor, content: event.target.value })} placeholder="What makes this idea useful?" /><span className="board-markdown-hint">Markdown: **bold**, *italic*, lists, and [links](https://example.com).</span></label>
+      {canRequestIdeaDescription(editor.title) && <div className="board-editor-description-action"><button type="button" disabled={descriptionStatus?.kind === "pending" || !canWriteBoard} onClick={() => void requestIdeaDescription()}>
+        {descriptionStatus?.kind === "pending" ? "Generating…" : descriptionStatus?.kind === "error" ? "Try again" : editor.content.trim() ? "Regenerate content" : "Generate content"}
+      </button><span>Uses the title, board goal, and notes in Content.</span></div>}
+      {descriptionStatus?.kind === "pending" && <p className="board-editor-description-status" role="status">Generating content from your title and board context…</p>}
+      {descriptionStatus?.kind === "error" && <p className="board-editor-description-status is-error" role="alert">{descriptionStatus.message}</p>}
+      {descriptionStatus?.kind === "question" && <p className="board-editor-description-status is-question" role="status">{descriptionStatus.message} Add your answer in Content, then generate again.</p>}
       <button type="button" className="board-markdown-preview-toggle" onClick={() => setEditorPreview((value) => !value)}>{editorPreview ? "Hide preview" : "Preview Markdown"}</button>
       {editorPreview && <MarkdownText className="board-markdown-edit-preview">{editor.content || "Markdown preview will appear here."}</MarkdownText>}
       {draftIdeaId === editor.id && <label className="board-auto-place-toggle"><input type="checkbox" checked={autoPlaceNewNotes} disabled={!clusterSnapshot || clusterStale || assignmentBusy} onChange={(event) => {

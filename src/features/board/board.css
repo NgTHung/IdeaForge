@@ -74,11 +74,6 @@
 .board-bubble h3 { font-size: 17px; font-weight: 700; line-height: 1.3; margin: 11px 0 8px; color: #253f3b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .board-bubble-author { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: -5px 0 5px; color: #7a8e84; font-size: 9px; font-weight: 600; }
 .board-description-provenance { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: -4px 0 5px; color: #568371; font-size: 9px; font-weight: 700; }
-.board-description-status { display: flex; align-items: center; gap: 5px; max-height: 34px; overflow: hidden; margin: -3px 0 4px; color: #326650; font-size: 10px; line-height: 1.3; }
-.board-description-status > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.board-description-status.is-error { color: #a14338; }
-.board-description-status.is-question { color: #755921; }
-.board-description-status button { flex: 0 0 auto; padding: 3px 6px; border: 1px solid #cce1d5; border-radius: 6px; background: #eff7f2; color: #146b52; font-size: 9px; font-weight: 700; }
 .board-bubble-markdown { max-height: 4em; overflow: hidden; font-size: 13px; font-weight: 500; line-height: 1.35; color: #657b76; }
 .board-bubble-markdown > :first-child { margin-top: 0; }
 .board-bubble-markdown p { margin: 0 0 4px; }
@@ -415,10 +410,6 @@
 .board-shell[data-theme="dark"] .board-bubble h3 { color: #e2eee8; }
 .board-shell[data-theme="dark"] .board-bubble-author { color: #9ab2a5; }
 .board-shell[data-theme="dark"] .board-description-provenance { color: #86c3a5; }
-.board-shell[data-theme="dark"] .board-description-status { color: #9ad1ae; }
-.board-shell[data-theme="dark"] .board-description-status.is-error { color: #e4a69d; }
-.board-shell[data-theme="dark"] .board-description-status.is-question { color: #e0c78a; }
-.board-shell[data-theme="dark"] .board-description-status button { border-color: #416553; background: #213b30; color: #9ad1ae; }
 .board-shell[data-theme="dark"] .board-bubble-kicker,
 .board-shell[data-theme="dark"] .board-eyebrow { color: #86c3a5; }
 .board-shell[data-theme="dark"] .board-bubble-markdown,
@@ -626,6 +617,18 @@
 .board-dialog label { font-size: 13px; font-weight: 700; }
 .board-dialog input, .board-dialog textarea, .board-dialog select { padding: 11px 12px; font-size: 14px; font-weight: 500; }
 .board-markdown-hint { display: block; margin-top: 5px; color: #74877e; font-size: 11px; font-weight: 500; }
+.board-editor-description-action { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0 7px; }
+.board-editor-description-action button { padding: 7px 10px; border: 1px solid #9fcdb7; border-radius: 7px; background: #ecf7ef; color: #176d4e; font-size: 12px; font-weight: 700; cursor: pointer; }
+.board-editor-description-action button:disabled { opacity: .55; cursor: wait; }
+.board-editor-description-action span { color: #687e71; font-size: 11px; }
+.board-editor-description-status { margin: 4px 0 9px; color: #326650; font-size: 12px; line-height: 1.4; }
+.board-editor-description-status.is-error { color: #a14338; }
+.board-editor-description-status.is-question { color: #755921; }
+.board-shell[data-theme="dark"] .board-editor-description-action button { border-color: #416553; background: #213b30; color: #9ad1ae; }
+.board-shell[data-theme="dark"] .board-editor-description-action span { color: #a1b9a9; }
+.board-shell[data-theme="dark"] .board-editor-description-status { color: #9ad1ae; }
+.board-shell[data-theme="dark"] .board-editor-description-status.is-error { color: #e4a69d; }
+.board-shell[data-theme="dark"] .board-editor-description-status.is-question { color: #e0c78a; }
 .board-markdown-preview-toggle { margin: 0 0 8px; padding: 6px 9px; border: 1px solid #d5e3da; border-radius: 7px; background: #f7faf8; color: #345b4c; font-size: 11px; }
 .board-markdown-edit-preview { max-height: 180px; overflow: auto; margin: 0 0 10px; padding: 10px; border: 1px solid #dbe8df; border-radius: 8px; color: #36574a; background: #f8fbf8; font-size: 13px; }
 .board-link-markdown-preview { margin-top: 6px; padding: 8px; border-radius: 7px; color: #536b60; background: #f2f7f4; font-size: 12px; font-weight: 500; }

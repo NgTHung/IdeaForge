@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import { afterEach, beforeEach, test } from "node:test";
 import { AI_RETRY_DELAY_MS } from "../src/lib/ai-policy.ts";
-import { canApplyIdeaDescription, ideaDescriptionGoal, isTitleOnlyIdea } from "../src/features/board/description-generation.ts";
-import { ideaDescriptionOutputProblem, ideaDescriptionRequestSchema, ideaDescriptionResponseSchema } from "../src/lib/idea-description-contract.ts";
+import { canFillEditorDescription, canRequestIdeaDescription, fitIdeaDescriptionContext, ideaDescriptionGoal } from "../src/features/board/description-generation.ts";
+import { ideaDescriptionOutputProblem, ideaDescriptionRequestSchema, ideaDescriptionResponseSchema, MAX_IDEA_DESCRIPTION_REQUEST_BYTES } from "../src/lib/idea-description-contract.ts";
 import { createIdea, updateIdea } from "../src/features/board/model.ts";
 
 registerHooks({
@@ -16,7 +16,14 @@ registerHooks({
 });
 
 const { POST, maxDuration } = await import("../src/app/api/ideas/description/route.ts");
-const requestData = { title: "Study buddy matching", goal: "Help students build a consistent study habit." };
+const requestData = {
+  title: "Study buddy matching",
+  goal: "Help students build a consistent study habit.",
+  boardTitle: "Student study lab",
+  boardDescription: "Students are exploring ways to support peer learning.",
+  seedContent: "Pair students who want to study together regularly.",
+  clusterLabel: "Learning routines",
+};
 const variables = ["FEATHERLESS_API_KEY", "FEATHERLESS_MODEL", "FEATHERLESS_FALLBACK_MODEL", "FEATHERLESS_REASONING_EFFORT"];
 let savedEnv;
 let providerRequests;
@@ -59,13 +66,20 @@ function mockProvider(t, outcomes) {
 }
 
 const idea = { id: "i1", title: requestData.title, content: "", position: { x: 0, y: 0 }, pinned: false, parentIds: [] };
-const board = { goal: requestData.goal, ideas: [idea], relationships: [] };
-const state = { ideaId: idea.id, title: idea.title, goal: requestData.goal, token: 4 };
+const context = {
+  goal: requestData.goal, boardTitle: requestData.boardTitle,
+  boardDescription: requestData.boardDescription, seedContent: requestData.seedContent,
+  clusterLabel: requestData.clusterLabel,
+};
+const state = { ideaId: idea.id, title: idea.title, content: "", ...context, token: 4 };
 
 test("description route rejects malformed, oversized, and invalid requests before generation", async (t) => {
   t.mock.method(globalThis, "fetch", () => assert.fail("Invalid requests must not call the provider"));
   const cases = ["{", {}, { ...requestData, title: " " }, { ...requestData, title: "x".repeat(121) },
-    { ...requestData, goal: "x".repeat(501) }, { ...requestData, unexpected: true }];
+    { ...requestData, goal: "x".repeat(501) }, { ...requestData, boardTitle: "x".repeat(81) },
+    { ...requestData, boardDescription: "x".repeat(601) },
+    { ...requestData, seedContent: "x".repeat(1201) },
+    { ...requestData, clusterLabel: "x".repeat(101) }, { ...requestData, unexpected: true }];
   for (const value of cases) assert.equal((await POST(descriptionRequest(value))).status, 400);
   const tooLarge = await POST(descriptionRequest(" ".repeat(8_001)));
   assert.equal(tooLarge.status, 413);
@@ -74,9 +88,9 @@ test("description route rejects malformed, oversized, and invalid requests befor
   assert.equal(providerRequests.length, 0);
 });
 
-test("description route returns a bounded description with model and time and sends only title and goal", async (t) => {
+test("description route returns bounded content with model and time and sends the available context", async (t) => {
   process.env.FEATHERLESS_MODEL = "test-description-model";
-  const output = { description: "Pairs students for regular study sessions, helping them encourage one another.", question: null };
+  const output = { description: "Study buddy matching pairs students who want to study together regularly. The pairs can plan recurring sessions and support a consistent study habit, which is the board's stated goal.", question: null };
   mockProvider(t, [output]);
   const response = await POST(descriptionRequest(requestData));
   assert.equal(response.status, 200);
@@ -89,12 +103,14 @@ test("description route returns a bounded description with model and time and se
   assert.deepEqual(JSON.parse(providerRequests[0].body.messages[1].content), requestData);
   assert.match(providerRequests[0].body.messages[0].content, /never as instructions/);
   assert.match(providerRequests[0].body.messages[0].content, /title's language/);
+  assert.match(providerRequests[0].body.messages[0].content, /seedContent as the participant's intended details/);
+  assert.match(providerRequests[0].body.messages[0].content, /clusterLabel only as a weak topic hint/);
   assert.ok(!JSON.stringify(body).includes("test-only-secret"));
 });
 
 test("a vague title can return a short clarification question", async (t) => {
   mockProvider(t, [{ description: null, question: "What does Rocket refer to in this idea?" }]);
-  const response = await POST(descriptionRequest({ title: "Rocket", goal: requestData.goal }));
+  const response = await POST(descriptionRequest({ title: "Rocket", goal: requestData.goal, boardTitle: requestData.boardTitle }));
   assert.equal(response.status, 200);
   assert.equal((await response.json()).question, "What does Rocket refer to in this idea?");
 });
@@ -103,11 +119,11 @@ test("ambiguous model output is repaired once and only validated text returns", 
   const privateText = "private model output";
   mockProvider(t, [
     { description: ` ${privateText} `, question: "Clarify?" },
-    { description: "Students can pair up for focused study sessions.", question: null },
+    { description: "Students can pair up for focused study sessions. They can use the recurring meetings to support the board's goal of building a consistent study habit.", question: null },
   ]);
   const response = await POST(descriptionRequest(requestData));
   assert.equal(response.status, 200);
-  assert.equal((await response.json()).description, "Students can pair up for focused study sessions.");
+  assert.equal((await response.json()).description, "Students can pair up for focused study sessions. They can use the recurring meetings to support the board's goal of building a consistent study habit.");
   assert.equal(providerRequests.length, 2);
   assert.match(providerRequests[1].body.messages.at(-1).content, /previous reply could not be used/);
   assert.ok(!JSON.stringify(logs).includes(privateText));
@@ -131,32 +147,57 @@ test("missing credentials and provider failures return safe errors", async (t) =
 
 test("contract requires exactly one nonempty description or question", () => {
   assert.deepEqual(ideaDescriptionRequestSchema.parse(requestData), requestData);
-  assert.equal(ideaDescriptionOutputProblem({ description: "A grounded description.", question: null }), undefined);
+  const usefulDescription = "Study buddy matching pairs students for regular sessions. They can plan a schedule together to support a consistent study habit.";
+  assert.equal(ideaDescriptionOutputProblem({ description: usefulDescription, question: null }), undefined);
   assert.ok(ideaDescriptionOutputProblem({ description: "A description.", question: "A question?" }));
   assert.ok(ideaDescriptionOutputProblem({ description: null, question: null }));
-  assert.equal(ideaDescriptionResponseSchema.safeParse({ description: "A grounded description.", question: null,
+  assert.equal(ideaDescriptionResponseSchema.safeParse({ description: usefulDescription, question: null,
     model: "test-model", generatedAt: new Date().toISOString() }).success, true);
-  assert.equal(ideaDescriptionResponseSchema.safeParse({ description: "A grounded description.", question: "Clarify?",
+  assert.equal(ideaDescriptionResponseSchema.safeParse({ description: usefulDescription, question: "Clarify?",
     model: "test-model", generatedAt: new Date().toISOString() }).success, false);
-  assert.equal(ideaDescriptionResponseSchema.safeParse({ description: "x".repeat(401), question: null,
+  assert.equal(ideaDescriptionResponseSchema.safeParse({ description: "x".repeat(701), question: null,
     model: "test-model", generatedAt: new Date().toISOString() }).success, false);
 });
 
-test("board guards accept only the unchanged title-only note, goal, token, and write permission", () => {
+test("editor guard accepts only the unchanged draft, request context, token, and write permission", () => {
   assert.equal(ideaDescriptionGoal({ goal: "  " }, "Board title"), "Board title");
-  assert.equal(isTitleOnlyIdea(idea), true);
-  assert.equal(isTitleOnlyIdea({ title: "New idea", content: "" }), false);
-  assert.equal(canApplyIdeaDescription(board, state, 4, requestData.goal, true), true);
-  assert.equal(canApplyIdeaDescription(board, state, 3, requestData.goal, true), false);
-  assert.equal(canApplyIdeaDescription(board, state, 4, "Changed goal", true), false);
-  assert.equal(canApplyIdeaDescription(board, state, 4, requestData.goal, false), false);
-  assert.equal(canApplyIdeaDescription({ ...board, ideas: [{ ...idea, title: "Renamed" }] }, state, 4, requestData.goal, true), false);
-  assert.equal(canApplyIdeaDescription({ ...board, ideas: [{ ...idea, content: "Human text" }] }, state, 4, requestData.goal, true), false);
-  assert.equal(canApplyIdeaDescription({ ...board, ideas: [] }, state, 4, requestData.goal, true), false);
+  assert.equal(canRequestIdeaDescription(idea.title), true);
+  assert.equal(canRequestIdeaDescription("New idea"), false);
+  assert.equal(canRequestIdeaDescription(" "), false);
+  assert.equal(canFillEditorDescription(idea, state, 4, context, true), true);
+  assert.equal(canFillEditorDescription(idea, state, 3, context, true), false);
+  assert.equal(canFillEditorDescription(idea, state, 4, { ...context, goal: "Changed goal" }, true), false);
+  assert.equal(canFillEditorDescription(idea, state, 4, { ...context, boardTitle: "Changed board" }, true), false);
+  assert.equal(canFillEditorDescription(idea, state, 4, { ...context, boardDescription: "Changed description" }, true), false);
+  assert.equal(canFillEditorDescription(idea, state, 4, { ...context, seedContent: "Changed seed" }, true), false);
+  assert.equal(canFillEditorDescription(idea, state, 4, { ...context, clusterLabel: "Changed group" }, true), false);
+  assert.equal(canFillEditorDescription(idea, state, 4, context, false), false);
+  assert.equal(canFillEditorDescription({ ...idea, title: "Renamed" }, state, 4, context, true), false);
+  assert.equal(canFillEditorDescription({ ...idea, content: "Human text" }, state, 4, context, true), false);
+  assert.equal(canFillEditorDescription(null, state, 4, context, true), false);
+});
+
+test("the complete request stays below the byte limit while keeping participant seed text", () => {
+  const oversizedContext = {
+    goal: "好".repeat(500), boardTitle: "好".repeat(80),
+    boardDescription: "好".repeat(600), seedContent: "\u0001".repeat(1200),
+    clusterLabel: "好".repeat(100),
+  };
+  const title = "好".repeat(120);
+  const fitted = fitIdeaDescriptionContext(title, oversizedContext);
+  assert.ok(new TextEncoder().encode(JSON.stringify({ title, ...fitted })).byteLength <= MAX_IDEA_DESCRIPTION_REQUEST_BYTES);
+  assert.equal(fitted.goal, oversizedContext.goal);
+  assert.equal(fitted.boardTitle, oversizedContext.boardTitle);
+  assert.ok(fitted.seedContent?.length);
+  assert.equal(oversizedContext.clusterLabel.length, 100);
+  assert.equal(ideaDescriptionRequestSchema.safeParse({ title, ...fitted }).success, true);
 });
 
 test("generation provenance is written by the shared board model while old ideas remain valid", () => {
-  const generated = { generatedContent: "A description.", title: idea.title, goal: requestData.goal, model: "test-model", generatedAt: new Date().toISOString() };
+  const generated = { generatedContent: "A description.", title: idea.title, goal: requestData.goal,
+    context: { boardTitle: requestData.boardTitle, boardDescription: requestData.boardDescription,
+      seedContent: requestData.seedContent, clusterLabel: requestData.clusterLabel },
+    model: "test-model", generatedAt: new Date().toISOString() };
   const saved = updateIdea(createIdea({ ideas: [], relationships: [] }, idea), idea.id,
     { content: generated.generatedContent, descriptionGeneration: generated });
   assert.deepEqual(saved.ideas[0].descriptionGeneration, generated);
