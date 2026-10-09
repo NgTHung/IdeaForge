@@ -129,7 +129,9 @@ Day 1 is the first of the five days remaining as of 2026-10-05. Each day ends wi
 
 Stretch work covers a board assistant that proposes actions as previews, specified in [Board assistant](assistant.md), and live cursors. Board assistant work may start when its technical prerequisites are ready. Live cursor work starts only after the Day 3 milestone is done.
 
-Planned personalization in `work:WORK-039` covers cursor, note, relationship, and UI styles, plus cluster colors, visible names, and optional cat and rainbow borders. It also covers merge celebrations, upvote reactions, contributor entrances, AI thinking animations, undo time travel, team milestones, achievement stickers, share-link delivery, and board mood. The task is To Do with Medium priority and no submission milestone. Implementation and verification have not started.
+Personalization in `work:WORK-039` is Done. Open Style to customize cursors, notes, relationships, theme, accent, background, and named cluster borders. Clear Enable animations to stop motion; reduced-motion preferences also disable it. Each activity effect has its own switch, and shared styles follow board write access. The task has Medium priority and no submission milestone.
+
+Verification on 2026-10-09 passed all 163 tests, lint, typecheck, and the production build. Browser checks used the Tailscale address `100.102.144.120` with live Liveblocks rooms and real Organize, naming, and merge provider calls. Checks covered two-browser style sync, reloads, named cat and rainbow clusters, cursor alignment during pan and zoom, dragging bounds, read-only controls, merge snapshots, action effects, reduced motion, and a 390-pixel mobile viewport. A temporary HTTPS proxy verified clipboard success; HTTP verified clipboard failure. A deliberately aborted assistant request verified thinking cleanup and error feedback. Signed-in browser sessions, other browser engines, production deployment, and kept conclusion snapshots were not exercised; conclusion storage is absent from this checkout. The WORK-039 task records the detailed evidence.
 
 If the schedule slips, cut in this order:
 
