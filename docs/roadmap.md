@@ -32,6 +32,7 @@ In progress:
 
 Verified:
 
+- On 2026-10-09, `work:WORK-036` added removable named upvotes to idea cards and the header dropdown. All 155 tests, lint, typecheck, and the production build passed. `npm run verify:idea-voting` verified older-room initialization, concurrent votes, offline names, reload persistence, stable voter IDs, and unchanged notes and merge snapshots with two live Liveblocks clients. Tailscale browser checks covered card and dropdown voting, voter lists, Escape focus restoration, dark mode, and disabled controls with a real read-only room token. The HTTP production-browser checks used seeded guest cookies; HTTPS guest entry and Gemini calls were not retested. Mobile resizing lost the collaborative browser connection, so mobile layout remains unverified.
 - On 2026-10-09, live cursors passed lint, typecheck, and the production build. An isolated two-client Liveblocks check confirmed cursor positions reach the other client and clear after the sender sets its cursor to null. Browser rendering and alignment across different viewports were not checked.
 - On 2026-10-09, free drawing passed lint, a focused TypeScript check, and an isolated production build. The regular typecheck could not write `.next/types/routes.d.ts` in the working copy (`EPERM`). The two-client Liveblocks check was attempted with configured credentials, but authorization returned HTTP 503, so room broadcast and reload persistence remain unverified against the live service.
 - On 2026-10-09, PR #30 was reconciled with the Next.js backend migration. Dashboard deletion now uses the same-origin `DELETE /api/boards/[id]` handler and initializes Liveblocks only when an owner deletes a board. All 147 tests, lint, typecheck, and production build passed. Mocked deletion tests cover owner access, origin checks, room failures, already-missing rooms, and directory cleanup. Live MongoDB and Liveblocks deletion, live Gemini, and browser interactions were not exercised in this pass.
@@ -112,7 +113,7 @@ Names aren't assigned yet. Each task in `.tasks/` names its owner by role.
 | SE1 | Canvas interactions: cards, links, suggestion and merge previews, Organize animation |
 | SE2 | Deployment, sync, authorship, deletion, editing lock, release checks |
 | AI1 | Embeddings, similarity, connection suggestions, Organize inputs |
-| AI2 | Shared AI module, merge prompt, concept brief, evaluation cases |
+| AI2 | Shared AI module, merge prompt, board conclusion, evaluation cases |
 
 ## Plan
 
@@ -122,7 +123,7 @@ Day 1 is the first of the five days remaining as of 2026-10-05. Each day ends wi
 | --- | --- | --- |
 | 1 | Deployment, sync, authors, typed links, similarity, shared AI module, evaluation cases | Two browsers on the deployed app share typed links and cards that show their authors |
 | 2 | Connection suggestions, editable link-aware merges | Two users go from create to connect to combine on the deployed app |
-| 3 | Organize, deletion, editing lock, concept brief | The whole demo journey works on the deployed app |
+| 3 | Organize, deletion, editing lock, board conclusion | The whole demo journey works on the deployed app |
 | 4 | Session with an unfamiliar team, AI evaluation, release checks | Feature freeze: every release check passes |
 | 5 | Demo board, backup video, README, submission | Submitted with time remaining |
 
@@ -133,7 +134,7 @@ If the schedule slips, cut in this order:
 1. Board assistant.
 2. Live cursors.
 3. Organize animation. Keep the layout and drop the animation.
-4. Concept brief.
+4. Board conclusion.
 
 Protect live collaboration, explained connections, merging with ancestry, and persistence.
 
@@ -189,7 +190,7 @@ Run these on the deployed app before the Day 4 feature freeze:
 4. Wait for automatic connection suggestions after adding or editing ideas.
 5. Open the explanation of a suggestion that links cards from different people, and accept it.
 6. Merge the pair, walk through each contribution and the assumptions it adds, and keep the concept.
-7. Show its authors and parent cards, and generate the concept brief.
+7. Show its authors and parent cards. Select the merged concept and a cluster, generate a conclusion, and export it as Markdown.
 8. Reload to show the board persists.
 
 Explain what changed in the team's thinking rather than listing technologies.
