@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { markdownTextSchema } from './markdown.ts';
 import { sourceSchema } from './ideas.ts';
 
 export const connectionRequestSchema = z.object({
@@ -33,7 +34,7 @@ export const connectionExplanationRequestSchema = z.object({
   sources: z.tuple([sourceSchema, sourceSchema]), type: z.enum(['synergy', 'conflict', 'extends']),
 }).refine(({ sources }) => sources[0].id !== sources[1].id, 'Select two different ideas.');
 export const connectionExplanationSchema = z.object({
-  supported: z.boolean(), explanation: z.string().trim().min(1).max(1000), condition: z.string().trim().min(1).max(600).nullable(),
+  supported: z.boolean(), explanation: markdownTextSchema(1000, 1), condition: markdownTextSchema(600, 1).nullable(),
 });
 export type ConnectionRequest = z.infer<typeof connectionRequestSchema>;
 export type ConnectionResult = z.infer<typeof connectionResultSchema>;

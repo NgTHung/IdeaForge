@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { markdownTextSchema } from "./markdown.ts";
 
 export const MAX_ASSISTANT_CARDS = 100;
 export const MAX_ASSISTANT_CARD_CHARACTERS = 4000;
@@ -75,14 +76,14 @@ export const assistantRequestSchema = z.object({
 
 export type AssistantRequest = z.infer<typeof assistantRequestSchema>;
 
-const actionWhy = z.string().trim().min(1).max(500);
+const actionWhy = markdownTextSchema(500, 1);
 
 export function assistantOutputSchema<T extends z.ZodType>(referenceSchema: T) {
   const createActionSchema = z.object({
     kind: z.literal("create"),
     why: actionWhy,
     title: z.string().trim().min(1).max(4000),
-    content: z.string().trim().min(1).max(4000),
+    content: markdownTextSchema(4000, 1),
     basedOn: z.array(referenceSchema).min(1).max(4),
   }).strict();
   const editActionSchema = z.object({
@@ -90,7 +91,7 @@ export function assistantOutputSchema<T extends z.ZodType>(referenceSchema: T) {
     why: actionWhy,
     card: referenceSchema,
     title: z.string().trim().min(1).max(4000).optional(),
-    content: z.string().trim().min(1).max(4000).optional(),
+    content: markdownTextSchema(4000, 1).optional(),
   }).strict().refine((action) => action.title !== undefined || action.content !== undefined, {
     message: "An edit must include a new title or content.",
   });
@@ -100,7 +101,7 @@ export function assistantOutputSchema<T extends z.ZodType>(referenceSchema: T) {
     source: referenceSchema,
     target: referenceSchema,
     type: relationshipTypeSchema,
-    explanation: z.string().trim().min(1).max(1000),
+    explanation: markdownTextSchema(1000, 1),
   }).strict();
   const mergeActionSchema = z.object({
     kind: z.literal("merge"),
@@ -110,7 +111,7 @@ export function assistantOutputSchema<T extends z.ZodType>(referenceSchema: T) {
   }).strict();
   return z.object({
     reply: z.array(z.object({
-      text: z.string().trim().min(1).max(800),
+      text: markdownTextSchema(800, 1),
       cites: z.array(referenceSchema).max(MAX_ASSISTANT_PARAGRAPH_CITES),
     }).strict()).min(1).max(8),
     actions: z.array(z.discriminatedUnion("kind", [
