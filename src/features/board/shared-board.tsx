@@ -1,12 +1,15 @@
 "use client";
 
 import { LiveMap, LiveObject, type LsonObject } from "@liveblocks/client";
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { initialBoard } from "./fixtures";
 import { BoardApp } from "./board-app";
-import type { Board, ConnectionPair, FreeDrawStroke, Idea, Relationship } from "./model";
+import type { Board, ConnectionPair, FreeDrawStroke, Idea, IdeaVote, Relationship } from "./model";
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
 import { connectionPairKey } from "@/lib/connections";
+import { voteKey } from "./idea-voting";
+import { cursorColorForMember } from "./cursor-color";
+import type { LiveCursor } from "./live-cursors";
 import type { BoardMetadata } from "@/lib/board-directory";
 import { createBoardStorage, RoomProvider, useCanRedo, useCanUndo, useHistory, useMutation, useOthers, useRedo, useSelf, useStorage, useUndo, useUpdateMyPresence } from "@/lib/liveblocks";
 
@@ -50,9 +53,52 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
   const others = useOthers();
   const updateMyPresence = useUpdateMyPresence();
   const updateDrawingPresence = useCallback((drawing: FreeDrawStroke | null) => updateMyPresence({ drawing }), [updateMyPresence]);
+  const cursorUpdateTimer = useRef<number | null>(null);
+  const pendingCursor = useRef<{ x: number; y: number } | null>(null);
+  const lastCursorUpdate = useRef(0);
+  const hasPublishedCursor = useRef(false);
+  const updateCursorPresence = useCallback((cursor: { x: number; y: number } | null) => {
+    pendingCursor.current = cursor;
+    if (!cursor) {
+      if (cursorUpdateTimer.current !== null) window.clearTimeout(cursorUpdateTimer.current);
+      cursorUpdateTimer.current = null;
+      pendingCursor.current = null;
+      if (hasPublishedCursor.current) updateMyPresence({ cursor: null });
+      hasPublishedCursor.current = false;
+      return;
+    }
+    if (cursorUpdateTimer.current !== null) return;
+    const delay = Math.max(0, 50 - (Date.now() - lastCursorUpdate.current));
+    cursorUpdateTimer.current = window.setTimeout(() => {
+      cursorUpdateTimer.current = null;
+      const next = pendingCursor.current;
+      if (!next) return;
+      updateMyPresence({ cursor: next });
+      hasPublishedCursor.current = true;
+      lastCursorUpdate.current = Date.now();
+    }, delay);
+  }, [updateMyPresence]);
+  useEffect(() => {
+    function clearCursor() { updateCursorPresence(null); }
+    function onVisibilityChange() { if (document.visibilityState === "hidden") clearCursor(); }
+    window.addEventListener("blur", clearCursor);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("blur", clearCursor);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      if (cursorUpdateTimer.current !== null) window.clearTimeout(cursorUpdateTimer.current);
+      cursorUpdateTimer.current = null;
+      pendingCursor.current = null;
+    };
+  }, [updateCursorPresence]);
   const liveDrawings = others.flatMap((other) => {
     const drawing = other.presence.drawing;
     return drawing ? [{ ...drawing, id: `live-${other.id}` }] : [];
+  });
+  const liveCursors: LiveCursor[] = others.flatMap((other) => {
+    const cursor = other.presence.cursor;
+    return cursor ? [{ connectionId: other.connectionId, name: other.info?.name?.trim() || "Guest",
+      color: cursorColorForMember(other.id ?? String(other.connectionId)), x: cursor.x, y: cursor.y }] : [];
   });
   const editingLocks = Object.fromEntries(others.flatMap((other) => {
     const ideaId = other.presence.editingIdeaId;
@@ -64,6 +110,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     goal: root.goal,
     ideas: Object.values(root.ideas),
     relationships: Object.values(root.relationships),
+    votes: Object.values(root.votes ?? {}),
     drawings: Object.values(root.drawings ?? {}),
     dismissedConnections: Object.values(root.dismissedConnections ?? {}),
     clusterSnapshot: root.clusterSnapshot as ClusterSnapshot | undefined,
@@ -74,10 +121,12 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     const drawings = storage.get("drawings");
     const savedClusterSnapshot = storage.get("clusterSnapshot");
     const dismissed = storage.get("dismissedConnections");
+    const savedVotes = storage.get("votes");
     const current: Board = {
       goal: storage.get("goal"),
       ideas: [...ideas.entries()].map(([, idea]) => idea.toJSON() as Idea),
       relationships: [...relationships.entries()].map(([, link]) => link.toJSON() as Relationship),
+      votes: [...savedVotes?.values() ?? []],
       drawings: [...drawings?.entries() ?? []].map(([, stroke]) => stroke.toJSON() as FreeDrawStroke),
       dismissedConnections: [...dismissed?.values() ?? []],
       clusterSnapshot: savedClusterSnapshot?.toJSON() as ClusterSnapshot | undefined,
@@ -144,6 +193,24 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
       for (const [key, pair] of nextDismissals) { target.set(key, pair); changed = true; }
       if (!dismissed) storage.set("dismissedConnections", target);
     }
+    const nextVotes = new Map((next.votes ?? []).map((vote) => [voteKey(vote.ideaId, vote.voterId), vote]));
+    let targetVotes = savedVotes;
+    if (!targetVotes && nextVotes.size) {
+      targetVotes = new LiveMap<string, IdeaVote>();
+      storage.set("votes", targetVotes);
+      changed = true;
+    }
+    if (targetVotes) {
+      for (const [key, vote] of targetVotes.entries()) {
+        const updated = nextVotes.get(key);
+        if (!updated) { targetVotes.delete(key); changed = true; }
+        else {
+          if (!sameValue(vote, updated)) { targetVotes.set(key, updated); changed = true; }
+          nextVotes.delete(key);
+        }
+      }
+      for (const [key, vote] of nextVotes) { targetVotes.set(key, vote); changed = true; }
+    }
     const nextClusterSnapshot = next.clusterSnapshot ?? null;
     if (!sameValue(nextClusterSnapshot, current.clusterSnapshot ?? null)) {
       const currentClusterSnapshot = storage.get("clusterSnapshot");
@@ -174,9 +241,12 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
   if (!snapshot) return <main className="board-connection-state" aria-live="polite">Connecting to shared board…</main>;
 
   return <BoardApp
-    sharedBoard={{ goal: snapshot.goal, ideas: snapshot.ideas as Idea[], relationships: snapshot.relationships as Relationship[], drawings: snapshot.drawings as FreeDrawStroke[], dismissedConnections: snapshot.dismissedConnections as ConnectionPair[], clusterSnapshot: snapshot.clusterSnapshot ?? null }}
+    sharedBoard={{ goal: snapshot.goal, ideas: snapshot.ideas as Idea[], relationships: snapshot.relationships as Relationship[], votes: snapshot.votes as IdeaVote[], drawings: snapshot.drawings as FreeDrawStroke[], dismissedConnections: snapshot.dismissedConnections as ConnectionPair[], clusterSnapshot: snapshot.clusterSnapshot ?? null }}
     sharedTitle={snapshot.title}
     authorName={self?.info?.name?.trim() || "Unknown contributor"}
+    voteUserId={self?.id}
+    liveCursors={liveCursors}
+    onCursorMove={updateCursorPresence}
     boardDescription={metadata?.description ?? ""}
     editingLocks={editingLocks}
     onEditingIdeaChange={updateEditingIdea}

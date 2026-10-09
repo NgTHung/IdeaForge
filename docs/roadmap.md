@@ -14,6 +14,7 @@ Done:
 - Relationship and ancestry links use a shared router with 24px port spacing, 20px lane separation, 28px card clearance, endpoint-bounded orthogonal routes, rounded corners, isolated crossing bridges, labels, and directional arrowheads. The router uses a curve when no orthogonal route fits. Hovering or selecting a node or edge emphasizes related links, with an option to show only one node's links. Layout and drag placement keep cards 48px apart and bring connected notes closer.
 - Selection of 2–8 notes, editable AI merge previews with per-source contributions and reasons for notes left out, and merged concept cards with source snapshots and focusable ancestry links.
 - Shared-board header with active connection avatars and count; the member list shows connected names and Editor or Viewer access.
+- Shared boards show other members' cursors as color-coded dots with their display names. Liveblocks Presence broadcasts board-space coordinates at most 20 times per second and clears the cursor when a member leaves the canvas or hides the tab.
 - Account popover on the landing screen and shared boards, with the signed-in user's name and sign-out action.
 - Authenticated board creation at `/boards/new` and a personal dashboard at `/dashboard`. MongoDB stores board metadata, ownership, and membership with a pointer to each Liveblocks room; signed-in link visitors join as editors, and UUID links keep the current public edit policy.
 - Dashboard features the most recently metadata-edited board above the collection and retains it in the grid; owners can permanently delete their boards from the collection.
@@ -32,6 +33,7 @@ In progress:
 
 Verified:
 
+- On 2026-10-09, live cursors passed lint, typecheck, and the production build. An isolated two-client Liveblocks check confirmed cursor positions reach the other client and clear after the sender sets its cursor to null. Browser rendering and alignment across different viewports were not checked.
 - On 2026-10-09, free drawing passed lint, a focused TypeScript check, and an isolated production build. The regular typecheck could not write `.next/types/routes.d.ts` in the working copy (`EPERM`). The two-client Liveblocks check was attempted with configured credentials, but authorization returned HTTP 503, so room broadcast and reload persistence remain unverified against the live service.
 - On 2026-10-09, PR #30 was reconciled with the Next.js backend migration. Dashboard deletion now uses the same-origin `DELETE /api/boards/[id]` handler and initializes Liveblocks only when an owner deletes a board. All 147 tests, lint, typecheck, and production build passed. Mocked deletion tests cover owner access, origin checks, room failures, already-missing rooms, and directory cleanup. Live MongoDB and Liveblocks deletion, live Gemini, and browser interactions were not exercised in this pass.
 

@@ -70,14 +70,14 @@ MVP: one shared board for about four participants and 30 to 50 short cards. Thes
 Stretch:
 
 - A board assistant that proposes create, edit, link, and merge actions as previews. A board this size fits in one prompt, so the assistant uses the whole board as context and needs no retrieval. Work may start when its technical prerequisites are ready. The design is in [Board assistant](assistant.md).
-- Live cursors, started only after the MVP works on the deployed app.
+- Live cursors are a stretch feature. Work started at the user's request before the Day 3 exit checks.
 
 Deferred:
 
 - Retrieval over uploaded documents.
 - Continuous physics.
 - Drawing tools and extra shapes.
-- Voting and private contribution rounds.
+- Private contribution rounds.
 - A trained relationship model.
 - Zoom-out summaries.
 - Critic personas. If added later, they should match the target audience and be labeled as simulated feedback.
@@ -155,6 +155,8 @@ For Organize, the browser sends eligible note text and the selected group count 
 ## Log
 
 - **2026-10-09: title-only note descriptions.** Saving a new note with a meaningful title and blank content creates it immediately and requests a short, grounded description from the server-side generation model. The response may fill the content only while the same note still has the submitted title and empty content and the board goal has not changed. A vague title or provider failure leaves the note editable without fabricated text. Generated content keeps model and source-context provenance; manual text takes priority. See [Title-only note descriptions](title-only-note-description-plan.md). Implementation is tracked in `WORK-038`; a live shared-board save and reload passed, while browser error, concurrent edit, and group placement checks remain open.
+- **2026-10-09: live cursor work moved ahead of the Day 3 gate.** At the user's request, implement shared board cursors before the Day 3 demo journey is verified. The feature remains stretch work and uses Liveblocks Presence.
+- **2026-10-09: shared idea voting added to the MVP.** Participants can cast one upvote or downvote per idea from a list in the board header. A participant can change or remove their vote, and the score is the sum of active votes. Votes sync with the board and stay separate from idea text and merge source snapshots.
 - **2026-10-09: shared free drawing added to boards.** A separate pencil and eraser toolbar sits below the board tools. Liveblocks Presence shares the active pencil stroke, and Liveblocks Storage saves each completed stroke and erased stroke. Both render below relationship lines and idea cards. Existing board write access controls the tools. This adds a small drawing layer without changing the board's idea and relationship model.
 - **2026-10-09: dashboard highlights the latest board.** Show the most recently metadata-edited board in a featured card above the collection, and keep it in the normal grid. Remove the aggregate board-count label and creation-date tooltip; the edit time still reflects board metadata, not canvas activity.
 - **2026-10-09: owners can delete boards from the dashboard.** A signed-in owner can permanently remove the board's Liveblocks room, MongoDB metadata, and membership records. Shared members cannot delete another person's board.
