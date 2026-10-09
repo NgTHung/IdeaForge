@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent } from "react";
 import { assistantRequestSchema, assistantResponseSchema, type AssistantRequest } from "@/lib/assistant";
 import { initialGoal } from "@/lib/ideas";
 import type { Board, AssistantSourceSnapshot } from "./model";
@@ -146,6 +146,8 @@ export function ChatSidebar({
   onAcceptAction: (draft: AssistantActionDraft) => { ok: boolean; error?: string };
   onDiscardAction: (key: string) => void;
 }) {
+  const panelRef = useRef<HTMLElement>(null);
+  const resizeStart = useRef<{ pointerId: number; x: number; y: number; width: number; height: number } | null>(null);
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [busy, setBusy] = useState(false);
@@ -155,6 +157,67 @@ export function ChatSidebar({
   const prompts = ["Find connections between these ideas.", "Suggest a new direction.", "Help refine the selected idea."];
 
   useEffect(() => () => requestRef.current?.abort(), []);
+
+  useEffect(() => {
+    if (!open) {
+      panelRef.current?.style.removeProperty("width");
+      panelRef.current?.style.removeProperty("height");
+      resizeStart.current = null;
+    }
+  }, [open]);
+
+  function applyPanelSize(size: { width: number; height: number }) {
+    const panel = panelRef.current;
+    if (!panel) return;
+    panel.style.width = `${size.width}px`;
+    panel.style.height = `${size.height}px`;
+  }
+
+  function startResize(event: PointerEvent<HTMLButtonElement>) {
+    const panel = panelRef.current;
+    if (!panel) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const bounds = panel.getBoundingClientRect();
+    resizeStart.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, width: bounds.width, height: bounds.height };
+  }
+
+  function moveResize(event: PointerEvent<HTMLButtonElement>) {
+    const start = resizeStart.current;
+    const panel = panelRef.current;
+    if (!start || start.pointerId !== event.pointerId || !panel) return;
+    const workspace = panel.parentElement?.getBoundingClientRect();
+    const maxWidth = Math.max(200, (workspace?.width ?? window.innerWidth) - 76);
+    const maxHeight = Math.max(280, (workspace?.height ?? window.innerHeight) - 180);
+    const minWidth = Math.min(280, maxWidth);
+    const minHeight = Math.min(300, maxHeight);
+    applyPanelSize({
+      width: Math.round(Math.max(minWidth, Math.min(maxWidth, start.width + start.x - event.clientX))),
+      height: Math.round(Math.max(minHeight, Math.min(maxHeight, start.height + event.clientY - start.y))),
+    });
+  }
+
+  function stopResize(event: PointerEvent<HTMLButtonElement>) {
+    if (resizeStart.current?.pointerId === event.pointerId) resizeStart.current = null;
+  }
+
+  function resizeByKeyboard(event: KeyboardEvent<HTMLButtonElement>) {
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+    event.preventDefault();
+    const panel = panelRef.current;
+    if (!panel) return;
+    const bounds = panel.getBoundingClientRect();
+    const workspace = panel.parentElement?.getBoundingClientRect();
+    const maxWidth = Math.max(200, (workspace?.width ?? window.innerWidth) - 76);
+    const maxHeight = Math.max(280, (workspace?.height ?? window.innerHeight) - 180);
+    const minWidth = Math.min(280, maxWidth);
+    const minHeight = Math.min(300, maxHeight);
+    const delta = event.shiftKey ? 48 : 20;
+    applyPanelSize({
+      width: Math.round(Math.max(minWidth, Math.min(maxWidth, bounds.width + (event.key === "ArrowLeft" ? delta : event.key === "ArrowRight" ? -delta : 0)))),
+      height: Math.round(Math.max(minHeight, Math.min(maxHeight, bounds.height + (event.key === "ArrowDown" ? delta : event.key === "ArrowUp" ? -delta : 0)))),
+    });
+  }
 
   async function requestAssistant(messageText: string, clearComposer: boolean) {
     const message = messageText.trim();
@@ -227,8 +290,8 @@ export function ChatSidebar({
     await requestAssistant(draft, true);
   }
 
-  return <aside hidden={!open} className={`board-chat ${open ? "open" : "closed"}`} aria-label="IdeaForge Assistant">
-      <div className="board-chat-head"><div className="board-chat-mark" aria-hidden="true">✳</div><div><strong>IdeaForge Assistant</strong><small>AI answers from this board</small></div>
+  return <aside ref={panelRef} hidden={!open} className={`board-chat ${open ? "open" : "closed"}`} aria-label="IdeaForge Assistant">
+      <div className="board-chat-head"><div className="board-chat-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 2 1.5 6.5L20 10l-6.5 1.5L12 18l-1.5-6.5L4 10l6.5-1.5L12 2Z" /><path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16Z" /></svg></div><div><strong>IdeaForge Assistant</strong><small><span className="board-chat-status-dot" /> Grounded in this board</small></div>
         <button className="board-icon-button" aria-label="Close AI helper" title="Close AI helper" onClick={onToggle}>×</button></div>
       <div className="board-chat-messages" aria-live="polite">
         {messages.length === 0 && <>
@@ -274,5 +337,10 @@ export function ChatSidebar({
         <textarea aria-label="Message the assistant" placeholder="Ask about your ideas…" value={draft} onChange={(event) => setDraft(event.target.value)} rows={3} />
         <div><span>{busy ? "One request at a time" : "Your chat stays in this browser"}</span><button type="submit" disabled={!draft.trim() || busy}>{busy ? "Thinking…" : "Send ↑"}</button></div>
       </form>
+      <button type="button" className="board-chat-resize" aria-label="Resize AI helper. Use arrow keys to resize; hold Shift for larger steps."
+        title="Drag to resize · Arrow keys also work" onPointerDown={startResize} onPointerMove={moveResize}
+        onPointerUp={stopResize} onPointerCancel={stopResize} onKeyDown={resizeByKeyboard}>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 17 17 7M11 17l6-6M15 17l2-2" /></svg>
+      </button>
   </aside>;
 }
