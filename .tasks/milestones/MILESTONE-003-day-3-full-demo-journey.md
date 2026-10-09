@@ -14,5 +14,5 @@ End of Day 3. Every step of the demo journey works on the deployed app. Live cur
 
 ## Exit Criteria
 
-- [ ] The demo journey works on the deployed app: join, add cards, Organize, Suggest connections, merge, generate a brief, and reload.
+- [ ] The demo journey works on the deployed app: join, add cards, Organize, Suggest connections, merge, generate a conclusion, and reload.
 - [ ] Cards can be deleted, and two people can't type in the same card at once.

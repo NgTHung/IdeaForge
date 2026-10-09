@@ -13,6 +13,8 @@
     "lint": "eslint",
     "test": "node --conditions=react-server --test tests/*.test.mjs",
     "verify:liveblocks-history": "node scripts/verify-liveblocks-history.mjs",
+    "verify:idea-voting": "node scripts/verify-idea-voting.mjs",
+    "verify:board-conclusion": "node scripts/verify-board-conclusion.mjs",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {

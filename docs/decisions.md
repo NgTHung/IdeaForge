@@ -12,7 +12,7 @@ Differentiator: Miro AI already generates, clusters, and summarizes sticky notes
 
 ### Core journey
 
-A participant opens a board link and enters a display name. The team adds idea cards and clicks **Organize** to group related cards. Participants can request suggested links and review them before acceptance. They merge two cards into a concept preview, keep it, and generate a short concept brief from it.
+A participant opens a board link and enters a display name. The team adds idea cards and clicks **Organize** to group related cards. Participants can request suggested links and review them before acceptance. They merge two cards into a concept preview and keep it. To wrap up, they select the ideas and clusters that matter, generate a board conclusion, then edit, keep, and export it.
 
 ### Relationships
 
@@ -49,9 +49,13 @@ A link records how two ideas relate. Each link has a type, an explanation, and a
 
 **Organize** moves cards on request using embedding similarity, saves the positions, and lets the other browsers animate to them. The local demo runs Physics for temporary movement; shared boards keep it disabled, and Organize pauses it before applying a layout. Pinned cards keep their positions. Canvas distance is an approximate cue, not a precise map of meaning.
 
-### Concept brief
+### Votes and board conclusion
 
-A concept brief summarizes one merged concept. It covers the concept, the cards and authors that contributed, the assumptions and open questions, and the next experiment. It draws only on board content and doesn't present anything as a decision the team agreed on.
+Votes and the board conclusion do different jobs. A vote is a social signal: each participant can give each idea one removable upvote, and the score is the number of upvoters. Idea cards and the header dropdown show scores and let people see who upvoted. Each vote stores the voter's display name so it stays visible after they leave. Older upvotes without a name show a guest label, and older downvotes do not count. Votes never choose anything.
+
+The conclusion wraps up a board after a brainstorm. A participant with write access selects ideas, including merged notes, and clusters from the current **Organize** result. **Generate conclusion** sends the board goal and the selected content to the generation model, and a selected cluster contributes its name and its notes. The request also carries the typed links between selected notes, as a merge request does. The draft covers the main themes, the key ideas with their authors, open questions, and next steps, and it draws only on the selection. Each theme, key idea, and open question cites the card IDs it draws on, and the route rejects any ID that wasn't in the request. A "conflicts with" link in the selection must be addressed or listed as an open question. Citations and conflicts keep the draft tied to specific cards and people instead of a generic summary of the topic. Like a merge, it is a preview: people edit or regenerate it, and only **Keep** saves it. A draft can't be kept if a selected note changed after generation.
+
+Each board has one conclusion, and keeping a new one replaces the old one after confirmation. The kept conclusion stores the edited text, the original generated draft, a snapshot of each selected idea and cluster, and who kept it and when. The snapshot matters because **Organize** can regroup cards later, and the conclusion must still show what the team concluded from. Upvote counts appear beside ideas during selection as context, but people make the selection. Concluding doesn't change idea text, merge source snapshots, clusters, or votes. The draft doesn't present anything as a decision the team agreed on; keeping it is the team's act. Any participant can copy the kept conclusion as Markdown or download it as a `.md` file, so the team can take it into a README, pitch, or document. The export lists each source with its authors.
 
 ### Scope
 
@@ -63,7 +67,7 @@ MVP: one shared board for about four participants and 30 to 50 short cards. Thes
 - Organize with pinning.
 - AI connection suggestions with human review.
 - Editable merge previews with ancestry.
-- The concept brief.
+- The board conclusion, drafted from selected ideas and clusters and exported as Markdown.
 - Persistence across reloads and reconnects.
 - Clear feedback when an AI request fails.
 
@@ -80,6 +84,7 @@ Deferred:
 - Private contribution rounds.
 - A trained relationship model.
 - Zoom-out summaries.
+- A standalone concept brief. A conclusion with one merged note selected covers it.
 - Critic personas. If added later, they should match the target audience and be labeled as simulated feedback.
 - Views for assumptions, evidence, and dependencies.
 
@@ -91,7 +96,7 @@ Deferred:
 | React Flow | Cards are custom nodes, links and ancestry are custom edges, and pan/zoom/select/drag are built in | A notes interface, not a full drawing editor |
 | d3-force | Optional local Physics uses a small settling simulation; Organize uses deterministic average-linkage groups and a pairwise-score layout for rectangular notes | The physics collision force approximates rectangular cards with circles |
 | Liveblocks Storage and Presence | Managed sync, reconnection, durable rooms, and who's online, with little infrastructure | External account and service dependency |
-| GLM-5.3-Flash via Featherless | Merges, group names, requested relationship explanations, briefs, and board-assistant replies with JSON output | Featherless ignores JSON mode, schema constraints, and forced tool calls for this model, so only the prompt asks for JSON and Zod rejects mismatched output; see [AI reliability](#ai-reliability) |
+| GLM-5.3-Flash via Featherless | Merges, group names, requested relationship explanations, board conclusions, and board-assistant replies with JSON output | Featherless ignores JSON mode, schema constraints, and forced tool calls for this model, so only the prompt asks for JSON and Zod rejects mismatched output; see [AI reliability](#ai-reliability) |
 | `gemini-embedding-001` | Card similarity for Organize | Short cards on one goal score close together; see [Similarity](#similarity) |
 | Jev via TypeSafe | Classifies locally shortlisted relationship candidates without text generation | Requires a separate key; lexical candidates can miss useful pairs |
 | Zod | One typed contract validates requests and responses | A valid shape doesn't guarantee a good idea or real card IDs |
@@ -123,7 +128,7 @@ All AI routes share one server module. It retries once on overload or timeout, t
 
 ## Architecture
 
-The landing screen at `/` lets you create a shared board or join one by URL or UUID. Shared boards open at `/board/<uuid>` and use Liveblocks Storage for their title, goal, cards, relationships, and Organize snapshot. The canvas uses the same component for local and shared data, though the local canvas is no longer the home screen. Organize calls the similarity clustering routes. The merge panel calls the merge route, which uses Featherless. Automatic connection suggestions call `/api/connections`, which runs local matching and Jev on the server. The assistant route and sidebar are implemented; their interaction and action paths remain under verification.
+The landing screen at `/` lets you create a shared board or join one by URL or UUID. Shared boards open at `/board/<uuid>` and use Liveblocks Storage for their title, goal, cards, relationships, Organize snapshot, and kept conclusion. The canvas uses the same component for local and shared data, though the local canvas is no longer the home screen. Organize calls the similarity clustering routes. The merge panel calls the merge route, which uses Featherless. The conclusion panel calls `/api/conclusion` through the same shared AI module, and keeping a conclusion replaces the room's `conclusion` object whole. Automatic connection suggestions call `/api/connections`, which runs local matching and Jev on the server. The assistant route and sidebar are implemented; their interaction and action paths remain under verification.
 
 `Board` renders the canvas and receives data and operations from one of two adapters: `LocalBoard` keeps in-memory state, and `SharedBoard` applies Liveblocks mutations. Each browser keeps its own selection, viewport, chat transcript, pending assistant actions, merge proposal, connection suggestions, and loading and error states. Room Storage holds card text, authors, positions, pin state, the goal, links, dismissed suggestion pairs, and accepted ideas. Liveblocks user metadata supplies each participant's display name. Presence holds active editor state. The member list derives active connections and editor/viewer access from the room; it does not persist a membership record.
 
@@ -135,7 +140,7 @@ Shared boards use Liveblocks Storage history for undo and redo. Each client has 
 
 Liveblocks history undoes the current client's local operations and does not undo a remote participant's operation. Its public API does not expose a pre-undo operation description or a way to reject an undo while leaving the history pointer unchanged. The app therefore cannot guarantee strict conflict rejection for same-field edits, edits or links made after a creation, later moves, or unsafe merge restoration. Do not treat native undo as a conflict-safe command log or audit trail. Room write permissions still apply to undo and redo. A stored relationship with a missing endpoint remains stored but is hidden from the canvas; automatic cleanup could remove a relationship needed by redo.
 
-For a merge, requested relationship explanation, or brief, the browser sends the goal, the relevant card text, and any link between the selected cards to a route handler. The route validates the request with Zod and calls the generation model through the shared AI module. It then validates the structured output and checks that every returned card ID appeared in the request. The browser holds the result until someone accepts it. Accepting first checks that the source cards haven't changed since the request, then writes through the same Liveblocks mutations as manual edits. Accepting a merge creates the child note in one operation, and the original generated proposal is stored alongside the editable concept text.
+For a merge, requested relationship explanation, or board conclusion, the browser sends the goal, the relevant card text, and any link between the selected cards to a route handler. The route validates the request with Zod and calls the generation model through the shared AI module. It then validates the structured output and checks that every returned card ID appeared in the request. The browser holds the result until someone accepts it. Accepting first checks that the source cards haven't changed since the request, then writes through the same Liveblocks mutations as manual edits. Accepting a merge creates the child note in one operation, and the original generated proposal is stored alongside the editable concept text.
 
 For suggested links, the server shortlists pairs with local word and phrase TF-IDF scores plus diverse candidates. Jev classifies up to 24 uncached pairs within a 48 KB request. Provisional filters require confidence of at least 0.4 and usefulness of at least 0.6; these thresholds need evaluation against human judgments and are not accuracy guarantees. The browser shows at most three labels, with no generated explanation. People may request an AI explanation or accept a link without one. A conflict still requires a stated condition. Shared caches retain pair judgments, board results, and explanations for 24 hours. Repeated board snapshots reuse the same result instead of purchasing further batches.
 
@@ -155,6 +160,10 @@ For Organize, the browser sends eligible note text and the selected group count 
 ## Log
 
 - **2026-10-09: title-only note descriptions.** Saving a new note with a meaningful title and blank content creates it immediately and requests a short, grounded description from the server-side generation model. The response may fill the content only while the same note still has the submitted title and empty content and the board goal has not changed. A vague title or provider failure leaves the note editable without fabricated text. Generated content keeps model and source-context provenance; manual text takes priority. See [Title-only note descriptions](title-only-note-description-plan.md). Implementation is tracked in `WORK-038`; a live shared-board save and reload passed, while browser error, concurrent edit, and group placement checks remain open.
+- **2026-10-09: the board conclusion replaces the concept brief in the MVP.** A brief summarized one merged concept, and a conclusion with that note selected produces the same summary, so building both would mean two AI summary routes and panels. `work:WORK-038` moves into the MVP and `work:WORK-015` is deferred. The conclusion cites card IDs, rejects IDs outside the request, and receives typed links so it must address stated conflicts. These rules come from the merge route and target the generic output seen in the 2026-10-05 merge test. The demo, the Day 3 milestone, and the usability session now generate a conclusion instead of a brief.
+- **2026-10-09: voting uses named upvotes only.** At the user's request, `work:WORK-036` drops downvotes and shows the score on each idea card. Cards and the header dropdown share upvote controls and a voter list. Votes store the stable guest ID and the display name at the time of voting, so reconnects do not create extra votes and names remain visible offline. Existing downvotes are ignored. Voting follows room write access and leaves idea text and merge source snapshots intact.
+- **2026-10-09: votes stay social, and a separate conclusion wraps up the board.** Votes from `work:WORK-036` show which ideas people like and never select anything. A new stretch feature lets participants with write access select ideas and clusters, have the AI draft a conclusion from them, then edit and keep it. Each board has one conclusion, and a new one replaces it. Clusters are selectable because the conclusion snapshots each cluster's name and notes, so a later **Organize** doesn't change what was concluded. Zoom-out summaries stay deferred: a conclusion covers only what the team selects. `work:WORK-038` tracks the conclusion.
+
 - **2026-10-09: live cursor work moved ahead of the Day 3 gate.** At the user's request, implement shared board cursors before the Day 3 demo journey is verified. The feature remains stretch work and uses Liveblocks Presence.
 - **2026-10-09: shared idea voting added to the MVP.** Participants can cast one upvote or downvote per idea from a list in the board header. A participant can change or remove their vote, and the score is the sum of active votes. Votes sync with the board and stay separate from idea text and merge source snapshots.
 - **2026-10-09: shared free drawing added to boards.** A separate pencil and eraser toolbar sits below the board tools. Liveblocks Presence shares the active pencil stroke, and Liveblocks Storage saves each completed stroke and erased stroke. Both render below relationship lines and idea cards. Existing board write access controls the tools. This adds a small drawing layer without changing the board's idea and relationship model.

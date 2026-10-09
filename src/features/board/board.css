@@ -85,6 +85,12 @@
 .board-bubble-markdown ul, .board-bubble-markdown ol { margin: 2px 0; padding-left: 18px; }
 .board-bubble-markdown li { margin: 0; }
 .board-bubble-author + .board-bubble-markdown { margin-top: -5px; }
+.board-bubble-voting { position: absolute; right: 18px; bottom: 9px; z-index: 3; }
+.board-bubble.has-voting .board-bubble-markdown { max-height: 2.7em; }
+.board-bubble.has-voting .board-bubble-author + .board-bubble-markdown { max-height: 1.35em; }
+.board-bubble.has-voting.is-merged .board-bubble-markdown { max-height: 2.7em; }
+.react-flow__node:has(.idea-upvoters-popover) { z-index: 1001 !important; }
+.board-bubble.has-voting .idea-upvoter-avatars > span:nth-child(n + 2) { display: none; }
 .board-connect-dot { position: absolute; right: -6px; top: 50%; width: 12px; height: 12px; border: 2px solid white; border-radius: 50%; background: #198365; box-shadow: 0 0 0 1px #198365; }
 .board-hidden-handle { width: 1px; height: 1px; border: 0; background: transparent; opacity: 0; }
 .board-toolbar { position: absolute; z-index: 4; top: 25px; left: 24px; display: flex; flex-direction: column; gap: 3px; width: 154px; padding: 11px 8px; background: #fff; border: 1px solid #e0e8e3; border-radius: 14px; box-shadow: 0 12px 38px #365b481c; }
