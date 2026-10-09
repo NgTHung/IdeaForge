@@ -26,3 +26,14 @@ export async function loadDashboardBoards(signal?: AbortSignal): Promise<{ owned
   if (!response.ok) throw new Error("Your boards could not be loaded.");
   return await response.json() as { owned: DashboardBoard[]; shared: DashboardBoard[] };
 }
+
+export async function deleteDashboardBoard(boardId: string): Promise<void> {
+  const response = await fetch(boardApiUrl(`/api/boards/${encodeURIComponent(boardId)}`), {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (response.status === 401) throw new Error("Sign in to delete this board.");
+  if (response.status === 404) throw new Error("This board is no longer available.");
+  if (response.status === 503) throw new Error("Board deletion is temporarily unavailable.");
+  if (!response.ok) throw new Error("The board could not be deleted. Try again.");
+}

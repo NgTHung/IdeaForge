@@ -57,7 +57,10 @@ export function LandingPage() {
       <AccountMenu />
     </header>
     <section className="landing-content">
-      <h1>Bring your team’s ideas together.</h1>
+      <h1>
+        Bring your team’s ideas
+        <strong className="landing-headline-emphasis">TOGETHER.</strong>
+      </h1>
       <div className="landing-actions">
         <section className="landing-card landing-create-card">
           <span className="landing-card-icon" aria-hidden="true">＋</span>

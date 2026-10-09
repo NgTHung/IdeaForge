@@ -2,12 +2,16 @@ import "dotenv/config";
 import cors from "cors";
 import express from "express";
 import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
+import { Liveblocks } from "@liveblocks/node";
 import { auth } from "./auth";
 import { createBoardDirectoryRouter } from "./board-directory-router";
 import { env } from "./env";
 import { connectMongo, database, mongoClient } from "./mongodb";
 
 const app = express();
+const liveblocks = process.env.LIVEBLOCKS_SECRET_KEY
+  ? new Liveblocks({ secret: process.env.LIVEBLOCKS_SECRET_KEY })
+  : null;
 
 app.use(cors({ origin: env.APP_ORIGIN, credentials: true }));
 app.all("/api/auth/*splat", toNodeHandler(auth));
@@ -15,6 +19,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use("/api/boards", createBoardDirectoryRouter({
   database,
   appOrigin: env.APP_ORIGIN,
+  deleteRoom: liveblocks ? (roomId) => liveblocks.deleteRoom(roomId) : undefined,
   getSession: (request) => auth.api.getSession({ headers: fromNodeHeaders(request.headers) }),
 }));
 

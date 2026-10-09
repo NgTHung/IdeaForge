@@ -38,10 +38,11 @@ function sameOrigin(request: Request, allowedOrigin: string): boolean {
   return request.get("origin") === allowedOrigin;
 }
 
-export function createBoardDirectoryRouter({ database, getSession, appOrigin }: {
+export function createBoardDirectoryRouter({ database, getSession, appOrigin, deleteRoom }: {
   database: Db;
   getSession: SessionReader;
   appOrigin: string;
+  deleteRoom?: (roomId: string) => Promise<void>;
 }) {
   const router = Router();
   const boards = database.collection<BoardDocument>("boards");
@@ -165,6 +166,32 @@ export function createBoardDirectoryRouter({ database, getSession, appOrigin }: 
       await ensureIndexes();
       const result = await boards.updateOne({ id: id.data }, { $set: { title: parsed.data, updatedAt: new Date() } });
       if (!result.matchedCount) { response.status(404).json({ error: "Board metadata was not found." }); return; }
+      response.status(204).end();
+    })().catch(next);
+  });
+
+  router.delete("/:id", (request, response, next) => {
+    void (async () => {
+      if (!sameOrigin(request, appOrigin)) { response.status(403).json({ error: "This request is not allowed." }); return; }
+      const userId = await signedInUser(request);
+      if (!userId) { response.status(401).json({ error: "Sign in before deleting a board." }); return; }
+      const id = boardIdSchema.safeParse(request.params.id);
+      if (!id.success) { response.status(400).json({ error: "Invalid board ID." }); return; }
+      await ensureIndexes();
+      const board = await boards.findOne({ id: id.data, ownerId: userId });
+      if (!board) { response.status(404).json({ error: "This board is no longer available." }); return; }
+      if (!deleteRoom) { response.status(503).json({ error: "Board deletion is temporarily unavailable." }); return; }
+
+      try {
+        await deleteRoom(board.liveblocksRoomId);
+      } catch (error) {
+        const roomWasAlreadyDeleted = typeof error === "object" && error !== null && "status" in error && error.status === 404;
+        if (!roomWasAlreadyDeleted) throw error;
+      }
+
+      await memberships.deleteMany({ boardId: id.data });
+      const result = await boards.deleteOne({ id: id.data, ownerId: userId });
+      if (!result.deletedCount) { response.status(404).json({ error: "This board is no longer available." }); return; }
       response.status(204).end();
     })().catch(next);
   });
