@@ -2,14 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Idea, IdeaVote } from "./model";
-import { scoreForIdea, setIdeaVote, voteByUser } from "./idea-voting";
+import { upvotersForIdea, toggleIdeaUpvote, voterNameFor } from "./idea-voting";
+import { IdeaUpvote } from "./idea-upvote";
 import type { Board } from "./model";
 import "./idea-votes.css";
 
-export function IdeaVotes({ ideas, votes = [], voterId, canWrite, onBoardChange }: {
+export function IdeaVotes({ ideas, votes = [], voterId, voterName, canWrite, onBoardChange }: {
   ideas: Idea[];
   votes?: IdeaVote[];
   voterId: string;
+  voterName: string;
   canWrite: boolean;
   onBoardChange: (update: (board: Board) => Board) => boolean;
 }) {
@@ -29,15 +31,15 @@ export function IdeaVotes({ ideas, votes = [], voterId, canWrite, onBoardChange 
         triggerRef.current?.focus();
       }
     }
-    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("keydown", onKeyDown);
     return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [open]);
 
-  const totalVotes = votes.length;
+  const totalVotes = rows.reduce((total, idea) => total + upvotersForIdea(votes, idea.id).length, 0);
   return <div className="idea-votes" ref={rootRef}>
     <button ref={triggerRef} className="idea-votes-trigger" type="button" aria-expanded={open}
       aria-controls="idea-votes-popover" aria-label={`Vote on ideas. ${totalVotes} ${totalVotes === 1 ? "vote" : "votes"} cast.`}
@@ -47,19 +49,14 @@ export function IdeaVotes({ ideas, votes = [], voterId, canWrite, onBoardChange 
     {open && <section id="idea-votes-popover" className="idea-votes-popover" aria-label="Vote on ideas">
       <header className="idea-votes-header"><strong>Vote on ideas</strong><span>{rows.length}</span></header>
       {rows.length ? <ul>{rows.map((idea) => {
-        const currentVote = voteByUser(votes, idea.id, voterId);
-        const score = scoreForIdea(votes, idea.id);
+        const upvoters = upvotersForIdea(votes, idea.id);
         return <li key={idea.id}>
-          <span className="idea-votes-title" title={idea.title}>{idea.title.trim() || "Untitled idea"}</span>
-          <div className="idea-votes-controls" role="group" aria-label={`Vote on ${idea.title || "untitled idea"}`}>
-            <button type="button" className={currentVote === 1 ? "is-selected" : ""} disabled={!canWrite}
-              aria-label={`Upvote ${idea.title || "untitled idea"}`} aria-pressed={currentVote === 1}
-              title="Upvote" onClick={() => onBoardChange((board) => setIdeaVote(board, idea.id, voterId, 1))}>👍</button>
-            <button type="button" className={currentVote === -1 ? "is-selected" : ""} disabled={!canWrite}
-              aria-label={`Downvote ${idea.title || "untitled idea"}`} aria-pressed={currentVote === -1}
-              title="Downvote" onClick={() => onBoardChange((board) => setIdeaVote(board, idea.id, voterId, -1))}>👎</button>
+          <div className="idea-votes-details">
+            <span className="idea-votes-title" title={idea.title}>{idea.title.trim() || "Untitled idea"}</span>
+            <small className="idea-votes-names">{upvoters.length ? upvoters.map(voterNameFor).join(", ") : "No upvotes yet"}</small>
           </div>
-          <span className="idea-votes-score" aria-label={`Score ${score}`}>{score}</span>
+          <IdeaUpvote ideaTitle={idea.title} upvoters={upvoters} voterId={voterId} canWrite={canWrite} showUpvoters={false}
+            onUpvote={() => onBoardChange((board) => toggleIdeaUpvote(board, idea.id, voterId, voterName))} />
         </li>;
       })}</ul> : <p className="idea-votes-empty">Add an idea to start voting.</p>}
     </section>}
