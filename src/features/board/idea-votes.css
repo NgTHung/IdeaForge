@@ -1,30 +1,26 @@
 .idea-votes { position: relative; display: flex; align-items: center; pointer-events: auto; }
 .idea-votes-trigger { display: inline-flex; min-width: 76px; height: 42px; align-items: center; justify-content: center; gap: 7px; padding: 4px 11px; border: 1px solid #e0e6e2; border-radius: 999px; color: #334840; background: #f0f3f1; cursor: pointer; font-weight: 700; }
 .idea-votes-trigger:hover, .idea-votes-trigger[aria-expanded="true"] { background: #e6eeea; }
-.idea-votes-trigger:focus-visible, .idea-votes-controls button:focus-visible { outline: 3px solid #68ad91; outline-offset: 2px; }
+.idea-votes-trigger:focus-visible { outline: 3px solid #68ad91; outline-offset: 2px; }
 .idea-votes-trigger span:first-child { font-size: 18px; line-height: 1; }
 .idea-votes-popover { position: absolute; z-index: 30; top: calc(100% + 10px); right: 0; width: min(380px, calc(100vw - 28px)); max-height: min(65vh, 520px); overflow: auto; padding: 10px; border: 1px solid #dce7e0; border-radius: 14px; color: #2c4038; background: #fff; box-shadow: 0 16px 42px #18392a2b; pointer-events: auto; }
 .idea-votes-header { position: sticky; top: -10px; z-index: 1; display: flex; align-items: center; justify-content: space-between; padding: 8px 7px 10px; color: #668075; background: #fff; font-size: 11px; text-transform: uppercase; letter-spacing: .09em; }
 .idea-votes-header span { display: grid; width: 23px; height: 23px; place-items: center; border-radius: 50%; color: #17684f; background: #e5f2e9; font-size: 11px; font-weight: 800; letter-spacing: 0; }
 .idea-votes-popover ul { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; }
-.idea-votes-popover li { display: grid; grid-template-columns: minmax(80px, 1fr) auto 34px; align-items: center; gap: 8px; padding: 7px; border-radius: 9px; }
-.idea-votes-popover li:hover { background: #f4f8f5; }
+.idea-votes-popover > ul > li { display: grid; grid-template-columns: minmax(80px, 1fr) auto; align-items: center; gap: 8px; padding: 7px; border-radius: 9px; }
+.idea-votes-popover > ul > li:hover { background: #f4f8f5; }
+.idea-votes-details { display: grid; gap: 3px; min-width: 0; }
+.idea-votes-names { color: #668075; font-size: 10px; overflow-wrap: anywhere; }
 .idea-votes-title { overflow: hidden; color: #2b4037; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.idea-votes-controls { display: flex; gap: 4px; }
-.idea-votes-controls button { display: grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 1px solid #dce7e0; border-radius: 8px; background: #f6f8f6; cursor: pointer; font-size: 15px; }
-.idea-votes-controls button:hover:not(:disabled), .idea-votes-controls button.is-selected { border-color: #7caf98; background: #e5f2e9; }
-.idea-votes-controls button:disabled { cursor: not-allowed; opacity: .48; }
-.idea-votes-score { justify-self: end; min-width: 24px; color: #334840; font-size: 14px; font-weight: 800; text-align: center; }
 .idea-votes-empty { margin: 5px 7px 8px; color: #7a8d83; font-size: 12px; }
 .board-shell[data-theme="dark"] .idea-votes-trigger { border-color: #405650; color: #dce8e3; background: #263633; }
 .board-shell[data-theme="dark"] .idea-votes-trigger:hover, .board-shell[data-theme="dark"] .idea-votes-trigger[aria-expanded="true"] { background: #2a403a; }
 .board-shell[data-theme="dark"] .idea-votes-popover { border-color: #344744; color: #dce8e3; background: #1c2a29; }
 .board-shell[data-theme="dark"] .idea-votes-header { color: #9eb5aa; background: #1c2a29; }
 .board-shell[data-theme="dark"] .idea-votes-header span { color: #b9e5cb; background: #29483a; }
-.board-shell[data-theme="dark"] .idea-votes-popover li:hover { background: #263633; }
-.board-shell[data-theme="dark"] .idea-votes-title, .board-shell[data-theme="dark"] .idea-votes-score { color: #dce8e3; }
-.board-shell[data-theme="dark"] .idea-votes-controls button { border-color: #405650; background: #263633; }
-.board-shell[data-theme="dark"] .idea-votes-controls button:hover:not(:disabled), .board-shell[data-theme="dark"] .idea-votes-controls button.is-selected { border-color: #5c9b82; background: #24483b; }
+.board-shell[data-theme="dark"] .idea-votes-popover > ul > li:hover { background: #263633; }
+.board-shell[data-theme="dark"] .idea-votes-title { color: #dce8e3; }
+.board-shell[data-theme="dark"] .idea-votes-names { color: #9eb5aa; }
 @media (max-width: 760px) {
   .idea-votes-trigger { min-width: 58px; height: 36px; gap: 4px; padding: 3px 7px; font-size: 12px; }
   .idea-votes-popover { width: min(340px, calc(100vw - 20px)); }

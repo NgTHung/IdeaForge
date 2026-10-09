@@ -53,6 +53,10 @@ A link records how two ideas relate. Each link has a type, an explanation, and a
 
 A concept brief summarizes one merged concept. It covers the concept, the cards and authors that contributed, the assumptions and open questions, and the next experiment. It draws only on board content and doesn't present anything as a decision the team agreed on.
 
+### Votes
+
+A vote is a social signal: each participant can give each idea one removable upvote, and the score is the number of upvoters. Idea cards and the header dropdown show scores and let people see who upvoted. Each vote stores the voter's display name so it stays visible after they leave. Older upvotes without a name show a guest label, and older downvotes do not count. Votes never choose anything.
+
 ### Scope
 
 MVP: one shared board for about four participants and 30 to 50 short cards. These are design targets, not measured capacity. The MVP includes:
@@ -154,6 +158,7 @@ For Organize, the browser sends eligible note text and the selected group count 
 
 ## Log
 
+- **2026-10-09: voting uses named upvotes only.** At the user's request, `work:WORK-036` drops downvotes and shows the score on each idea card. Cards and the header dropdown share upvote controls and a voter list. Votes store the stable guest ID and the display name at the time of voting, so reconnects do not create extra votes and names remain visible offline. Existing downvotes are ignored. Voting follows room write access and leaves idea text and merge source snapshots intact.
 - **2026-10-09: live cursor work moved ahead of the Day 3 gate.** At the user's request, implement shared board cursors before the Day 3 demo journey is verified. The feature remains stretch work and uses Liveblocks Presence.
 - **2026-10-09: shared idea voting added to the MVP.** Participants can cast one upvote or downvote per idea from a list in the board header. A participant can change or remove their vote, and the score is the sum of active votes. Votes sync with the board and stay separate from idea text and merge source snapshots.
 

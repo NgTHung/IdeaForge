@@ -7,7 +7,7 @@ import { BoardApp } from "./board-app";
 import type { Board, ConnectionPair, FreeDrawStroke, Idea, IdeaVote, Relationship } from "./model";
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
 import { connectionPairKey } from "@/lib/connections";
-import { voteKey } from "./idea-voting";
+import { syncIdeaVotes } from "./shared-votes";
 import { cursorColorForMember } from "./cursor-color";
 import type { LiveCursor } from "./live-cursors";
 import type { BoardMetadata } from "@/lib/board-directory";
@@ -115,7 +115,8 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     dismissedConnections: Object.values(root.dismissedConnections ?? {}),
     clusterSnapshot: root.clusterSnapshot as ClusterSnapshot | undefined,
   }));
-  const updateBoard = useMutation(({ storage }, update: (board: Board) => Board) => {
+  const updateBoard = useMutation(({ storage, self }, update: (board: Board) => Board) => {
+    if (!self?.canWrite) return false;
     const ideas = storage.get("ideas");
     const relationships = storage.get("relationships");
     const drawings = storage.get("drawings");
@@ -193,24 +194,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
       for (const [key, pair] of nextDismissals) { target.set(key, pair); changed = true; }
       if (!dismissed) storage.set("dismissedConnections", target);
     }
-    const nextVotes = new Map((next.votes ?? []).map((vote) => [voteKey(vote.ideaId, vote.voterId), vote]));
-    let targetVotes = savedVotes;
-    if (!targetVotes && nextVotes.size) {
-      targetVotes = new LiveMap<string, IdeaVote>();
-      storage.set("votes", targetVotes);
-      changed = true;
-    }
-    if (targetVotes) {
-      for (const [key, vote] of targetVotes.entries()) {
-        const updated = nextVotes.get(key);
-        if (!updated) { targetVotes.delete(key); changed = true; }
-        else {
-          if (!sameValue(vote, updated)) { targetVotes.set(key, updated); changed = true; }
-          nextVotes.delete(key);
-        }
-      }
-      for (const [key, vote] of nextVotes) { targetVotes.set(key, vote); changed = true; }
-    }
+    changed = syncIdeaVotes(storage, next.votes ?? []) || changed;
     const nextClusterSnapshot = next.clusterSnapshot ?? null;
     if (!sameValue(nextClusterSnapshot, current.clusterSnapshot ?? null)) {
       const currentClusterSnapshot = storage.get("clusterSnapshot");
