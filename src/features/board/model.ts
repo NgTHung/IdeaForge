@@ -1,5 +1,6 @@
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
 import type { MergeProposal, MergeResult } from "@/lib/ideas";
+import type { ObjectStyle, RelationshipStyle } from "./personalization";
 
 export type MergeSourceSnapshot = { id: string; title: string; content: string; author: string };
 export type MergeRelationshipSnapshot = {
@@ -43,6 +44,7 @@ export type Idea = {
   position: { x: number; y: number };
   pinned: boolean;
   color?: string;
+  appearance?: ObjectStyle;
   parentIds: string[];
   author?: string;
   merge?: MergeRecord;
@@ -51,6 +53,7 @@ export type Idea = {
 
 export type RelationshipType = "synergy" | "conflict" | "extends";
 export type Relationship = {
+  appearance?: RelationshipStyle;
   id: string;
   source: string;
   target: string;

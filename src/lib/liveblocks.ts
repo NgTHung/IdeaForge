@@ -2,6 +2,7 @@ import { createClient, LiveMap, LiveObject } from "@liveblocks/client";
 import { createRoomContext } from "@liveblocks/react";
 import type { ConnectionPair, FreeDrawStroke, Idea, IdeaVote, Relationship } from "@/features/board/model";
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
+import type { CursorStyle } from "@/features/board/personalization";
 
 export type BoardStorage = {
   title: string;
@@ -16,7 +17,7 @@ export type BoardStorage = {
   dismissedConnections?: LiveMap<string, ConnectionPair>;
   clusterSnapshot: LiveObject<ClusterSnapshot> | null;
 };
-type BoardPresence = { editingIdeaId?: string | null; drawing?: FreeDrawStroke | null; cursor?: { x: number; y: number } | null };
+type BoardPresence = { editingIdeaId?: string | null; drawing?: FreeDrawStroke | null; cursor?: { x: number; y: number } | null; cursorStyle?: CursorStyle };
 type BoardUserMeta = { id?: string; info?: { name?: string; avatar?: string } };
 
 const client = createClient({ authEndpoint: "/api/liveblocks-auth" });

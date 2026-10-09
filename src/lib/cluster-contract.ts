@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { clusterStyleSchema } from "../features/board/personalization";
 
 export const clusterCardSchema = z.object({
   id: z.string().trim().min(1).max(100),
@@ -114,6 +115,7 @@ const groupPairSchema = z.object({
   meanCrossSimilarity: z.number().finite().min(-1).max(1),
 });
 const groupSchema = z.object({
+  appearance: clusterStyleSchema.optional(),
   id: z.string().min(1),
   label: z.string().min(1),
   noteIds: z.array(z.string()).min(1),

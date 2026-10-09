@@ -151,7 +151,9 @@ test("incremental assignment validates groups and chooses the strongest mean sim
     revision: "rev-1", stale: false, result: base,
     bubbles: base.groups.map((group, index) => ({ clusterId: group.id, label: group.label, size: group.size, x: index * 700, y: 0, width: 500, height: 400, centerX: index * 700 + 250, centerY: 200 })),
   };
+  snapshot.result.groups[1].appearance = { color: "blue", border: "cat", boundary: true };
   const updated = appendClusterAssignment(snapshot, { id: "e", title: "new", content: "new", position: { x: 900, y: 300 }, pinned: false, parentIds: [] }, result, snapshot.bubbles[1], "rev-2");
+  assert.deepEqual(updated.result.groups[1].appearance, snapshot.result.groups[1].appearance);
   assert.equal(updated.result.noteCount, 5);
   assert.equal(updated.result.groups.find((group) => group.id === "group-2").size, 3);
   assert.equal(updated.result.assignments.find((assignment) => assignment.noteId === "e").clusterId, "group-2");

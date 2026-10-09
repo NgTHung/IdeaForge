@@ -3,6 +3,7 @@ import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import { ideaCardSize, type Idea } from "./model";
 import { MarkdownText } from "./markdown-text";
 import { IdeaUpvote, type IdeaUpvoteProps } from "./idea-upvote";
+import { styleColor } from "./personalization";
 
 export type IdeaNode = Node<{
   idea: Idea;
@@ -15,6 +16,7 @@ export type IdeaNode = Node<{
   squash: { axis: "x" | "y"; token: number } | null;
   clusterLabel?: string;
   clusterColor?: number;
+  clusterAccent?: string;
   mergeIndex: number;
   onMergeDetails?: () => void;
   onAssistantDetails?: () => void;
@@ -33,6 +35,7 @@ function motionStyle(idea: Idea, clusterLabel?: string): CSSProperties {
     height: size.height,
     "--float-duration": `${2.5 + seed % 17 / 10}s`,
     "--float-delay": `${-(seed % 53 / 10)}s`,
+    "--style-color": idea.appearance ? styleColor(idea.appearance.color) : undefined,
   } as CSSProperties;
 }
 
@@ -40,7 +43,8 @@ export function Bubble({ data, selected, dragging }: NodeProps<IdeaNode>) {
   const { idea } = data;
   const squashing = data.squash ? `is-squashing-${data.squash.axis}` : "";
   return <div data-idea-id={idea.id}
-    style={motionStyle(idea, data.clusterLabel)}
+    data-border={idea.appearance?.border} data-styled={Boolean(idea.appearance && idea.appearance.color !== "default")}
+    style={{ ...motionStyle(idea, data.clusterLabel), "--cluster-accent": data.clusterAccent } as CSSProperties}
     role="group" tabIndex={0} aria-label={`Idea: ${idea.title}. Press Enter to select.`}
     className={`board-bubble ${data.voting ? "has-voting" : ""} ${selected ? "is-selected" : ""} ${data.source ? "is-source" : ""} ${data.editing ? "is-editing" : ""} ${dragging ? "is-dragging" : ""} ${data.mergeIndex ? "is-merge-source" : ""} ${idea.merge ? "is-merged" : ""} ${data.clusterColor === undefined ? "" : `cluster-color-${data.clusterColor}`} ${squashing}`}
     onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); event.stopPropagation(); data.onSelect(event.shiftKey); } }}

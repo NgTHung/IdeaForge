@@ -31,13 +31,20 @@ import { appendClusterAssignment, memberFingerprint, renameClusterGroup } from "
 import { addMergedIdea, mergeContext, mergeText, relatedIdeaPosition, mergeDisplayData, mergeRecordFor } from "./merge-board";
 import { initialGoal, MAX_MERGE_SOURCES, MAX_MERGE_TOTAL_CHARACTERS, mergeCoverageProblem, mergeProposalSchema, type MergeProposal } from "@/lib/ideas";
 import { historyShortcut } from "./history-shortcut";
+import { PersonalizationPanel } from "./personalization-panel";
+import { ClusterDecorations } from "./cluster-decorations";
+import { usePersonalization } from "./use-personalization";
+import { setObjectAppearance, styleColor, type CursorStyle } from "./personalization";
+import { AnimationContext, BoardActivity, BoardMood, ThinkingAnimation, useBoardActivity, type ConnectedMember } from "./board-activity";
 import "./board.css";
+import "./personalization.css";
 
 type Tool = "select" | "hand" | "add" | "connect" | "merge";
 type Selection = { kind: "idea" | "relationship"; id: string } | null;
 type MergePreview = { ids: string[]; fingerprint: string; result: MergeProposal; model: string; generatedAt: string; title: string; concept: string };
 const nodeTypes = { idea: Bubble, assistantPreview: Bubble };
 const edgeTypes = { orthogonal: OrthogonalEdge };
+const emptyMembers: ConnectedMember[] = [];
 const AUTO_PLACE_KEY = "ideaforge-auto-place-new-notes";
 const AUTO_PLACE_EVENT = "ideaforge-auto-place-preference-change";
 
@@ -115,22 +122,31 @@ type BoardAppProps = {
   voteUserId?: string;
   liveCursors?: LiveCursor[];
   onCursorMove?: (position: { x: number; y: number } | null) => void;
+  onCursorStyleChange?: (style: CursorStyle) => void;
+  boardScope?: string;
+  connectedMembers?: ConnectedMember[];
 };
 
 function ZoomReadout({ zoom }: { zoom: number }) {
   return <span className="board-zoom-level" aria-live="off">{Math.round(zoom * 100)}%</span>;
 }
 
-function ToolButton({ label, active, disabled, title, onClick, children }: {
-  label: string; active?: boolean; disabled?: boolean; title?: string; onClick?: () => void; children: React.ReactNode;
+function ToolButton({ label, active, disabled, title, onClick, children, rewinding }: {
+  label: string; active?: boolean; disabled?: boolean; title?: string; onClick?: () => void; children: React.ReactNode; rewinding?: boolean;
 }) {
-  return <button type="button" className={`board-tool ${active ? "active" : ""}`} aria-label={label} aria-pressed={disabled ? undefined : active}
+  return <button type="button" className={`board-tool ${active ? "active" : ""} ${rewinding ? "is-rewinding" : ""}`} aria-label={label} aria-pressed={disabled ? undefined : active}
     title={title || label} disabled={disabled} onClick={onClick}><span className="board-tool-icon" aria-hidden="true">{children}</span></button>;
 }
 
-export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove }: BoardAppProps) {
+export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove, onCursorStyleChange, boardScope = "local", connectedMembers = emptyMembers }: BoardAppProps) {
   const [localBoard, setLocalBoard] = useState<Board>(() => normalizeBoardLayout(initialBoard, {}));
   const board = sharedBoard ?? localBoard;
+  const { preferences, update: updatePreferences, motion, reducedMotion } = usePersonalization();
+  const theme = preferences.theme;
+  const motionRef = useRef(motion);
+  useEffect(() => { motionRef.current = motion; }, [motion]);
+  const activity = useBoardActivity(board, connectedMembers, boardScope, voteUserId ?? "local", preferences);
+  useEffect(() => { onCursorStyleChange?.(preferences.cursor); }, [onCursorStyleChange, preferences.cursor]);
   const setBoard = useCallback<Dispatch<SetStateAction<Board>>>((update) => {
     if (onBoardChange) onBoardChange((current) => typeof update === "function" ? update(current) : update);
     else setLocalBoard(update);
@@ -172,7 +188,6 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const [assistantPreview, setAssistantPreview] = useState<AssistantActionDraft | null>(null);
   const [assistantDetailsId, setAssistantDetailsId] = useState<string | null>(null);
   const [draftIdeaId, setDraftIdeaId] = useState<string | null>(null);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [zoom, setZoom] = useState(0.72);
   const [squashes, setSquashes] = useState<Record<string, { axis: "x" | "y"; token: number }>>({});
   const [spaceDown, setSpaceDown] = useState(false);
@@ -249,13 +264,6 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     for (const timer of squashTimers.current.values()) window.clearTimeout(timer);
   }, []);
   useEffect(() => {
-    const savedTheme = window.localStorage.getItem("ideaforge-theme");
-    if (savedTheme !== "light" && savedTheme !== "dark") return;
-    const frame = window.requestAnimationFrame(() => setTheme(savedTheme));
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-  useEffect(() => { window.localStorage.setItem("ideaforge-theme", theme); }, [theme]);
-  useEffect(() => {
     if (!clusterNotice) return;
     const timer = window.setTimeout(() => setClusterNotice(""), 5000);
     return () => window.clearTimeout(timer);
@@ -294,7 +302,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       }
     }
   }, []);
-  const physics = usePhysics(board, physicsEnabled, frozenId, applyPositions, applyContacts);
+  const physics = usePhysics(board, physicsEnabled && motion, frozenId, applyPositions, applyContacts);
   const currentBoardFingerprint = useMemo(() => boardFingerprint(board.ideas), [board.ideas]);
   const clusterSnapshot = board.clusterSnapshot ?? null;
   const clusterResult = clusterSnapshot?.result ?? null;
@@ -312,6 +320,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const clusterStale = Boolean(clusterSnapshot?.stale || clusterSnapshot && !clusterSnapshot.result.notePairs);
   const clusterLabels = useMemo(() => new Map(clusterResult?.assignments.map((assignment) => [assignment.noteId, clusterResult.groups.find((group) => group.id === assignment.clusterId)?.label ?? ""])), [clusterResult]);
   const clusterColors = useMemo(() => new Map(clusterResult?.groups.flatMap((group, index) => group.noteIds.map((id) => [id, index % 5] as const))), [clusterResult]);
+  const clusterAccents = useMemo(() => new Map(clusterResult?.groups.flatMap((group) => group.noteIds.map((id) => [id, group.appearance && styleColor(group.appearance.color)] as const))), [clusterResult]);
   const chosenIdea = selection?.kind === "idea" ? board.ideas.find((idea) => idea.id === selection.id) : undefined;
   const chosenLink = selection?.kind === "relationship" ? board.relationships.find((link) => link.id === selection.id) : undefined;
   const selectedCardId = selection?.kind === "idea" && board.ideas.some((idea) => idea.id === selection.id) ? selection.id : null;
@@ -366,13 +375,14 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     setSelection({ kind: "idea", id: cardId });
     setMergeIds([]);
     window.requestAnimationFrame(() => {
-      void flow.current?.fitView({ nodes: [{ id: cardId }], padding: 0.45, duration: 350, maxZoom: 0.95 });
+      void flow.current?.fitView({ nodes: [{ id: cardId }], padding: 0.45, duration: motionRef.current ? 350 : 0, maxZoom: 0.95 });
     });
   }, []);
   async function copyBoardLink() {
     try {
       await navigator.clipboard.writeText(window.location.href);
       setShareNotice("Link copied");
+      activity.notify("share", "Your board link is ready to fly.");
     } catch {
       setShareNotice("Copy the board URL from your browser address bar");
     }
@@ -424,7 +434,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       if (historyAction && historyActions) {
         event.preventDefault();
         if (!historyActions.canWrite) return;
-        if (historyAction === "undo" && historyActions.canUndo) historyActions.undo();
+        if (historyAction === "undo" && historyActions.canUndo) undoWithEffect();
         if (historyAction === "redo" && historyActions.canRedo) historyActions.redo();
         return;
       }
@@ -472,7 +482,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     const zoom = Math.max(0.15, Math.min(0.95, availableWidth / width, availableHeight / height));
     const x = 205 + (availableWidth - width * zoom) / 2 - minX * zoom;
     const y = 190 + (availableHeight - height * zoom) / 2 - minY * zoom;
-    await flow.current.setViewport({ x, y, zoom }, { duration: 250 });
+    await flow.current.setViewport({ x, y, zoom }, { duration: motionRef.current ? 250 : 0 });
   }
   function confirmLink(event: FormEvent) {
     event.preventDefault();
@@ -513,6 +523,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     const updatedBoard = boardRef.current;
     setEditor(null);
     if (isNewIdea) {
+      activity.record(updatedIdea.id, updatedBoard);
       setDraftIdeaId(null);
       draftIdeaRef.current = null;
       if (autoPlaceNewNotes && clusterText(updatedIdea)) void assignNewNote(updatedBoard, updatedIdea);
@@ -619,17 +630,19 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       const merged = addMergedIdea(current, id, title, concept, record, authorName || "Unknown contributor");
       return normalizeBoardLayout(merged, measuredSizes, current.ideas.map((idea) => idea.id));
     };
-    const committed = onBoardChange ? onBoardChange(apply) : (setLocalBoard(apply), true);
+    const committed = commitBoardChange(apply);
     if (!committed) {
       mergeSaveLock.current = false; setMergeSaving(false);
       setMergeError("The source notes or goal changed. Regenerate before creating the idea.");
       return;
     }
+    activity.record(id, boardRef.current, record.sources.map((source) => source.id));
+    activity.notify("merge", `Merged into ${title}`, id);
     setPhysicsEnabled(false); physics.stop();
     setMergePreview(null); setMergeIds([]); setSelection({ kind: "idea", id }); setMergeError("");
     setUndoPositions(null); setAssignmentUndo(null);
     mergeSaveLock.current = false; setMergeSaving(false);
-    window.requestAnimationFrame(() => { void flow.current?.fitView({ nodes: [{ id }], padding: 0.32, duration: 350, maxZoom: 0.9 }); });
+    window.requestAnimationFrame(() => { void flow.current?.fitView({ nodes: [{ id }], padding: 0.32, duration: motionRef.current ? 350 : 0, maxZoom: 0.9 }); });
   }
 
   function previewAssistantAction(draft: AssistantActionDraft) {
@@ -641,7 +654,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     window.requestAnimationFrame(() => {
       const nodes = focusIds.filter((id) => id.startsWith("assistant-preview-") || boardRef.current.ideas.some((idea) => idea.id === id))
         .map((id) => ({ id }));
-      if (nodes.length) void flow.current?.fitView({ nodes, padding: 0.32, duration: 350, maxZoom: 0.9 });
+      if (nodes.length) void flow.current?.fitView({ nodes, padding: 0.32, duration: motionRef.current ? 350 : 0, maxZoom: 0.9 });
     });
   }
 
@@ -725,12 +738,13 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     setAssistantPreview(null);
     setSelection({ kind: selectedKind, id: selectedId });
     if (draft.action.kind === "create") {
+      activity.record(selectedId, boardRef.current);
       setPhysicsEnabled(false);
       physics.stop();
       setUndoPositions(null);
       setAssignmentUndo(null);
     }
-    window.requestAnimationFrame(() => { void flow.current?.fitView({ nodes: [{ id: selectedId! }], padding: 0.4, duration: 350, maxZoom: 0.9 }); });
+    window.requestAnimationFrame(() => { void flow.current?.fitView({ nodes: [{ id: selectedId! }], padding: 0.4, duration: motionRef.current ? 350 : 0, maxZoom: 0.9 }); });
     return { ok: true };
   }
 
@@ -917,7 +931,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         return { ...bubble, x: left, y: top, width: right - left, height: bottom - top,
           centerX: (left + right) / 2, centerY: (top + bottom) / 2 };
       });
-      const nextSnapshot = { revision: crypto.randomUUID(), stale: false, result: parsed.data, bubbles };
+      const nextSnapshot = { revision: createIdeaId(), stale: false, result: parsed.data, bubbles };
       const previousPositions = new Map(latestBoard.ideas.map((idea) => [idea.id, { ...idea.position }]));
       const updatePositions = (currentBoard: Board): Board => {
         if (boardFingerprint(currentBoard.ideas) !== submittedFingerprint) return currentBoard;
@@ -952,7 +966,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       setClusterNotice(`${parsed.data.noteCount} notes organized into ${parsed.data.clusterCount} groups.`);
       void suggestNamesForSnapshot(nextSnapshot, committedBoard.ideas);
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-        void flow.current?.fitView({ padding: 0.2, duration: 300 });
+        void flow.current?.fitView({ padding: 0.2, duration: motionRef.current ? 300 : 0 });
       }));
     } catch (error) {
       if (requestId === clusterRequestSequence.current) setClusterError(error instanceof Error ? error.message : "Clustering failed. Try again.");
@@ -1038,7 +1052,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       if (!chosenGroup || !chosenBubble) throw new Error("The current group could not be found. Use Organize canvas and try again.");
       const measured = measuredSizes;
       const placement = latestIdea.pinned ? null : placeNewNote(latestIdea, parsed.data.chosenGroupId, chosenGroup.noteIds, parsed.data, chosenBubble, latest.ideas, measured, latest.clusterSnapshot.bubbles);
-      const nextSnapshot = appendClusterAssignment(latest.clusterSnapshot, latestIdea, parsed.data, placement?.bubble ?? null, crypto.randomUUID());
+      const nextSnapshot = appendClusterAssignment(latest.clusterSnapshot, latestIdea, parsed.data, placement?.bubble ?? null, createIdeaId());
       const nextPosition = placement?.position ?? latestIdea.position;
       let committed = false;
       const commit = (current: Board): Board => {
@@ -1196,7 +1210,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     draggable: tool !== "connect" && editor?.id !== idea.id,
     data: { idea, editingBy: editingLocks[idea.id], connecting: tool === "connect", source: sourceId === idea.id, editing: editor?.id === idea.id, squash: squashes[idea.id] ?? null,
       voting: onBoardChange && voteUserId ? { upvoters: upvotersForIdea(board.votes, idea.id), voterId: voteUserId, canWrite: canWriteBoard,
-        onUpvote: () => onBoardChange((current) => toggleIdeaUpvote(current, idea.id, voteUserId, authorName || "Unknown contributor")) } : undefined,
+        onUpvote: () => upvoteWithEffect(idea.id) } : undefined,
       mergeIndex: mergeIds.includes(idea.id) ? mergeIds.indexOf(idea.id) + 1 : previewMergeIds.indexOf(idea.id) + 1,
       onMergeDetails: idea.merge ? () => setMergeDetailsId(idea.id) : undefined,
       onAssistantDetails: idea.assistant ? () => setAssistantDetailsId(idea.id) : undefined,
@@ -1204,7 +1218,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         if (tool === "merge") selectMergeNote(idea.id, true);
         else selectMergeNote(idea.id, additive || mergeIds.length === 1);
       },
-      clusterLabel: clusterLabels.get(idea.id), clusterColor: clusterColors.get(idea.id),
+      clusterLabel: clusterLabels.get(idea.id), clusterColor: clusterColors.get(idea.id), clusterAccent: clusterAccents.get(idea.id),
       onEdit: () => openEditor(idea), onStartConnection: (event) => startConnectDrag(idea.id, event) },
   }));
   if (assistantPreviewIdea) {
@@ -1280,10 +1294,11 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       const related = edgeFocus.nodes.has(link.source) || edgeFocus.nodes.has(link.target);
       const selectedNodeEdge = selectedNodeId === link.source || selectedNodeId === link.target;
       if (onlySelectedNodeEdges && selectedNodeId && !selectedNodeEdge && !link.assistant) return [];
-      const stroke = link.assistant ? (theme === "dark" ? "#c09bdd" : "#8c62a8") :
+      const appearance = board.relationships.find((relationship) => relationship.id === link.id)?.appearance;
+      const stroke = appearance && styleColor(appearance.color) || (link.assistant ? (theme === "dark" ? "#c09bdd" : "#8c62a8") :
         link.ancestry ? (theme === "dark" ? "#83c7ac" : "#5b9c82") :
           link.type === "conflict" ? (theme === "dark" ? "#e08b7e" : "#b6665b") :
-            link.type === "extends" ? (theme === "dark" ? "#86bdd0" : "#46758c") : (theme === "dark" ? "#79c5a6" : "#4b8a79");
+            link.type === "extends" ? (theme === "dark" ? "#86bdd0" : "#46758c") : (theme === "dark" ? "#79c5a6" : "#4b8a79"));
       return {
         id: link.id, source: link.source, target: link.target,
         sourceHandle: `source-${route.sourceSide}`, targetHandle: `target-${route.targetSide}`,
@@ -1291,12 +1306,26 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         selectable: !link.ancestry && !link.provisional, focusable: !link.ancestry && !link.provisional,
         selected, interactionWidth: 24, zIndex: index + 1,
         style: { stroke, strokeWidth: edgeFocus.active && related ? 2.5 : link.ancestry ? 2.4 : selected ? 3 : 2,
-          strokeDasharray: link.provisional ? "7 5" : undefined,
+          strokeDasharray: link.provisional ? "7 5" : appearance?.stroke === "dashed" ? "8 5" : appearance?.stroke === "dotted" ? "1 6" : undefined,
           opacity: link.assistant ? 1 : edgeFocus.active && !related ? 0.2 : 1 },
       };
-    }), [routedLinks, selection, hoveredIdeaId, edgeFocus, onlySelectedNodeEdges, theme]);
+    }), [routedLinks, selection, hoveredIdeaId, edgeFocus, onlySelectedNodeEdges, theme, board.relationships]);
 
-  return <main className="board-shell" data-theme={theme}>
+  function upvoteWithEffect(ideaId: string) {
+    if (!voteUserId || !canWriteBoard) return;
+    let added = false;
+    const committed = commitBoardChange((current) => {
+      added = !upvotersForIdea(current.votes, ideaId).some((vote) => vote.voterId === voteUserId);
+      return toggleIdeaUpvote(current, ideaId, voteUserId, authorName || "Unknown contributor");
+    });
+    if (committed && added) activity.notify("vote", "A little love for this idea", ideaId);
+  }
+  function undoWithEffect() {
+    if (!historyActions?.canWrite || !historyActions.canUndo) return;
+    historyActions.undo();
+    activity.notify("undo", "Rewound your last action");
+  }
+  return <AnimationContext.Provider value={{ preferences, motion }}><main className="board-shell" data-theme={theme} data-motion={motion ? "on" : "off"} style={{ "--personal-accent": styleColor(preferences.accent) ?? "#168264" } as React.CSSProperties}>
     <header className="board-topbar" aria-label="Board controls"><div className="board-brand">
       <Link href="/" className="board-brand-home" aria-label="IdeaForge home" title="IdeaForge home"><span className="board-brand-symbol" aria-hidden="true">✳</span></Link>
       <input aria-label="Board title" value={titleDraft ?? title} maxLength={80} onChange={(event) => setTitleDraft(event.target.value)}
@@ -1309,14 +1338,18 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           <p>{boardDescription.trim() || "No description was added for this board."}</p></div>
       </details>
       <div className="board-top-actions">{onBoardChange && <>{voteUserId && <IdeaVotes ideas={board.ideas} votes={board.votes} voterId={voteUserId} voterName={authorName || "Unknown contributor"}
-        canWrite={canWriteBoard} onBoardChange={onBoardChange} />}<ActiveMembers /><button className="board-share-button" type="button" aria-label="Share board" onClick={() => void copyBoardLink()}>
+        canWrite={canWriteBoard} onBoardChange={onBoardChange} onUpvote={upvoteWithEffect} />}<ActiveMembers /><button className="board-share-button" type="button" aria-label="Share board" onClick={() => void copyBoardLink()}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11.5 3.5h5v5M16.2 3.8 9.5 10.5" /><path d="M14.5 10.5v4.8a1.2 1.2 0 0 1-1.2 1.2H4.7a1.2 1.2 0 0 1-1.2-1.2V6.7a1.2 1.2 0 0 1 1.2-1.2h4.8" /></svg>
           <span className="board-share-label">Share</span></button></>}
         <AccountMenu />
-        <button className="board-theme-toggle" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} aria-pressed={theme === "dark"} onClick={() => setTheme((value) => value === "dark" ? "light" : "dark")}>{theme === "dark" ? "☼" : "◐"}</button></div>
+        <PersonalizationPanel preferences={preferences} update={updatePreferences} reducedMotion={reducedMotion} board={board} selectedIdeaId={chosenIdea?.id} selectedLinkId={chosenLink?.id} canWrite={canWriteBoard}
+          onStyle={(kind, id, style) => { if (canWriteBoard) commitBoardChange((current) => setObjectAppearance(current, kind, id, style)); }} />
+        <button className="board-theme-toggle" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} aria-pressed={theme === "dark"} onClick={() => updatePreferences({ theme: theme === "dark" ? "light" : "dark" })}>{theme === "dark" ? "☼" : "◐"}</button></div>
       {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
     </header>
     <div className="board-workspace">
+      <BoardMood board={board} achievements={activity.achievements} />
+      {(mergeBusy || clusterBusy || assignmentBusy || clusterNamesState === "pending" || suggestions.loading) && <div className="board-ai-activity" role="status"><ThinkingAnimation /><span>{mergeBusy ? "Merging ideas…" : clusterBusy ? "Organizing…" : assignmentBusy ? "Finding a group…" : clusterNamesState === "pending" ? "Naming groups…" : "Finding connections…"}</span></div>}
       <div ref={canvas} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""} ${drawTool ? `drawing-${drawTool}` : ""}`}
         onPointerMove={(event) => {
           if (!(event.target instanceof Element) || !event.target.closest(".react-flow") || !flow.current) { onCursorMove?.(null); return; }
@@ -1348,7 +1381,9 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           onNodeDragStop={(_, node) => finishDrag(node.id, node.position)}
           panOnDrag={!drawTool && (tool === "hand" || spaceDown)} nodesDraggable={!drawTool && tool !== "hand" && !spaceDown && tool !== "connect"}
           nodesConnectable={false} elementsSelectable={!drawTool} elevateEdgesOnSelect={false} zoomOnDoubleClick={false} minZoom={0.15} maxZoom={1.8} defaultViewport={{ x: 185, y: 180, zoom: 0.72 }}>
-          <Background variant={BackgroundVariant.Dots} gap={23} size={1.5} color={theme === "dark" ? "#405b52" : "#b6c9bf"} />
+          {preferences.background !== "plain" && <Background variant={preferences.background === "grid" ? BackgroundVariant.Lines : BackgroundVariant.Dots} gap={23} size={1.5} color={theme === "dark" ? "#405b52" : "#b6c9bf"} />}
+          <ClusterDecorations board={board} positions={dragPositions} sizes={measuredSizes} />
+          <BoardActivity activity={activity} board={board} positions={dragPositions} />
           <LiveCursors cursors={liveCursors} />
           <FreeDrawLayer
             key={`${drawTool ?? "off"}-${canWriteBoard ? "write" : "read"}`}
@@ -1391,7 +1426,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           </ToolButton>
         </nav>
         {historyActions && <nav className="board-history-toolbar" aria-label="Board history">
-          <ToolButton label="Undo" title="Undo (Ctrl/Cmd+Z)" disabled={!historyActions.canUndo || !historyActions.canWrite} onClick={historyActions.undo}>
+          <ToolButton label="Undo" title="Undo (Ctrl/Cmd+Z)" disabled={!historyActions.canUndo || !historyActions.canWrite} onClick={undoWithEffect} rewinding={motion && activity.events.some((event) => event.kind === "undo")}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7-5 5 5 5" /><path d="M4.5 12h8a7 7 0 0 1 7 7" /></svg>
           </ToolButton>
           <ToolButton label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" disabled={!historyActions.canRedo || !historyActions.canWrite} onClick={historyActions.redo}>
@@ -1465,7 +1500,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           {chosenIdea ? <><strong>{chosenIdea.title}</strong><button onClick={() => openEditor(chosenIdea)}>Edit</button><button onClick={() => { setMergeIds((current) => current.includes(chosenIdea.id) ? current : [...current, chosenIdea.id]); setSelection(null); setDrawTool(null); setTool("merge"); }}>Add to merge</button><button onClick={() => { setUndoPositions(null); setBoard((current) => setIdeaPinned(current, chosenIdea.id, !chosenIdea.pinned)); if (chosenIdea.pinned) physics.reheat(); }}>{chosenIdea.pinned ? "Unpin" : "Pin"}</button>{chosenIdea.merge && <button onClick={() => setMergeDetailsId(chosenIdea.id)}>How this idea was made</button>}</>
             : <><strong>{chosenLink && relationshipLabels[chosenLink.type]}</strong>{chosenLink?.explanation && <span title={[chosenLink.explanation, chosenLink.condition].filter(Boolean).join(" When: ")}>{chosenLink.explanation}{chosenLink.condition ? ` When: ${chosenLink.condition}` : ""}</span>}{chosenLink?.author && <small>By {chosenLink.author}</small>}<button onClick={() => chosenLink && openRelationshipEditor(chosenLink)}>Edit link</button></>}
           <button className="danger" onClick={removeSelection}>Delete</button></div>}
-        <div className="board-zoom"><button aria-label="Zoom out" title="Zoom out" onClick={() => flow.current?.zoomOut({ duration: 180 })}>−</button><button aria-label="Fit ideas" title="Fit ideas" onClick={() => { void fitBoard(); }}>⤢</button><ZoomReadout zoom={zoom} /><button aria-label="Zoom in" title="Zoom in" onClick={() => flow.current?.zoomIn({ duration: 180 })}>＋</button></div>
+        <div className="board-zoom"><button aria-label="Zoom out" title="Zoom out" onClick={() => flow.current?.zoomOut({ duration: motionRef.current ? 180 : 0 })}>−</button><button aria-label="Fit ideas" title="Fit ideas" onClick={() => { void fitBoard(); }}>⤢</button><ZoomReadout zoom={zoom} /><button aria-label="Zoom in" title="Zoom in" onClick={() => flow.current?.zoomIn({ duration: motionRef.current ? 180 : 0 })}>＋</button></div>
       </div>
       <ConnectionSuggestionsPanel board={board} suggestions={suggestions} onBoardChange={setBoard} minimized={chatOpen} authorName={authorName} />
       <ChatSidebar open={chatOpen} onToggle={() => setChatOpen((value) => !value)} board={board} boardTitle={title}
@@ -1554,7 +1589,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       <button type="button" className="board-merge-show-sources" onClick={() => {
         const sourceIds = mergeDisplayData(selectedMergeIdea.merge!).sources.map((source) => source.id).filter((id) => board.ideas.some((idea) => idea.id === id));
         setSelection({ kind: "idea", id: selectedMergeIdea.id });
-        window.requestAnimationFrame(() => { void flow.current?.fitView({ nodes: [...sourceIds, selectedMergeIdea.id].map((id) => ({ id })), padding: 0.28, duration: 350, maxZoom: 0.9 }); });
+        window.requestAnimationFrame(() => { void flow.current?.fitView({ nodes: [...sourceIds, selectedMergeIdea.id].map((id) => ({ id })), padding: 0.28, duration: motionRef.current ? 350 : 0, maxZoom: 0.9 }); });
       }}>Show source notes on canvas</button>
       <p className="board-merge-source-count">Combined from {selectedMergeDetails?.sources.length ?? 0} ideas</p>
       <h3 className="board-merge-saved-title">{selectedMergeIdea.title}</h3>
@@ -1606,5 +1641,5 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       {relationshipType === "conflict" && <label>Conflict condition<textarea rows={2} maxLength={600} value={condition} onChange={(event) => setCondition(event.target.value)} placeholder="When can both ideas not hold?" />{condition.trim() && <MarkdownText className="board-link-markdown-preview">{condition}</MarkdownText>}</label>}
       <label>Explanation<textarea rows={3} maxLength={1000} value={explanation} onChange={(event) => setExplanation(event.target.value)} placeholder="Why does this connection matter?" />{explanation.trim() && <MarkdownText className="board-link-markdown-preview">{explanation}</MarkdownText>}</label>
       {linkError && <p className="board-error" role="alert">{linkError}</p>}<div className="board-dialog-actions"><button type="button" onClick={cancelInteraction}>Cancel</button><button className="primary" type="submit">{relationshipEditor ? "Save relationship" : "Create connection"}</button></div></form></div>}
-  </main>;
+  </main></AnimationContext.Provider>;
 }

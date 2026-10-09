@@ -75,7 +75,7 @@ Stretch:
 
 - A board assistant that proposes create, edit, link, and merge actions as previews. A board this size fits in one prompt, so the assistant uses the whole board as context and needs no retrieval. Work may start when its technical prerequisites are ready. The design is in [Board assistant](assistant.md).
 - Live cursors are a stretch feature. Work started at the user's request before the Day 3 exit checks.
-- Personalization for cursors, notes, relationship lines, the board UI, and named cluster decorations, including cat and rainbow borders. Planned activity effects cover merges, upvotes, contributor entrances, AI requests, undo, team milestones, achievement stickers, sharing, and a plant that reflects board activity. `work:WORK-039` tracks this stretch work.
+- Personalization for cursors, notes, relationship lines, the board UI, and named cluster decorations, including cat and rainbow borders. Activity effects cover merges, upvotes, contributor entrances, AI requests, undo, team milestones, achievement stickers, sharing, and a plant that reflects board activity. `work:WORK-039` tracks this stretch work.
 
 Deferred:
 
@@ -254,3 +254,5 @@ For Organize, the browser sends eligible note text and the selected group count 
 - [Gemini embeddings](https://ai.google.dev/gemini-api/docs/embeddings)
 - [Socket.IO delivery guarantees](https://socket.io/docs/v4/delivery-guarantees/)
 - [tldraw licensing](https://tldraw.dev/community/license)
+
+- 2026-10-09: implement `work:WORK-039` with browser preferences and optional shared appearance fields. One validated palette and preset contract serves settings, note rendering, relationships, cluster storage, and cursor Presence. Cluster headings derive from saved group labels; decorations measure current member bounds and never change membership or positions. Full Organize returns fresh groups without inherited styles, while renaming and incremental placement preserve the existing group appearance. The Style panel includes an Enable animations switch and individual effect choices. Turning motion off also stops note floating, local physics, and animated viewport moves. Reduced-motion settings use the same static feedback. Achievement ledgers stay in browser storage per participant and board; milestones baseline the loaded board and remember crossings for the room session. Success effects follow committed actions or clipboard success, and thinking indicators follow real pending requests. No sound is added.

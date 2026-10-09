@@ -10,6 +10,7 @@ import { connectionPairKey } from "@/lib/connections";
 import { syncIdeaVotes } from "./shared-votes";
 import { cursorColorForMember } from "./cursor-color";
 import type { LiveCursor } from "./live-cursors";
+import { cursorStyleSchema, styleColor, type CursorStyle } from "./personalization";
 import type { BoardMetadata } from "@/lib/board-directory";
 import { createBoardStorage, RoomProvider, useCanRedo, useCanUndo, useHistory, useMutation, useOthers, useRedo, useSelf, useStorage, useUndo, useUpdateMyPresence } from "@/lib/liveblocks";
 
@@ -52,6 +53,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
   const canWrite = Boolean(self?.canWrite);
   const others = useOthers();
   const updateMyPresence = useUpdateMyPresence();
+  const updateCursorStyle = useCallback((cursorStyle: CursorStyle) => updateMyPresence({ cursorStyle }), [updateMyPresence]);
   const updateDrawingPresence = useCallback((drawing: FreeDrawStroke | null) => updateMyPresence({ drawing }), [updateMyPresence]);
   const cursorUpdateTimer = useRef<number | null>(null);
   const pendingCursor = useRef<{ x: number; y: number } | null>(null);
@@ -97,8 +99,10 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
   });
   const liveCursors: LiveCursor[] = others.flatMap((other) => {
     const cursor = other.presence.cursor;
+    const style = cursorStyleSchema.safeParse(other.presence.cursorStyle);
     return cursor ? [{ connectionId: other.connectionId, name: other.info?.name?.trim() || "Guest",
-      color: cursorColorForMember(other.id ?? String(other.connectionId)), x: cursor.x, y: cursor.y }] : [];
+      color: style.success && styleColor(style.data.color) || cursorColorForMember(other.id ?? String(other.connectionId)),
+      shape: style.success ? style.data.shape : "dot", x: cursor.x, y: cursor.y }] : [];
   });
   const editingLocks = Object.fromEntries(others.flatMap((other) => {
     const ideaId = other.presence.editingIdeaId;
@@ -229,6 +233,9 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     sharedTitle={snapshot.title}
     authorName={self?.info?.name?.trim() || "Unknown contributor"}
     voteUserId={self?.id}
+    boardScope={boardId}
+    connectedMembers={others.map((other) => ({ id: other.id ?? String(other.connectionId), name: other.info?.name?.trim() || "Guest" }))}
+    onCursorStyleChange={updateCursorStyle}
     liveCursors={liveCursors}
     onCursorMove={updateCursorPresence}
     boardDescription={metadata?.description ?? ""}

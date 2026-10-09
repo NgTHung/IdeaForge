@@ -7,13 +7,14 @@ import { IdeaUpvote } from "./idea-upvote";
 import type { Board } from "./model";
 import "./idea-votes.css";
 
-export function IdeaVotes({ ideas, votes = [], voterId, voterName, canWrite, onBoardChange }: {
+export function IdeaVotes({ ideas, votes = [], voterId, voterName, canWrite, onBoardChange, onUpvote }: {
   ideas: Idea[];
   votes?: IdeaVote[];
   voterId: string;
   voterName: string;
   canWrite: boolean;
   onBoardChange: (update: (board: Board) => Board) => boolean;
+  onUpvote?: (ideaId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -56,7 +57,7 @@ export function IdeaVotes({ ideas, votes = [], voterId, voterName, canWrite, onB
             <small className="idea-votes-names">{upvoters.length ? upvoters.map(voterNameFor).join(", ") : "No upvotes yet"}</small>
           </div>
           <IdeaUpvote ideaTitle={idea.title} upvoters={upvoters} voterId={voterId} canWrite={canWrite} showUpvoters={false}
-            onUpvote={() => onBoardChange((board) => toggleIdeaUpvote(board, idea.id, voterId, voterName))} />
+            onUpvote={() => onUpvote ? onUpvote(idea.id) : onBoardChange((board) => toggleIdeaUpvote(board, idea.id, voterId, voterName))} />
         </li>;
       })}</ul> : <p className="idea-votes-empty">Add an idea to start voting.</p>}
     </section>}

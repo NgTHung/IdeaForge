@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent } from "react";
+import { ThinkingAnimation } from "./board-activity";
 import { assistantRequestSchema, assistantResponseSchema, type AssistantRequest } from "@/lib/assistant";
 import { initialGoal } from "@/lib/ideas";
 import type { Board, AssistantSourceSnapshot } from "./model";
@@ -330,7 +331,7 @@ export function ChatSidebar({
             })}
             <small className="board-assistant-attribution">AI-generated · {message.response.model}</small>
           </article>)}
-        {busy && <p className="board-chat-status" role="status">Thinking about the board…</p>}
+        {busy && <p className="board-chat-status" role="status"><ThinkingAnimation />Thinking about the board…</p>}
         {error && <p className="board-chat-error" role="alert">{error}</p>}
       </div>
       <form className="board-chat-compose" onSubmit={(event) => void send(event)}>
