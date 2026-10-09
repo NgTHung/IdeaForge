@@ -11,12 +11,11 @@
 .board-brand input { width: min(32vw, 270px); border: 1px solid transparent; border-radius: 6px; padding: 8px; color: #465c5d; font-weight: 600; background: transparent; text-overflow: ellipsis; }
 .board-brand input:hover, .board-brand input:focus { border-color: #cbdcd4; background: #fbfcfb; }
 .board-top-actions .board-share-button { border-color: #16785f; background: #16785f; color: #fff; }
+.board-share-button { display: inline-flex; align-items: center; gap: 8px; }
+.board-share-button svg { width: 17px; height: 17px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .board-share-notice { position: absolute; z-index: 6; top: 58px; right: 24px; padding: 7px 10px; border-radius: 7px; color: #315f4f; background: #e9f5ee; font-size: 12px; }
 .board-connection-state { display: grid; min-height: 100vh; place-items: center; color: #526d62; background: #f7faf8; font: 600 14px/1.5 system-ui, sans-serif; }
 .board-top-actions > button { border: 1px solid #d4dfd9; background: #f5f7f5; color: #8c9a95; border-radius: 8px; padding: 9px 18px; font-weight: 700; }
-.board-history-controls { display: flex; align-items: center; gap: 4px; }
-.board-history-controls button { border: 1px solid #d4dfd9; border-radius: 8px; padding: 8px 10px; background: #f5f7f5; color: #405c52; font-size: 12px; font-weight: 700; }
-.board-history-controls button:disabled { opacity: .45; cursor: not-allowed; }
 .board-workspace { flex: 1; min-height: 0; display: flex; position: relative; }
 .board-canvas { position: relative; flex: 1; min-width: 0; overflow: hidden; background: #f0f5f1; }
 .board-canvas.placing .react-flow__pane { cursor: crosshair; }
@@ -92,7 +91,12 @@
 .board-tool-rule { height: 1px; background: #e9eeeb; margin: 6px 8px; }
 .board-toolbar .board-tool:focus-visible, .board-draw-toolbar .board-tool:focus-visible { position: relative; z-index: 1; outline: 3px solid #258565; outline-offset: 2px; }
 .board-draw-toolbar { display: flex; flex-direction: column; gap: 6px; width: 64px; padding: 9px 8px; border: 1px solid #e0e8e3; border-radius: 14px; background: #fff; box-shadow: 0 8px 26px #365b4824; }
+.board-draw-toolbar[data-active="true"] { border-color: #62a889; box-shadow: 0 0 0 2px #25856524, 0 8px 26px #365b4824; background: #f4faf6; }
+.board-draw-toolbar-label { padding: 1px 0 2px; color: #81958b; font-size: 8px; font-weight: 800; letter-spacing: 1px; line-height: 1; text-align: center; }
 .board-draw-toolbar .board-tool-icon svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.board-history-toolbar { display: flex; flex-direction: column; gap: 6px; width: 64px; padding: 9px 8px; border: 1px solid #e0e8e3; border-radius: 14px; background: #fff; box-shadow: 0 8px 26px #365b4824; }
+.board-history-toolbar .board-tool { width: 46px; height: 46px; }
+.board-history-toolbar .board-tool-icon svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .board-canvas.connecting .board-bubble { cursor: crosshair; user-select: none; }
 .board-connection-preview { position: absolute; z-index: 3; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .board-connection-preview path { fill: none; stroke: #168264; stroke-width: 2.5; stroke-dasharray: 6 5; }
@@ -416,7 +420,6 @@
 .board-shell[data-theme="dark"] .board-zoom button { background: transparent; color: #dce8e3; }
 .board-shell[data-theme="dark"] .board-theme-toggle,
 .board-shell[data-theme="dark"] .board-top-actions > button:not(.board-theme-toggle) { background: #263633; border-color: #405650; color: #c6d7ce; }
-.board-shell[data-theme="dark"] .board-history-controls button { background: #263633; border-color: #405650; color: #c6d7ce; }
 .board-shell[data-theme="dark"] .board-selection-bar button { background: #29453a; color: #a4dfc1; }
 .board-shell[data-theme="dark"] .board-selection-bar button.danger { background: #4b302d; color: #efaaa0; }
 .board-shell[data-theme="dark"] .board-empty p,
@@ -487,7 +490,12 @@
 .board-free-draw-input.is-active rect { pointer-events: all; }
 .board-free-draw-eraser-cursor { fill: #ffffff40; stroke: var(--board-draw-color, #176c52); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .board-shell[data-theme="dark"] .board-draw-toolbar { border-color: #344744; background: #1c2a29; }
+.board-shell[data-theme="dark"] .board-draw-toolbar[data-active="true"] { border-color: #5c9b82; background: #1e342c; box-shadow: 0 0 0 2px #5c9b8233, 0 8px 26px #07151155; }
+.board-shell[data-theme="dark"] .board-draw-toolbar-label { color: #9eb5aa; }
 .board-shell[data-theme="dark"] .board-draw-toolbar .board-tool:focus-visible { outline-color: #7bd6af; }
+.board-shell[data-theme="dark"] .board-history-toolbar { border-color: #344744; background: #1c2a29; }
+.board-shell[data-theme="dark"] .board-history-toolbar .board-tool { color: #bac8c3; }
+.board-shell[data-theme="dark"] .board-history-toolbar .board-tool:focus-visible { outline-color: #7bd6af; }
 .board-shell[data-theme="dark"] .board-canvas { --board-draw-color: #7bd6af; }
 .board-tool-rule { width: 28px; margin: 4px 0; }
 .board-zoom button[aria-label="Fit ideas"] { font-size: 20px; }
@@ -577,16 +585,14 @@
   .board-description-popup { width: min(340px, calc(100vw - 20px)); }
   .board-top-actions { flex: 0 0 auto; gap: 4px; padding: 6px; }
   .board-top-actions .account-signin { padding: 8px 7px; font-size: 11px; white-space: nowrap; }
-  .board-history-controls { gap: 3px; }
-  .board-history-controls button { padding: 7px 6px; font-size: 11px; }
   .board-theme-toggle { width: 36px; height: 36px; }
-  .board-top-actions .board-share-button { width: 36px; min-width: 36px; height: 36px; padding: 0; font-size: 0; }
-  .board-top-actions .board-share-button::before { content: "↗"; font-size: 20px; }
+  .board-top-actions .board-share-button { width: 36px; min-width: 36px; height: 36px; justify-content: center; padding: 0; }
+  .board-share-label { display: none; }
   .board-tool-dock { top: calc(50% + 22px); left: 10px; }
-  .board-toolbar, .board-draw-toolbar { width: 58px; }
-  .board-draw-toolbar { padding: 8px 7px; }
+  .board-toolbar, .board-draw-toolbar, .board-history-toolbar { width: 58px; }
+  .board-draw-toolbar, .board-history-toolbar { padding: 8px 7px; }
   .board-tool { width: 42px; height: 42px; }
-  .board-draw-toolbar .board-tool { width: 42px; height: 42px; }
+  .board-draw-toolbar .board-tool, .board-history-toolbar .board-tool { width: 42px; height: 42px; }
   .board-chat { top: 134px; right: 12px; bottom: auto; width: min(340px, calc(100vw - 72px)); height: min(480px, calc(100% - 154px)); }
   .board-assistant-launch { width: 50px; height: 50px; }
   .board-zoom { left: 70px; bottom: 12px; }

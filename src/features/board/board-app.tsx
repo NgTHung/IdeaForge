@@ -16,6 +16,7 @@ import { ChatSidebar } from "./chat-sidebar";
 import { acceptAssistantCreate, assistantActionIsCurrent, type AssistantActionDraft } from "./assistant-actions";
 import { AccountMenu } from "./account-menu";
 import { ActiveMembers } from "./active-members";
+import { IdeaVotes } from "./idea-votes";
 import { useConnectDrag } from "./use-connect-drag";
 import { usePhysics, type Contact } from "./use-physics";
 import { useConnectionSuggestions } from "./use-connection-suggestions";
@@ -109,6 +110,7 @@ type BoardAppProps = {
   authorName?: string;
   editingLocks?: Record<string, string>;
   onEditingIdeaChange?: (ideaId: string | null) => void;
+  voteUserId?: string;
 };
 
 function ZoomReadout({ zoom }: { zoom: number }) {
@@ -122,7 +124,7 @@ function ToolButton({ label, active, disabled, title, onClick, children }: {
     title={title || label} disabled={disabled} onClick={onClick}><span className="board-tool-icon" aria-hidden="true">{children}</span></button>;
 }
 
-export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange }: BoardAppProps) {
+export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId }: BoardAppProps) {
   const [localBoard, setLocalBoard] = useState<Board>(() => normalizeBoardLayout(initialBoard, {}));
   const board = sharedBoard ?? localBoard;
   const setBoard = useCallback<Dispatch<SetStateAction<Board>>>((update) => {
@@ -1300,11 +1302,10 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         <div className="board-description-popup"><strong>Board description</strong>
           <p>{boardDescription.trim() || "No description was added for this board."}</p></div>
       </details>
-      <div className="board-top-actions">{onBoardChange && <><ActiveMembers /><button className="board-share-button" type="button" onClick={() => void copyBoardLink()}>Share</button></>}
-        {historyActions && <div className="board-history-controls" role="group" aria-label="Board history">
-          <button type="button" aria-label="Undo" title="Undo (Ctrl/Cmd+Z)" disabled={!historyActions.canUndo || !historyActions.canWrite} onClick={historyActions.undo}>Undo</button>
-          <button type="button" aria-label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" disabled={!historyActions.canRedo || !historyActions.canWrite} onClick={historyActions.redo}>Redo</button>
-        </div>}
+      <div className="board-top-actions">{onBoardChange && <>{voteUserId && <IdeaVotes ideas={board.ideas} votes={board.votes} voterId={voteUserId}
+        canWrite={historyActions?.canWrite ?? true} onBoardChange={onBoardChange} />}<ActiveMembers /><button className="board-share-button" type="button" aria-label="Share board" onClick={() => void copyBoardLink()}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11.5 3.5h5v5M16.2 3.8 9.5 10.5" /><path d="M14.5 10.5v4.8a1.2 1.2 0 0 1-1.2 1.2H4.7a1.2 1.2 0 0 1-1.2-1.2V6.7a1.2 1.2 0 0 1 1.2-1.2h4.8" /></svg>
+          <span className="board-share-label">Share</span></button></>}
         <AccountMenu />
         <button className="board-theme-toggle" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} aria-pressed={theme === "dark"} onClick={() => setTheme((value) => value === "dark" ? "light" : "dark")}>{theme === "dark" ? "☼" : "◐"}</button></div>
       {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
@@ -1359,7 +1360,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         <div className="board-tool-dock">
         <button className={`board-assistant-launch ${chatOpen ? "is-open" : ""}`} aria-label={chatOpen ? "Close AI helper" : "Open AI helper"} title={chatOpen ? "Close AI helper" : "Open AI helper"} aria-expanded={chatOpen} onClick={() => setChatOpen((value) => !value)}>✳</button>
         <nav className="board-toolbar" aria-label="Board tools">
-          <ToolButton label="Select" active={tool === "select"} onClick={() => selectTool("select")}>↖</ToolButton>
+          <ToolButton label="Select" title={drawTool ? "Stop drawing and select ideas" : "Select ideas"}
+            active={tool === "select" && !drawTool} onClick={() => selectTool("select")}>↖</ToolButton>
           <ToolButton label="Hand / Pan" active={tool === "hand"} onClick={() => selectTool("hand")}>✋</ToolButton>
           <div className="board-tool-rule" />
           <ToolButton label="Add idea" active={tool === "add"} onClick={() => selectTool("add")}>＋</ToolButton>
@@ -1368,7 +1370,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           <div className="board-tool-rule" />
           <ToolButton label={clusterResult ? "Organize again" : "Organize"} active={organizeOpen} disabled={clusterBusy || assignmentBusy || clusterInput.cards.length < 2 || clusterInput.cards.length > 50 || clusterInput.tooLongCount > 0} title={clusterInput.tooLongCount ? "Shorten note text to 4,000 characters before organizing" : "Group related notes and arrange the canvas"} onClick={openOrganize}>▦</ToolButton>
         </nav>
-        <nav className="board-draw-toolbar" aria-label="Free drawing tools">
+        <nav className="board-draw-toolbar" aria-label="Free drawing tools" data-active={Boolean(drawTool)}>
+          <span className="board-draw-toolbar-label" aria-hidden="true">DRAW</span>
           <ToolButton label="Pencil" active={drawTool === "pencil"} disabled={!canWriteBoard} onClick={() => selectDrawTool("pencil")}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16.5-.9 4.4 4.4-.9L19.8 7.7a2.1 2.1 0 0 0-3-3L4 16.5Z" /><path d="m14.8 6.7 3 3" /></svg>
           </ToolButton>
@@ -1376,6 +1379,14 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3.5 14.3 8.8-9.1a2 2 0 0 1 2.9 0l5.2 5.2a2 2 0 0 1 0 2.9l-6.4 6.4H8.7l-5.2-5.2a1.5 1.5 0 0 1 0-2.2Z" /><path d="m8.4 9.2 6.5 6.5M14 19.7h6.5" /></svg>
           </ToolButton>
         </nav>
+        {historyActions && <nav className="board-history-toolbar" aria-label="Board history">
+          <ToolButton label="Undo" title="Undo (Ctrl/Cmd+Z)" disabled={!historyActions.canUndo || !historyActions.canWrite} onClick={historyActions.undo}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7-5 5 5 5" /><path d="M4.5 12h8a7 7 0 0 1 7 7" /></svg>
+          </ToolButton>
+          <ToolButton label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" disabled={!historyActions.canRedo || !historyActions.canWrite} onClick={historyActions.redo}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5" /><path d="M19.5 12h-8a7 7 0 0 0-7 7" /></svg>
+          </ToolButton>
+        </nav>}
         </div>
         {organizeOpen && <section className="board-organize-panel" aria-label="Organize notes">
           <div className="board-organize-head"><h2>Organize notes</h2><button type="button" className="board-icon-button" aria-label="Close organize panel" onClick={() => setOrganizeOpen(false)}>×</button></div>

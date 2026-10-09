@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { useReactFlow, useViewport, ViewportPortal } from "@xyflow/react";
+import { Panel, useReactFlow, useViewport, ViewportPortal } from "@xyflow/react";
 import { createIdeaId } from "./id";
 import type { FreeDrawStroke } from "./model";
 
@@ -125,24 +125,30 @@ export function FreeDrawLayer({
     setErasingIds([]);
   }
 
-  return <ViewportPortal>
-    <svg className="board-free-draw-visual" aria-hidden="true">
-      {strokes.filter((stroke) => !erasingIds.includes(stroke.id)).map((stroke) => <path key={stroke.id} d={strokePath(stroke.points)} />)}
-      {liveStrokes.map((stroke) => <path className="board-free-draw-live" key={stroke.id} d={strokePath(stroke.points)} />)}
-      {draftPoints.length > 0 && <path className="board-free-draw-draft" d={strokePath(draftPoints)} />}
-    </svg>
-    <svg
-      ref={inputLayer}
-      className={`board-free-draw-input${active ? " is-active" : ""}${tool === "eraser" ? " is-erasing" : ""}`}
-      aria-hidden="true"
-      onPointerDown={pointerDown}
-      onPointerMove={pointerMove}
-      onPointerUp={(event) => finishGesture(event, true)}
-      onPointerCancel={(event) => finishGesture(event, false)}
-      onLostPointerCapture={(event) => finishGesture(event, false)}
-    >
-      <rect width="100%" height="100%" fill="transparent" />
-      {active && tool === "eraser" && cursorPoint && <circle className="board-free-draw-eraser-cursor" cx={cursorPoint.x} cy={cursorPoint.y} r={16 / Math.max(zoom, 0.15)} />}
-    </svg>
-  </ViewportPortal>;
+  return <>
+    <ViewportPortal>
+      <svg className="board-free-draw-visual" aria-hidden="true">
+        {strokes.filter((stroke) => !erasingIds.includes(stroke.id)).map((stroke) => <path key={stroke.id} d={strokePath(stroke.points)} />)}
+        {liveStrokes.map((stroke) => <path className="board-free-draw-live" key={stroke.id} d={strokePath(stroke.points)} />)}
+        {draftPoints.length > 0 && <path className="board-free-draw-draft" d={strokePath(draftPoints)} />}
+        {active && tool === "eraser" && cursorPoint && <circle className="board-free-draw-eraser-cursor" cx={cursorPoint.x} cy={cursorPoint.y} r={16 / Math.max(zoom, 0.15)} />}
+      </svg>
+    </ViewportPortal>
+    {/* Capture input in screen space so canvas pan and zoom cannot shift or shrink the hit area. */}
+    <Panel position="top-left" className="board-free-draw-panel"
+      style={{ inset: 0, width: "100%", height: "100%", margin: 0, pointerEvents: "none" }}>
+      <svg
+        ref={inputLayer}
+        className={`board-free-draw-input${active ? " is-active" : ""}${tool === "eraser" ? " is-erasing" : ""}`}
+        aria-hidden="true"
+        onPointerDown={pointerDown}
+        onPointerMove={pointerMove}
+        onPointerUp={(event) => finishGesture(event, true)}
+        onPointerCancel={(event) => finishGesture(event, false)}
+        onLostPointerCapture={(event) => finishGesture(event, false)}
+      >
+        <rect width="100%" height="100%" fill="transparent" />
+      </svg>
+    </Panel>
+  </>;
 }
