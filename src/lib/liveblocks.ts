@@ -16,7 +16,7 @@ export type BoardStorage = {
   dismissedConnections?: LiveMap<string, ConnectionPair>;
   clusterSnapshot: LiveObject<ClusterSnapshot> | null;
 };
-type BoardPresence = { editingIdeaId?: string | null; drawing?: FreeDrawStroke | null };
+type BoardPresence = { editingIdeaId?: string | null; drawing?: FreeDrawStroke | null; cursor?: { x: number; y: number } | null };
 type BoardUserMeta = { id?: string; info?: { name?: string; avatar?: string } };
 
 const client = createClient({ authEndpoint: "/api/liveblocks-auth" });
