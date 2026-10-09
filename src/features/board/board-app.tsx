@@ -1422,7 +1422,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         {board.ideas.length === 0 && <div className="board-empty"><span>✳</span><h2>Your board is ready</h2><p>Start with one thought. You can connect it to others as your map grows.</p><button onClick={addAtCenter}>＋ Add your first idea</button></div>}
         {(mergeIds.length > 0 || tool === "merge") && mergeIds.every((id) => board.ideas.some((idea) => idea.id === id)) && !mergePreview && <div className="board-merge-tray" role="region" aria-label="Merge selected ideas">
           <div className="board-merge-tray-copy"><strong>{mergeIds.length < 2 ? mergeIds.length === 0 ? "Choose ideas to merge" : "Choose one more idea" : `${mergeIds.length} ideas selected`}</strong>
-            <span>Choose 2–{MAX_MERGE_SOURCES}; each note needs text. Up to 4,000 characters per note.</span>
+            <span>Choose 2–{MAX_MERGE_SOURCES} ideas</span>
             <div className="board-merge-chips" aria-label="Selected source ideas">{mergeIds.map((id, index) => <span className="board-merge-chip" key={id}>
               <span>{index + 1}. {board.ideas.find((idea) => idea.id === id)?.title || "Idea"}</span>
               <button type="button" aria-label={`Move ${board.ideas.find((idea) => idea.id === id)?.title || "idea"} earlier`} disabled={index === 0} onClick={() => moveMergeSource(id, -1)}>↑</button>
@@ -1486,12 +1486,35 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           <details className="board-merge-disclosure">
             <summary>Why these ideas fit</summary>
             <div className="board-merge-reasoning">
-              <section><h3>What each idea adds</h3>{mergePreview.result.contributions.map((item, index) => <div className="board-merge-reasoning-item" key={item.sourceId}><strong>{board.ideas.find((idea) => idea.id === item.sourceId)?.title || `Idea ${index + 1}`}</strong><MarkdownText>{item.contribution}</MarkdownText></div>)}</section>
-              <section><h3>Why the combination works</h3><MarkdownText>{mergePreview.result.bridge}</MarkdownText></section>
-              <section><h3>What needs checking</h3><div className="board-merge-reasoning-item"><strong>Tension</strong><MarkdownText>{mergePreview.result.tension}</MarkdownText></div>
-                {mergePreview.result.assumptions.length > 0 && <div className="board-merge-reasoning-item"><strong>Assumptions</strong><MarkdownText>{mergePreview.result.assumptions.join("\n\n")}</MarkdownText></div>}
-                <div className="board-merge-reasoning-item"><strong>First experiment</strong><MarkdownText>{mergePreview.result.nextExperiment}</MarkdownText></div></section>
-              {previewContext?.relationships.length ? <section><h3>Existing links</h3>{previewContext.relationships.map((relationship, index) => <div className="board-merge-reasoning-item" key={`${relationship.type}-${relationship.sourceId}-${relationship.targetId}-${index}`}><strong>{relationshipLabels[relationship.type]}</strong><p>{board.ideas.find((idea) => idea.id === relationship.sourceId)?.title || "Source"} → {board.ideas.find((idea) => idea.id === relationship.targetId)?.title || "Target"}</p>{relationship.explanation && <MarkdownText>{relationship.explanation}</MarkdownText>}{relationship.condition && <MarkdownText>Condition: {relationship.condition}</MarkdownText>}</div>)}</section> : null}
+              <section className="board-merge-contributions">
+                <h3>What each idea adds</h3>
+                <ol className="board-merge-contribution-list">{mergePreview.result.contributions.map((item, index) => <li className="board-merge-contribution-card" key={item.sourceId}>
+                  <span className="board-merge-contribution-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                  <div><strong>{board.ideas.find((idea) => idea.id === item.sourceId)?.title || `Idea ${index + 1}`}</strong><MarkdownText>{item.contribution}</MarkdownText></div>
+                </li>)}</ol>
+              </section>
+              <section className="board-merge-bridge">
+                <span className="board-merge-section-kicker">THE CONNECTION</span>
+                <h3>Why the combination works</h3>
+                <MarkdownText>{mergePreview.result.bridge}</MarkdownText>
+              </section>
+              <section className="board-merge-checks">
+                <h3>What needs checking</h3>
+                <div className="board-merge-tension"><span className="board-merge-section-kicker">TENSION</span><MarkdownText>{mergePreview.result.tension}</MarkdownText></div>
+                {mergePreview.result.assumptions.length > 0 && <div className="board-merge-assumptions">
+                  <h4>Assumptions</h4>
+                  <ul>{mergePreview.result.assumptions.map((assumption, index) => <li key={`${index}-${assumption}`}><MarkdownText>{assumption}</MarkdownText></li>)}</ul>
+                </div>}
+              </section>
+              <section className="board-merge-experiment">
+                <span className="board-merge-section-kicker">TRY THIS FIRST</span>
+                <h3>First experiment</h3>
+                <MarkdownText>{mergePreview.result.nextExperiment}</MarkdownText>
+              </section>
+              {previewContext?.relationships.length ? <details className="board-merge-existing-links">
+                <summary>Review existing links ({previewContext.relationships.length})</summary>
+                <div>{previewContext.relationships.map((relationship, index) => <div className="board-merge-reasoning-item" key={`${relationship.type}-${relationship.sourceId}-${relationship.targetId}-${index}`}><strong>{relationshipLabels[relationship.type]}</strong><p>{board.ideas.find((idea) => idea.id === relationship.sourceId)?.title || "Source"} → {board.ideas.find((idea) => idea.id === relationship.targetId)?.title || "Target"}</p>{relationship.explanation && <MarkdownText>{relationship.explanation}</MarkdownText>}{relationship.condition && <MarkdownText>Condition: {relationship.condition}</MarkdownText>}</div>)}</div>
+              </details> : null}
             </div>
           </details>
         </>}
