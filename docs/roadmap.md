@@ -32,6 +32,8 @@ In progress:
 
 Verified:
 
+- On 2026-10-09, `work:WORK-038` added the board conclusion: `/api/conclusion`, a header **Conclusion** panel, one replaceable conclusion per room, and Markdown export. All 167 tests, lint, typecheck, and the production build passed; 12 new tests cover selection, merge records, fingerprints, citation and conflict checks, Markdown, export, and the route's one-time repair. `npm run verify:board-conclusion` passed against live Liveblocks: a room without a `conclusion` key, sync to a second and a read-only client, rejection of a read-only write, whole replacement, reload, and unchanged ideas and votes. `scripts/probe-board-conclusion.mjs` now drives the real route; 10 live GLM-5.3-Flash runs on the synthetic 30-card board all returned valid drafts without repair or fallback, from 3.6 s for one merged note to 24.7 s at most. Both single-merged-note drafts listed the merge record's assumptions and next experiment. One draft wrote a card ID in prose, and 2 of 8 multi-cluster drafts still moved the solo pool to the earlier assignment deadline, so the team must check drafts before keeping them. A dev-server browser session over Tailscale covered Organize, cluster and idea selection with upvote counts, a live draft, editing, keeping, reload, replacement with confirmation, a simulated provider failure, the `.md` download, and dark mode; Organize needed a `crypto.randomUUID` polyfill because plain HTTP isn't a secure context. Clipboard copy over HTTPS, the stale-draft path in the browser, read-only and two-browser UI, mobile layout, and Vietnamese notes were not tested.
+- On 2026-10-09, `scripts/probe-board-conclusion.mjs` tested whether `zai-org/GLM-5.3-Flash` can draft the `work:WORK-038` board conclusion. It ran a prototype prompt through the shared AI module against a synthetic 30-card English board written for the probe, with four authors, four clusters, one merged note, and two conflict links. All 12 live runs returned a valid conclusion without the fallback model: 5 medium selections of 18 cards (median 10.9 s), 5 full-board selections of 30 cards (median 12.6 s, maximum 25.1 s), and 2 single merged notes (median 7.3 s). Four runs used their one repair; the module doesn't log why. The full board was 6,153 characters of request JSON. Every draft cited only requested cards and handled both conflicts. Reading the drafts found that three of six full-board drafts, including a smoke run, moved the solo pool to the earlier assignment deadline; the medium drafts had no such error. Single-note conclusions had no assumptions because the prompt received none. The UI, Vietnamese notes, and human quality review were not tested.
 - On 2026-10-09, `work:WORK-036` added removable named upvotes to idea cards and the header dropdown. All 155 tests, lint, typecheck, and the production build passed. `npm run verify:idea-voting` verified older-room initialization, concurrent votes, offline names, reload persistence, stable voter IDs, and unchanged notes and merge snapshots with two live Liveblocks clients. Tailscale browser checks covered card and dropdown voting, voter lists, Escape focus restoration, dark mode, and disabled controls with a real read-only room token. The HTTP production-browser checks used seeded guest cookies; HTTPS guest entry and Gemini calls were not retested. Mobile resizing lost the collaborative browser connection, so mobile layout remains unverified.
 - On 2026-10-09, live cursors passed lint, typecheck, and the production build. An isolated two-client Liveblocks check confirmed cursor positions reach the other client and clear after the sender sets its cursor to null. Browser rendering and alignment across different viewports were not checked.
 - On 2026-10-09, free drawing passed lint, a focused TypeScript check, and an isolated production build. The regular typecheck could not write `.next/types/routes.d.ts` in the working copy (`EPERM`). The two-client Liveblocks check was attempted with configured credentials, but authorization returned HTTP 503, so room broadcast and reload persistence remain unverified against the live service.
@@ -113,7 +115,7 @@ Names aren't assigned yet. Each task in `.tasks/` names its owner by role.
 | SE1 | Canvas interactions: cards, links, suggestion and merge previews, Organize animation |
 | SE2 | Deployment, sync, authorship, deletion, editing lock, release checks |
 | AI1 | Embeddings, similarity, connection suggestions, Organize inputs |
-| AI2 | Shared AI module, merge prompt, concept brief, evaluation cases |
+| AI2 | Shared AI module, merge prompt, board conclusion, evaluation cases |
 
 ## Plan
 
@@ -123,7 +125,7 @@ Day 1 is the first of the five days remaining as of 2026-10-05. Each day ends wi
 | --- | --- | --- |
 | 1 | Deployment, sync, authors, typed links, similarity, shared AI module, evaluation cases | Two browsers on the deployed app share typed links and cards that show their authors |
 | 2 | Connection suggestions, editable link-aware merges | Two users go from create to connect to combine on the deployed app |
-| 3 | Organize, deletion, editing lock, concept brief | The whole demo journey works on the deployed app |
+| 3 | Organize, deletion, editing lock, board conclusion | The whole demo journey works on the deployed app |
 | 4 | Session with an unfamiliar team, AI evaluation, release checks | Feature freeze: every release check passes |
 | 5 | Demo board, backup video, README, submission | Submitted with time remaining |
 
@@ -134,7 +136,7 @@ If the schedule slips, cut in this order:
 1. Board assistant.
 2. Live cursors.
 3. Organize animation. Keep the layout and drop the animation.
-4. Concept brief.
+4. Board conclusion.
 
 Protect live collaboration, explained connections, merging with ancestry, and persistence.
 
@@ -190,7 +192,7 @@ Run these on the deployed app before the Day 4 feature freeze:
 4. Wait for automatic connection suggestions after adding or editing ideas.
 5. Open the explanation of a suggestion that links cards from different people, and accept it.
 6. Merge the pair, walk through each contribution and the assumptions it adds, and keep the concept.
-7. Show its authors and parent cards, and generate the concept brief.
+7. Show its authors and parent cards. Select the merged concept and a cluster, generate a conclusion, and export it as Markdown.
 8. Reload to show the board persists.
 
 Explain what changed in the team's thinking rather than listing technologies.
