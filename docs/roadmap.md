@@ -129,6 +129,8 @@ Day 1 is the first of the five days remaining as of 2026-10-05. Each day ends wi
 
 Stretch work covers a board assistant that proposes actions as previews, specified in [Board assistant](assistant.md), and live cursors. Board assistant work may start when its technical prerequisites are ready. Live cursor work starts only after the Day 3 milestone is done.
 
+Planned personalization in `work:WORK-039` covers cursor, note, relationship, and UI styles, plus cluster colors, visible names, and optional cat and rainbow borders. It also covers merge celebrations, upvote reactions, contributor entrances, AI thinking animations, undo time travel, team milestones, achievement stickers, share-link delivery, and board mood. The task is To Do with Medium priority and no submission milestone. Implementation and verification have not started.
+
 If the schedule slips, cut in this order:
 
 1. Board assistant.

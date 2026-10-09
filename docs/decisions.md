@@ -75,6 +75,7 @@ Stretch:
 
 - A board assistant that proposes create, edit, link, and merge actions as previews. A board this size fits in one prompt, so the assistant uses the whole board as context and needs no retrieval. Work may start when its technical prerequisites are ready. The design is in [Board assistant](assistant.md).
 - Live cursors are a stretch feature. Work started at the user's request before the Day 3 exit checks.
+- Personalization for cursors, notes, relationship lines, the board UI, and named cluster decorations, including cat and rainbow borders. Planned activity effects cover merges, upvotes, contributor entrances, AI requests, undo, team milestones, achievement stickers, sharing, and a plant that reflects board activity. `work:WORK-039` tracks this stretch work.
 
 Deferred:
 
@@ -157,6 +158,8 @@ For Organize, the browser sends eligible note text and the selected group count 
 - The merge route exports `maxDuration = 95` to cover three 30-second AI attempts and the retry delay. Keep Fluid compute enabled when deploying; its duration limits support this budget. See [Vercel function duration](https://vercel.com/docs/functions/configuring-functions/duration).
 
 ## Log
+
+- 2026-10-09: personalization includes named clusters and playful activity effects. At the user's request, `work:WORK-039` covers cursor, note, relationship, UI, and cluster styles, plus merge celebrations, upvote reactions, contributor entrances, AI thinking animations, undo time travel, team milestones, tiny achievement stickers, share-link delivery, and board mood. Cluster headings reuse saved group names and existing rename controls, remain visible with or without decorative borders, and use numbered fallbacks. Cursor, UI, and animation preferences persist in the participant's browser; shared object styles follow board write access. Stickers persist per participant and board in that browser, and the mood plant reflects saved board activity. Effects follow actual actions and request states, respect reduced motion, and can be disabled. The task remains planned stretch work; implementation has not started.
 
 - **2026-10-09: voting uses named upvotes only.** At the user's request, `work:WORK-036` drops downvotes and shows the score on each idea card. Cards and the header dropdown share upvote controls and a voter list. Votes store the stable guest ID and the display name at the time of voting, so reconnects do not create extra votes and names remain visible offline. Existing downvotes are ignored. Voting follows room write access and leaves idea text and merge source snapshots intact.
 - **2026-10-09: live cursor work moved ahead of the Day 3 gate.** At the user's request, implement shared board cursors before the Day 3 demo journey is verified. The feature remains stretch work and uses Liveblocks Presence.
