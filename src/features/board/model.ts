@@ -1,5 +1,6 @@
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
 import type { MergeProposal, MergeResult } from "@/lib/ideas";
+import type { ConclusionDraft, ConclusionRequest } from "@/lib/conclusion";
 
 export type MergeSourceSnapshot = { id: string; title: string; content: string; author: string };
 export type MergeRelationshipSnapshot = {
@@ -63,7 +64,19 @@ export type ConnectionPair = { sourceId: string; targetId: string };
 // Keep the legacy value so saved downvotes can be ignored without rewriting a room.
 export type IdeaVote = { ideaId: string; voterId: string; voterName?: string; value: 1 | -1 };
 export type FreeDrawStroke = { id: string; points: { x: number; y: number }[] };
-export type Board = { goal?: string; ideas: Idea[]; relationships: Relationship[]; votes?: IdeaVote[]; drawings?: FreeDrawStroke[]; dismissedConnections?: ConnectionPair[]; clusterSnapshot?: ClusterSnapshot | null };
+// The request stores the selected notes, clusters, and links as they were when the draft was generated.
+export type BoardConclusion = {
+  version: 1;
+  title: string;
+  markdown: string;
+  generated: ConclusionDraft;
+  request: ConclusionRequest;
+  model: string;
+  generatedAt: string;
+  keptBy: string;
+  keptAt: string;
+};
+export type Board = { goal?: string; ideas: Idea[]; relationships: Relationship[]; votes?: IdeaVote[]; drawings?: FreeDrawStroke[]; dismissedConnections?: ConnectionPair[]; clusterSnapshot?: ClusterSnapshot | null; conclusion?: BoardConclusion | null };
 
 export const IDEA_CARD_SIZE = { width: 272, height: 148 } as const;
 export const MERGED_IDEA_CARD_SIZE = { width: 320, height: 184 } as const;

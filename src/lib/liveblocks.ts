@@ -1,6 +1,6 @@
 import { createClient, LiveMap, LiveObject } from "@liveblocks/client";
 import { createRoomContext } from "@liveblocks/react";
-import type { ConnectionPair, FreeDrawStroke, Idea, IdeaVote, Relationship } from "@/features/board/model";
+import type { BoardConclusion, ConnectionPair, FreeDrawStroke, Idea, IdeaVote, Relationship } from "@/features/board/model";
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
 
 export type BoardStorage = {
@@ -15,6 +15,8 @@ export type BoardStorage = {
   // Rooms created before dismissals were shared don't have this map until the first dismissal.
   dismissedConnections?: LiveMap<string, ConnectionPair>;
   clusterSnapshot: LiveObject<ClusterSnapshot> | null;
+  // Rooms created before board conclusions don't have this key until the first conclusion is kept.
+  conclusion?: LiveObject<BoardConclusion> | null;
 };
 type BoardPresence = { editingIdeaId?: string | null; drawing?: FreeDrawStroke | null; cursor?: { x: number; y: number } | null };
 type BoardUserMeta = { id?: string; info?: { name?: string; avatar?: string } };
@@ -35,5 +37,6 @@ export function createBoardStorage(title: string, ideas: Idea[], relationships: 
     drawings: new LiveMap<string, LiveObject<FreeDrawStroke>>(),
     dismissedConnections: new LiveMap<string, ConnectionPair>(),
     clusterSnapshot: null,
+    conclusion: null,
   };
 }

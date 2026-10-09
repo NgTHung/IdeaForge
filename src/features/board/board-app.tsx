@@ -17,6 +17,7 @@ import { acceptAssistantCreate, assistantActionIsCurrent, type AssistantActionDr
 import { AccountMenu } from "./account-menu";
 import { ActiveMembers } from "./active-members";
 import { IdeaVotes } from "./idea-votes";
+import { ConclusionPanel, ConclusionTrigger } from "./conclusion-panel";
 import { toggleIdeaUpvote, upvotersForIdea } from "./idea-voting";
 import { LiveCursors, type LiveCursor } from "./live-cursors";
 import { useConnectDrag } from "./use-connect-drag";
@@ -169,6 +170,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const [lockNotice, setLockNotice] = useState("");
   const [physicsEnabled, setPhysicsEnabled] = useState(!onBoardChange);
   const [chatOpen, setChatOpen] = useState(false);
+  const [conclusionOpen, setConclusionOpen] = useState(false);
+  const closeConclusion = useCallback(() => setConclusionOpen(false), []);
   const [assistantPreview, setAssistantPreview] = useState<AssistantActionDraft | null>(null);
   const [assistantDetailsId, setAssistantDetailsId] = useState<string | null>(null);
   const [draftIdeaId, setDraftIdeaId] = useState<string | null>(null);
@@ -1308,7 +1311,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         <div className="board-description-popup"><strong>Board description</strong>
           <p>{boardDescription.trim() || "No description was added for this board."}</p></div>
       </details>
-      <div className="board-top-actions">{onBoardChange && <>{voteUserId && <IdeaVotes ideas={board.ideas} votes={board.votes} voterId={voteUserId} voterName={authorName || "Unknown contributor"}
+      <div className="board-top-actions"><ConclusionTrigger open={conclusionOpen} hasConclusion={Boolean(board.conclusion)} onToggle={() => setConclusionOpen((value) => !value)} />
+        {onBoardChange && <>{voteUserId && <IdeaVotes ideas={board.ideas} votes={board.votes} voterId={voteUserId} voterName={authorName || "Unknown contributor"}
         canWrite={canWriteBoard} onBoardChange={onBoardChange} />}<ActiveMembers /><button className="board-share-button" type="button" aria-label="Share board" onClick={() => void copyBoardLink()}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11.5 3.5h5v5M16.2 3.8 9.5 10.5" /><path d="M14.5 10.5v4.8a1.2 1.2 0 0 1-1.2 1.2H4.7a1.2 1.2 0 0 1-1.2-1.2V6.7a1.2 1.2 0 0 1 1.2-1.2h4.8" /></svg>
           <span className="board-share-label">Share</span></button></>}
@@ -1550,6 +1554,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         <button type="button" className="primary" disabled={mergeSaving || mergeBusy || previewStale || mergePreview.result.status !== "useful" || !mergePreview.title.trim() || !mergePreview.concept.trim()} onClick={keepMerge}>Create merged idea</button>
       </div>
     </div>}
+    <ConclusionPanel open={conclusionOpen} board={board} boardTitle={title} canWrite={canWriteBoard} authorName={authorName || "Unknown contributor"}
+      onCommit={commitBoardChange} onClose={closeConclusion} />
     {selectedMergeIdea?.merge && <div className="board-merge-details" role="dialog" aria-modal="false" aria-label="How this idea was made"><div className="board-merge-panel-head"><h2>How this idea was made</h2><button type="button" aria-label="Close merge details" onClick={() => setMergeDetailsId(null)}>×</button></div>
       <button type="button" className="board-merge-show-sources" onClick={() => {
         const sourceIds = mergeDisplayData(selectedMergeIdea.merge!).sources.map((source) => source.id).filter((id) => board.ideas.some((idea) => idea.id === id));
