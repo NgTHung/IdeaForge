@@ -17,6 +17,13 @@ export type AssistantIdeaRecord = {
   model: string;
   generatedAt: string;
 };
+export type IdeaDescriptionRecord = {
+  generatedContent: string;
+  title: string;
+  goal: string;
+  model: string;
+  generatedAt: string;
+};
 export type LegacyMergeRecord = {
   version?: 1;
   sources: [MergeSourceSnapshot, MergeSourceSnapshot];
@@ -48,6 +55,7 @@ export type Idea = {
   author?: string;
   merge?: MergeRecord;
   assistant?: AssistantIdeaRecord;
+  descriptionGeneration?: IdeaDescriptionRecord;
 };
 
 export type RelationshipType = "synergy" | "conflict" | "extends";

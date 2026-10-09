@@ -15,9 +15,11 @@ export type IdeaNode = Node<{
   squash: { axis: "x" | "y"; token: number } | null;
   clusterLabel?: string;
   clusterColor?: number;
+  descriptionStatus?: { kind: "pending" | "error" | "question"; message?: string };
   mergeIndex: number;
   onMergeDetails?: () => void;
   onAssistantDetails?: () => void;
+  onRetryDescription?: () => void;
   onSelect: (additive: boolean) => void;
   onEdit: () => void;
   onStartConnection: (event: PointerEvent<HTMLDivElement>) => void;
@@ -54,7 +56,18 @@ export function Bubble({ data, selected, dragging }: NodeProps<IdeaNode>) {
       <div className="board-bubble-top"><span className="board-bubble-kicker">{idea.assistant ? "ASSISTANT IDEA" : idea.merge ? "COMBINED CONCEPT" : "IDEA"}</span><span className="board-bubble-badges">{data.mergeIndex > 0 && <span className="board-merge-index" aria-label={`Merge idea ${data.mergeIndex}`}>{data.mergeIndex}</span>}{data.clusterLabel && !idea.merge && <span className="board-cluster-badge">{data.clusterLabel}</span>}{idea.pinned && <span className="board-pinned" title="Pinned idea">PINNED</span>}</span></div>
       {idea.merge && data.clusterLabel && <div className="board-merged-cluster-line"><span className="board-cluster-badge">{data.clusterLabel}</span></div>}
       {data.editingBy && <span className="board-card-editing-lock" title={`${data.editingBy} is editing this idea`}>{data.editingBy} editing</span>}
-      <h3>{idea.title}</h3>{idea.author && !idea.merge && <small className="board-bubble-author">By {idea.author}</small>}<MarkdownText className="board-bubble-markdown">{idea.content || "Add a few details to this idea."}</MarkdownText>
+      <h3>{idea.title}</h3>{idea.author && !idea.merge && <small className="board-bubble-author">By {idea.author}</small>}
+      {idea.descriptionGeneration && <small className="board-description-provenance" title={`Generated with ${idea.descriptionGeneration.model} on ${new Date(idea.descriptionGeneration.generatedAt).toLocaleString()}`}>
+        {idea.content.trim() === idea.descriptionGeneration.generatedContent.trim() ? "AI-generated description" : "Edited after AI generation"}
+      </small>}
+      {data.descriptionStatus?.kind === "pending" && <small className="board-description-status" role="status">Generating description…</small>}
+      {data.descriptionStatus?.kind === "error" && <div className="board-description-status is-error" role="alert"><span>{data.descriptionStatus.message}</span>
+        <button type="button" className="nodrag nopan" onClick={(event) => { event.stopPropagation(); data.onRetryDescription?.(); }}>Try again</button>
+      </div>}
+      {data.descriptionStatus?.kind === "question" && <div className="board-description-status is-question" role="status"><span>{data.descriptionStatus.message}</span>
+        <button type="button" className="nodrag nopan" onClick={(event) => { event.stopPropagation(); data.onEdit(); }}>Add details</button>
+      </div>}
+      {(idea.content || !data.descriptionStatus) && <MarkdownText className="board-bubble-markdown">{idea.content || "Add a few details to this idea."}</MarkdownText>}
       {idea.merge && <button type="button" className="board-merge-details-button nodrag nopan" onClick={(event) => { event.stopPropagation(); data.onMergeDetails?.(); }}>How this idea was made</button>}
       {idea.assistant && !data.preview && <button type="button" className="board-merge-details-button nodrag nopan" onClick={(event) => { event.stopPropagation(); data.onAssistantDetails?.(); }}>Show assistant sources</button>}
       {data.voting && <div className="board-bubble-voting"><IdeaUpvote ideaTitle={idea.title} {...data.voting} /></div>}

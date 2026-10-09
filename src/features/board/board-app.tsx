@@ -32,11 +32,17 @@ import { appendClusterAssignment, memberFingerprint, renameClusterGroup } from "
 import { addMergedIdea, mergeContext, mergeText, relatedIdeaPosition, mergeDisplayData, mergeRecordFor } from "./merge-board";
 import { initialGoal, MAX_MERGE_SOURCES, MAX_MERGE_TOTAL_CHARACTERS, mergeCoverageProblem, mergeProposalSchema, type MergeProposal } from "@/lib/ideas";
 import { historyShortcut } from "./history-shortcut";
+import { canApplyIdeaDescription, ideaDescriptionGoal, isTitleOnlyIdea, type IdeaDescriptionRequestState } from "./description-generation";
+import { ideaDescriptionResponseSchema } from "@/lib/idea-description-contract";
 import "./board.css";
 
 type Tool = "select" | "hand" | "add" | "connect" | "merge";
 type Selection = { kind: "idea" | "relationship"; id: string } | null;
 type MergePreview = { ids: string[]; fingerprint: string; result: MergeProposal; model: string; generatedAt: string; title: string; concept: string };
+type DescriptionStatus =
+  | { kind: "pending"; autoPlace: boolean; goal: string }
+  | { kind: "error"; autoPlace: boolean; goal: string; message: string }
+  | { kind: "question"; autoPlace: boolean; goal: string; message: string };
 const nodeTypes = { idea: Bubble, assistantPreview: Bubble };
 const edgeTypes = { orthogonal: OrthogonalEdge };
 const AUTO_PLACE_KEY = "ideaforge-auto-place-new-notes";
@@ -167,6 +173,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const [editor, setEditor] = useState<{ id: string; title: string; content: string } | null>(null);
   const [editorPreview, setEditorPreview] = useState(false);
   const [editError, setEditError] = useState("");
+  const [descriptionStatuses, setDescriptionStatuses] = useState<Record<string, DescriptionStatus>>({});
   const [lockNotice, setLockNotice] = useState("");
   const [physicsEnabled, setPhysicsEnabled] = useState(!onBoardChange);
   const [chatOpen, setChatOpen] = useState(false);
@@ -200,6 +207,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const flow = useRef<ReactFlowInstance<IdeaNode, OrthogonalCanvasEdge> | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const titleInput = useRef<HTMLInputElement>(null);
+  const editorDraftRef = useRef<{ id: string; title: string; content: string } | null>(null);
   const draftIdeaRef = useRef<Idea | null>(null);
   const suppressTitleCommit = useRef(false);
   const boardRef = useRef(board);
@@ -218,13 +226,65 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const assignmentRequestSequence = useRef(0);
   const assignmentController = useRef<AbortController | null>(null);
   const activeAssignmentId = useRef<string | null>(null);
+  const descriptionRequests = useRef(new Map<string, { request: IdeaDescriptionRequestState; controller: AbortController; autoPlace: boolean }>());
+  const descriptionSequence = useRef(0);
+  const pendingAutoPlacement = useRef(new Set<string>());
+  const autoPlacementStarted = useRef(new Set<string>());
+  const assignNewNoteHandler = useRef<(savedBoard: Board, savedIdea: Idea) => Promise<void>>(async () => undefined);
   const mergeController = useRef<AbortController | null>(null);
   const mergeRequestSequence = useRef(0);
   const mergeSaveLock = useRef(false);
   const dragRevisions = useRef(new Map<string, number>());
   const autoPlacePreference = useRef(autoPlaceNewNotes);
+  const boardTitleRef = useRef(title);
+  const canWriteRef = useRef(canWriteBoard);
+  const placeNoteOnce = useCallback((ideaId: string) => {
+    if (!autoPlacePreference.current || !canWriteRef.current || autoPlacementStarted.current.has(ideaId)) return;
+    const savedBoard = boardRef.current;
+    const savedIdea = savedBoard.ideas.find((idea) => idea.id === ideaId);
+    if (!savedIdea || !clusterText(savedIdea)) return;
+    autoPlacementStarted.current.add(ideaId);
+    void assignNewNoteHandler.current(savedBoard, savedIdea);
+  }, []);
+  const settlePendingPlacement = useCallback((ideaId: string) => {
+    if (!pendingAutoPlacement.current.has(ideaId) || editorDraftRef.current?.id === ideaId) return;
+    pendingAutoPlacement.current.delete(ideaId);
+    placeNoteOnce(ideaId);
+  }, [placeNoteOnce]);
+  const queueOrSettlePlacement = useCallback((ideaId: string) => {
+    pendingAutoPlacement.current.add(ideaId);
+    settlePendingPlacement(ideaId);
+  }, [settlePendingPlacement]);
+  useEffect(() => { boardTitleRef.current = title; }, [title]);
+  useEffect(() => { canWriteRef.current = canWriteBoard; }, [canWriteBoard]);
   useEffect(() => { autoPlacePreference.current = autoPlaceNewNotes; }, [autoPlaceNewNotes]);
+  useEffect(() => { assignNewNoteHandler.current = assignNewNote; });
   useEffect(() => { boardRef.current = board; }, [board]);
+  useEffect(() => {
+    const staleIds = new Set<string>();
+    for (const [ideaId, pending] of descriptionRequests.current) {
+      if (canApplyIdeaDescription(board, pending.request, pending.request.token,
+        ideaDescriptionGoal(board, title), canWriteBoard)) continue;
+      pending.controller.abort();
+      descriptionRequests.current.delete(ideaId);
+      staleIds.add(ideaId);
+      if (pending.autoPlace) queueOrSettlePlacement(ideaId);
+    }
+    for (const [ideaId, status] of Object.entries(descriptionStatuses)) {
+      if (status.kind === "pending" && descriptionRequests.current.has(ideaId)) continue;
+      const idea = board.ideas.find((candidate) => candidate.id === ideaId);
+      if (!idea || !isTitleOnlyIdea(idea) || ideaDescriptionGoal(board, title) !== status.goal) staleIds.add(ideaId);
+    }
+    if (staleIds.size) setDescriptionStatuses((current) => {
+      let next = current;
+      for (const id of staleIds) {
+        if (!(id in next)) continue;
+        if (next === current) next = { ...current };
+        delete next[id];
+      }
+      return next;
+    });
+  }, [board, title, canWriteBoard, descriptionStatuses, queueOrSettlePlacement]);
   useEffect(() => {
     if (!sharedBoard || sharedLayoutInitialized.current) return;
     sharedLayoutInitialized.current = true;
@@ -250,6 +310,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   }
   useEffect(() => () => {
     for (const timer of squashTimers.current.values()) window.clearTimeout(timer);
+    for (const pending of descriptionRequests.current.values()) pending.controller.abort();
+    descriptionRequests.current.clear();
   }, []);
   useEffect(() => {
     const savedTheme = window.localStorage.getItem("ideaforge-theme");
@@ -354,10 +416,10 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     if (nextTitle === title) return;
     if (onTitleChange) {
       setTitleError("");
-      try { await onTitleChange(nextTitle); }
+      try { await onTitleChange(nextTitle); boardTitleRef.current = nextTitle; }
       catch (error) { setTitleError(error instanceof Error ? error.message : "The board title could not be saved."); }
     }
-    else setLocalTitle(nextTitle);
+    else { boardTitleRef.current = nextTitle; setLocalTitle(nextTitle); }
   }
   function commitTitleDraft() {
     if (suppressTitleCommit.current) { suppressTitleCommit.current = false; setTitleDraft(null); return; }
@@ -391,9 +453,18 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     setLockNotice("");
     setMergeIds([]);
     setSelection({ kind: "idea", id: idea.id });
-    setEditor({ id: idea.id, title: idea.title, content: idea.content });
+    setEditorDraft({ id: idea.id, title: idea.title, content: idea.content });
     setEditorPreview(false);
     setEditError("");
+  }
+  function setEditorDraft(next: { id: string; title: string; content: string } | null) {
+    editorDraftRef.current = next;
+    setEditor(next);
+  }
+  function closeEditor(placePending = true) {
+    const ideaId = editorDraftRef.current?.id;
+    setEditorDraft(null);
+    if (placePending && ideaId) settlePendingPlacement(ideaId);
   }
   function openRelationshipEditor(relationship: Relationship) {
     setLinkDraft(null);
@@ -410,13 +481,16 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     onEditingIdeaChange(editingId ?? null);
     return () => onEditingIdeaChange(null);
   }, [editingId, onEditingIdeaChange]);
-  function cancelInteraction() { connectDrag.cancel(); setEditor(null); setDraftIdeaId(null); draftIdeaRef.current = null; setLinkDraft(null); setRelationshipEditor(null); setSourceId(null); setLinkError(""); setCondition(""); setOrganizeOpen(false); setMergePreview(null); setMergeDetailsId(null); setMergeIds([]); setMergeError(""); mergeRequestSequence.current += 1; mergeController.current?.abort(); setMergeBusy(false); setDrawTool(null); setTool("select"); }
+  function cancelInteraction() { connectDrag.cancel(); closeEditor(); setDraftIdeaId(null); draftIdeaRef.current = null; setLinkDraft(null); setRelationshipEditor(null); setSourceId(null); setLinkError(""); setCondition(""); setOrganizeOpen(false); setMergePreview(null); setMergeDetailsId(null); setMergeIds([]); setMergeError(""); mergeRequestSequence.current += 1; mergeController.current?.abort(); setMergeBusy(false); setDrawTool(null); setTool("select"); }
   function removeSelection() {
     if (!selection) return;
     if (selection.kind === "idea") { setUndoPositions(null); setAssignmentUndo(null); }
-    if (selection.kind === "idea") setBoard((current) => normalizeBoardLayout(deleteIdea(current, selection.id), measuredSizes));
+    if (selection.kind === "idea") {
+      cancelDescriptionRequest(selection.id);
+      setBoard((current) => normalizeBoardLayout(deleteIdea(current, selection.id), measuredSizes));
+    }
     else setBoard((current) => deleteRelationship(current, selection.id));
-    setSelection(null); setEditor(null); setLinkDraft(null); setSourceId(null);
+    setSelection(null); closeEditor(false); setLinkDraft(null); setSourceId(null);
   }
   useEffect(() => {
     function keyDown(event: KeyboardEvent) {
@@ -500,7 +574,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     const isNewIdea = draftIdeaId === editor.id;
     const updated = boardRef.current.ideas.find((idea) => idea.id === editor.id);
     const draft = isNewIdea ? draftIdeaRef.current : updated;
-    if (!draft) { setEditor(null); setDraftIdeaId(null); draftIdeaRef.current = null; return; }
+    if (!draft) { closeEditor(false); setDraftIdeaId(null); draftIdeaRef.current = null; return; }
     const updatedIdea = { ...draft, title: editor.title.trim(), content: editor.content.trim() };
     setUndoPositions(null);
     setAssignmentUndo(null);
@@ -508,18 +582,149 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       ? normalizeBoardLayout(createIdea(current, updatedIdea), measuredSizes, current.ideas.map((item) => item.id))
       : updateIdea(current, editor.id, { title: updatedIdea.title, content: updatedIdea.content }));
     if (!saved) {
-      setEditor(null);
+      closeEditor(false);
       setDraftIdeaId(null);
       draftIdeaRef.current = null;
       return;
     }
     const updatedBoard = boardRef.current;
-    setEditor(null);
+    closeEditor(false);
     if (isNewIdea) {
       setDraftIdeaId(null);
       draftIdeaRef.current = null;
-      if (autoPlaceNewNotes && clusterText(updatedIdea)) void assignNewNote(updatedBoard, updatedIdea);
+      const shouldAutoPlace = autoPlaceNewNotes && Boolean(clusterText(updatedIdea));
+      if (isTitleOnlyIdea(updatedIdea)) {
+        if (shouldAutoPlace) pendingAutoPlacement.current.add(updatedIdea.id);
+        void requestIdeaDescription(updatedIdea, ideaDescriptionGoal(updatedBoard, title), shouldAutoPlace);
+      } else if (shouldAutoPlace) {
+        pendingAutoPlacement.current.add(updatedIdea.id);
+        settlePendingPlacement(updatedIdea.id);
+      }
+    } else if (pendingAutoPlacement.current.has(updatedIdea.id)) {
+      settlePendingPlacement(updatedIdea.id);
     }
+  }
+
+  function clearDescriptionStatus(ideaId: string) {
+    setDescriptionStatuses((current) => {
+      if (!(ideaId in current)) return current;
+      const next = { ...current };
+      delete next[ideaId];
+      return next;
+    });
+  }
+  function cancelDescriptionRequest(ideaId: string) {
+    descriptionRequests.current.get(ideaId)?.controller.abort();
+    descriptionRequests.current.delete(ideaId);
+    pendingAutoPlacement.current.delete(ideaId);
+    clearDescriptionStatus(ideaId);
+  }
+  function changedEditorDraft(request: IdeaDescriptionRequestState) {
+    const draft = editorDraftRef.current;
+    return Boolean(draft?.id === request.ideaId &&
+      (draft.title.trim() !== request.title || draft.content.trim()));
+  }
+  async function requestIdeaDescription(idea: Idea, goal: string, autoPlace: boolean) {
+    if (!canWriteRef.current || !isTitleOnlyIdea(idea)) return;
+    const previous = descriptionRequests.current.get(idea.id);
+    if (previous) return;
+    const controller = new AbortController();
+    const request: IdeaDescriptionRequestState = {
+      ideaId: idea.id, title: idea.title, goal, token: ++descriptionSequence.current,
+    };
+    const pending = { request, controller, autoPlace };
+    descriptionRequests.current.set(idea.id, pending);
+    setDescriptionStatuses((current) => ({ ...current, [idea.id]: { kind: "pending", autoPlace, goal } }));
+
+    try {
+      const response = await fetch("/api/ideas/description", {
+        method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
+        body: JSON.stringify({ title: request.title, goal: request.goal }),
+      });
+      const payload: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = typeof payload === "object" && payload !== null && "error" in payload && typeof payload.error === "string"
+          ? payload.error : "The description could not be generated. Try again.";
+        throw new Error(message);
+      }
+      const parsed = ideaDescriptionResponseSchema.safeParse(payload);
+      if (!parsed.success) throw new Error("The description service returned an invalid response. Try again.");
+      if (descriptionRequests.current.get(idea.id) !== pending) return;
+      if (changedEditorDraft(request)) {
+        descriptionRequests.current.delete(idea.id);
+        clearDescriptionStatus(idea.id);
+        if (autoPlace) queueOrSettlePlacement(idea.id);
+        return;
+      }
+
+      let canUseResponse = canApplyIdeaDescription(boardRef.current, request, request.token,
+        ideaDescriptionGoal(boardRef.current, boardTitleRef.current), canWriteRef.current);
+      let applied = false;
+      if (parsed.data.description && canUseResponse) {
+        const committed = commitBoardChange((current) => {
+          canUseResponse = canApplyIdeaDescription(current, request,
+            descriptionRequests.current.get(idea.id)?.request.token,
+            ideaDescriptionGoal(current, boardTitleRef.current), canWriteRef.current);
+          if (!canUseResponse) return current;
+          applied = true;
+          return updateIdea(current, idea.id, {
+            content: parsed.data.description!,
+            descriptionGeneration: {
+              generatedContent: parsed.data.description!, title: request.title, goal: request.goal,
+              model: parsed.data.model, generatedAt: parsed.data.generatedAt,
+            },
+          });
+        });
+        applied = committed && applied;
+      }
+      if (descriptionRequests.current.get(idea.id) !== pending) return;
+      descriptionRequests.current.delete(idea.id);
+      if (applied && parsed.data.description) {
+        const draft = editorDraftRef.current;
+        if (draft?.id === idea.id && draft.title.trim() === request.title && !draft.content.trim()) {
+          setEditorDraft({ ...draft, content: parsed.data.description });
+        }
+        clearDescriptionStatus(idea.id);
+      } else if (canUseResponse && parsed.data.question) {
+        setDescriptionStatuses((current) => ({ ...current, [idea.id]: { kind: "question", autoPlace, goal, message: parsed.data.question! } }));
+      } else clearDescriptionStatus(idea.id);
+      if (autoPlace) queueOrSettlePlacement(idea.id);
+    } catch (error) {
+      if (descriptionRequests.current.get(idea.id) !== pending) return;
+      descriptionRequests.current.delete(idea.id);
+      if (controller.signal.aborted) {
+        clearDescriptionStatus(idea.id);
+        if (autoPlace) queueOrSettlePlacement(idea.id);
+        return;
+      }
+      if (changedEditorDraft(request)) {
+        clearDescriptionStatus(idea.id);
+        if (autoPlace) queueOrSettlePlacement(idea.id);
+        return;
+      }
+      const currentBoard = boardRef.current;
+      const stillCurrent = canApplyIdeaDescription(currentBoard, request, request.token,
+        ideaDescriptionGoal(currentBoard, boardTitleRef.current), canWriteRef.current);
+      if (stillCurrent) {
+        setDescriptionStatuses((current) => ({ ...current, [idea.id]: {
+          kind: "error", autoPlace, goal,
+          message: error instanceof Error ? error.message : "The description could not be generated. Try again.",
+        } }));
+      } else clearDescriptionStatus(idea.id);
+      if (autoPlace) queueOrSettlePlacement(idea.id);
+    }
+  }
+  function retryIdeaDescription(ideaId: string) {
+    const status = descriptionStatuses[ideaId];
+    if (status?.kind !== "error" || !canWriteRef.current) return;
+    const currentBoard = boardRef.current;
+    const idea = currentBoard.ideas.find((candidate) => candidate.id === ideaId);
+    const goal = ideaDescriptionGoal(currentBoard, boardTitleRef.current);
+    if (!idea || !isTitleOnlyIdea(idea) || goal !== status.goal) {
+      clearDescriptionStatus(ideaId);
+      return;
+    }
+    void requestIdeaDescription(idea, goal, status.autoPlace);
   }
 
   function selectMergeNote(id: string, additive: boolean) {
@@ -1203,6 +1408,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       mergeIndex: mergeIds.includes(idea.id) ? mergeIds.indexOf(idea.id) + 1 : previewMergeIds.indexOf(idea.id) + 1,
       onMergeDetails: idea.merge ? () => setMergeDetailsId(idea.id) : undefined,
       onAssistantDetails: idea.assistant ? () => setAssistantDetailsId(idea.id) : undefined,
+      descriptionStatus: descriptionStatuses[idea.id],
+      onRetryDescription: descriptionStatuses[idea.id]?.kind === "error" ? () => retryIdeaDescription(idea.id) : undefined,
       onSelect: (additive) => {
         if (tool === "merge") selectMergeNote(idea.id, true);
         else selectMergeNote(idea.id, additive || mergeIds.length === 1);
@@ -1588,9 +1795,9 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       {selectedAssistantIdea.assistant.sources.map((source, index) => <div className="board-merge-source" key={`${source.id}-${index}`}><strong>Source {index + 1}: {source.title || "Untitled idea"}</strong><span>By {source.author}</span><MarkdownText>{source.content || "No description"}</MarkdownText></div>)}
       <small>Created by {selectedAssistantIdea.author || "Unknown contributor"} with {selectedAssistantIdea.assistant.model} on {new Date(selectedAssistantIdea.assistant.generatedAt).toLocaleString()}.</small>
     </div>}
-    {editor && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) { setEditor(null); setDraftIdeaId(null); draftIdeaRef.current = null; } }}><form className="board-dialog" onSubmit={saveEdit} aria-label="Edit idea">
-      <span className="board-eyebrow">IDEA DETAILS</span><h2>Edit idea</h2><label>Title<input ref={titleInput} value={editor.title} maxLength={120} onChange={(event) => { setEditor({ ...editor, title: event.target.value }); setEditError(""); }} /></label>
-      <label>Content<textarea value={editor.content} maxLength={4000} rows={6} onChange={(event) => setEditor({ ...editor, content: event.target.value })} placeholder="What makes this idea useful?" /><span className="board-markdown-hint">Markdown: **bold**, *italic*, lists, and [links](https://example.com).</span></label>
+    {editor && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) { closeEditor(); setDraftIdeaId(null); draftIdeaRef.current = null; } }}><form className="board-dialog" onSubmit={saveEdit} aria-label="Edit idea">
+      <span className="board-eyebrow">IDEA DETAILS</span><h2>Edit idea</h2><label>Title<input ref={titleInput} value={editor.title} maxLength={120} onChange={(event) => { setEditorDraft({ ...editor, title: event.target.value }); setEditError(""); }} /></label>
+      <label>Content<textarea value={editor.content} maxLength={4000} rows={6} onChange={(event) => setEditorDraft({ ...editor, content: event.target.value })} placeholder="What makes this idea useful?" /><span className="board-markdown-hint">Markdown: **bold**, *italic*, lists, and [links](https://example.com).</span></label>
       <button type="button" className="board-markdown-preview-toggle" onClick={() => setEditorPreview((value) => !value)}>{editorPreview ? "Hide preview" : "Preview Markdown"}</button>
       {editorPreview && <MarkdownText className="board-markdown-edit-preview">{editor.content || "Markdown preview will appear here."}</MarkdownText>}
       {draftIdeaId === editor.id && <label className="board-auto-place-toggle"><input type="checkbox" checked={autoPlaceNewNotes} disabled={!clusterSnapshot || clusterStale || assignmentBusy} onChange={(event) => {
@@ -1604,7 +1811,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           setAssignmentBusy(false);
         }
       }} /><span><strong>Place new notes in an existing group</strong><small>{clusterStale ? "Organize the canvas again before auto placement." : clusterSnapshot ? "Applies to new notes created from this browser." : "Organize the canvas first to create groups."}</small></span></label>}
-      {editError && <p className="board-error" role="alert">{editError}</p>}<div className="board-dialog-actions"><button type="button" onClick={() => { setEditor(null); setDraftIdeaId(null); draftIdeaRef.current = null; }}>Cancel</button><button className="primary" type="submit">Save idea</button></div></form></div>}
+      {editError && <p className="board-error" role="alert">{editError}</p>}<div className="board-dialog-actions"><button type="button" onClick={() => { closeEditor(); setDraftIdeaId(null); draftIdeaRef.current = null; }}>Cancel</button><button className="primary" type="submit">Save idea</button></div></form></div>}
     {(linkDraft || relationshipEditor) && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) cancelInteraction(); }}><form className="board-dialog" onSubmit={confirmLink} aria-label={relationshipEditor ? "Edit relationship" : "Choose relationship"}>
       <span className="board-eyebrow">{relationshipEditor ? "EDIT RELATIONSHIP" : "CONNECT IDEAS"}</span><h2>{relationshipEditor ? "Edit relationship" : "How are they related?"}</h2><p className="board-link-direction">{board.ideas.find((idea) => idea.id === (relationshipEditor ?? linkDraft)?.source)?.title} → {board.ideas.find((idea) => idea.id === (relationshipEditor ?? linkDraft)?.target)?.title}</p>
       <label>Relationship<select value={relationshipType} onChange={(event) => setRelationshipType(event.target.value as RelationshipType)}>{Object.entries(relationshipLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
