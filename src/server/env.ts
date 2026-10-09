@@ -1,11 +1,12 @@
+import "server-only";
 import { z } from "zod";
+import { ServerConfigurationError } from "./http";
 
-const optionalNonempty = z.string().trim().min(1).optional();
+const optionalNonempty = z.preprocess((value) => typeof value === "string" && !value.trim() ? undefined : value,
+  z.string().trim().min(1).optional());
 
 const envSchema = z.object({
-  API_PORT: z.coerce.number().int().positive().default(4000),
-  API_ORIGIN: z.url().default("http://localhost:4000"),
-  APP_ORIGIN: z.url().default("http://localhost:3000"),
+  APP_ORIGIN: z.url({ protocol: /^https?$/ }).default("http://localhost:3000").transform((value) => new URL(value).origin),
   MONGODB_URI: z.string().trim().min(1),
   MONGODB_DB_NAME: z.string().trim().min(1).default("ideaforge_dev"),
   BETTER_AUTH_SECRET: z.string().min(32),
@@ -18,20 +19,28 @@ const envSchema = z.object({
   SMTP_FROM: optionalNonempty,
 }).superRefine((value, context) => {
   if (Boolean(value.GOOGLE_CLIENT_ID) !== Boolean(value.GOOGLE_CLIENT_SECRET)) {
-    context.addIssue({ code: "custom", message: "Set both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET." });
+    context.addIssue({ code: "custom", path: [value.GOOGLE_CLIENT_ID ? "GOOGLE_CLIENT_SECRET" : "GOOGLE_CLIENT_ID"],
+      message: "Set both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET." });
   }
 
-  const smtpValues = [value.SMTP_HOST, value.SMTP_USER, value.SMTP_PASSWORD, value.SMTP_FROM];
-  if (smtpValues.some(Boolean) && !smtpValues.every(Boolean)) {
-    context.addIssue({ code: "custom", message: "Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM together." });
+  const smtpKeys = ["SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM"] as const;
+  if (smtpKeys.some((key) => Boolean(value[key]))) {
+    for (const key of smtpKeys.filter((key) => !value[key])) {
+      context.addIssue({ code: "custom", path: [key],
+        message: "Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM together." });
+    }
   }
 });
 
-const parsed = envSchema.safeParse(process.env);
+let env: z.infer<typeof envSchema> | undefined;
 
-if (!parsed.success) {
-  const details = parsed.error.issues.map(({ path, message }) => `${path.join(".") || "environment"}: ${message}`).join("\n");
-  throw new Error(`Invalid API configuration:\n${details}`);
+export function getServerEnv() {
+  if (env) return env;
+  const parsed = envSchema.safeParse(process.env);
+  if (!parsed.success) {
+    const keys = new Set(Object.keys(envSchema.shape));
+    const fields = [...new Set(parsed.error.issues.map(({ path }) => String(path[0])).filter((key) => keys.has(key)))];
+    throw new ServerConfigurationError(fields);
+  }
+  return env = parsed.data;
 }
-
-export const env = parsed.data;

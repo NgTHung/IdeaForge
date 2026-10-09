@@ -34,11 +34,24 @@ class ProviderHttpError extends Error {
   }
 }
 
+// Output the model gets one chance to correct; the problem text goes back to the model, never to logs or the browser.
+class RejectedOutputError extends AiError {
+  readonly content: string;
+  readonly problem: string;
+
+  constructor(content: string, problem: string) {
+    super("invalid_output");
+    this.content = content;
+    this.problem = problem;
+  }
+}
+
 function providerStatus(error: unknown): number | undefined {
   return error instanceof ApiError || error instanceof ProviderHttpError ? error.status : undefined;
 }
 
 function classifyError(error: unknown): AiError {
+  if (error instanceof RejectedOutputError) return new AiError("invalid_output");
   if (error instanceof AiError) return error;
   if (error instanceof SyntaxError) return new AiError("invalid_output");
   const status = providerStatus(error);
@@ -74,9 +87,10 @@ async function withRetries<T>(
       console.error("AI request failed", {
         provider, model: currentModel, attempt: attempt + 1, code: failure.code, providerStatus: providerStatus(error),
       });
-      const retryable = failure.code === "provider_overload" || failure.code === "timeout";
+      const repairable = error instanceof RejectedOutputError;
+      const retryable = repairable || failure.code === "provider_overload" || failure.code === "timeout";
       if (!retryable || attempt === attempts.length - 1) throw failure;
-      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, AI_RETRY_DELAY_MS));
+      if (attempt === 0 && !repairable) await new Promise((resolve) => setTimeout(resolve, AI_RETRY_DELAY_MS));
     }
   }
   throw new AiError("provider_error");
@@ -114,39 +128,73 @@ async function postFeatherless(apiKey: string, body: unknown): Promise<unknown> 
   }
 }
 
-// GLM can wrap JSON in a reasoning block or a Markdown fence even in JSON mode.
-function jsonText(content: string): string {
-  const text = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-  return text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/)?.[1] ?? text;
+// GLM can wrap the JSON object in a Markdown fence or a sentence of prose even in JSON mode.
+export function parseJsonObject(text: string): unknown {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end < start) throw new SyntaxError("Model output has no JSON object");
+  return JSON.parse(text.slice(start, end + 1));
 }
 
-export async function generateJson<T extends z.ZodType>(request: GenerationRequest, schema: T, options?: { maxAttempts: 1 }): Promise<z.output<T>> {
+export type GenerationOptions<T extends z.ZodType = z.ZodType> = {
+  maxAttempts?: 1;
+  // Turns the model's text, without reasoning blocks, into the value the schema validates.
+  decode?: (text: string) => unknown;
+  // Returns a problem the schema can't express, such as a missing source ID, or undefined when the result is usable.
+  check?: (result: z.output<T>) => string | undefined;
+};
+
+function outputProblem(error: unknown): string {
+  if (error instanceof z.ZodError) {
+    return error.issues.slice(0, 5).map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`).join("; ");
+  }
+  return error instanceof SyntaxError ? `the reply is not valid JSON (${error.message})` : "the reply could not be read";
+}
+
+export async function generateJson<T extends z.ZodType>(request: GenerationRequest, schema: T, options?: GenerationOptions<T>): Promise<z.output<T>> {
   return (await generateJsonWithModel(request, schema, options)).result;
 }
 
-export async function generateJsonWithModel<T extends z.ZodType>(request: GenerationRequest, schema: T, options?: { maxAttempts: 1 }): Promise<{ result: z.output<T>; model: string }> {
+export async function generateJsonWithModel<T extends z.ZodType>(request: GenerationRequest, schema: T, options?: GenerationOptions<T>): Promise<{ result: z.output<T>; model: string }> {
   const apiKey = process.env.FEATHERLESS_API_KEY?.trim();
   if (!apiKey) throw new AiError("missing_key");
-  // Featherless documents JSON mode but not schema-constrained output, so the prompt carries the schema and Zod enforces it.
+  // Featherless ignores response_format and tool choice for GLM, so the prompt carries the schema and Zod enforces it.
   const system = `${request.system}\n\nReply with one JSON object and nothing else. It must match this JSON Schema:\n${JSON.stringify(z.toJSONSchema(schema))}`;
+  let rejected: RejectedOutputError | undefined;
   return withRetries(
     "featherless",
     generationModel(),
     process.env.FEATHERLESS_FALLBACK_MODEL?.trim(),
     async (model) => {
+      const messages = [{ role: "system", content: system }, { role: "user", content: request.prompt }];
+      // After a rejected reply, show the model its output and the problem so it can correct it.
+      if (rejected) messages.push({ role: "assistant", content: rejected.content }, {
+        role: "user",
+        content: `Your previous reply could not be used: ${rejected.problem}. Reply again with one corrected JSON object that matches the schema, and nothing else.`,
+      });
       const response = chatResponseSchema.safeParse(await postFeatherless(apiKey, {
         model,
-        messages: [{ role: "system", content: system }, { role: "user", content: request.prompt }],
+        messages,
         response_format: { type: "json_object" },
         reasoning_effort: process.env.FEATHERLESS_REASONING_EFFORT?.trim() || "low",
         ...(request.maxOutputTokens ? { max_tokens: request.maxOutputTokens } : {}),
       }));
       if (!response.success) throw new AiError("invalid_output");
+      const content = response.data.choices[0].message.content;
+      const text = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+      let problem: string;
       try {
-        return { result: schema.parse(JSON.parse(jsonText(response.data.choices[0].message.content))), model };
-      } catch {
-        throw new AiError("invalid_output");
+        const result = schema.parse((options?.decode ?? parseJsonObject)(text));
+        const checkProblem = options?.check?.(result);
+        if (checkProblem === undefined) return { result, model };
+        problem = checkProblem;
+      } catch (error) {
+        problem = outputProblem(error);
       }
+      // Only the first rejection is repaired; a second one ends the request.
+      if (rejected) throw new AiError("invalid_output");
+      rejected = new RejectedOutputError(text, problem);
+      throw rejected;
     }, options?.maxAttempts,
   );
 }

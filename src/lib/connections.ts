@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { markdownTextSchema } from './markdown';
+import { markdownTextSchema } from './markdown.ts';
 import { sourceSchema } from './ideas.ts';
 
 export const connectionRequestSchema = z.object({
