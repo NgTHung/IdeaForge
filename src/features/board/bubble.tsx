@@ -2,10 +2,12 @@ import type { CSSProperties, PointerEvent } from "react";
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import { ideaCardSize, type Idea } from "./model";
 import { MarkdownText } from "./markdown-text";
+import { IdeaUpvote, type IdeaUpvoteProps } from "./idea-upvote";
 
 export type IdeaNode = Node<{
   idea: Idea;
   preview?: boolean;
+  voting?: Omit<IdeaUpvoteProps, "ideaTitle">;
   editingBy?: string;
   connecting: boolean;
   source: boolean;
@@ -40,7 +42,7 @@ export function Bubble({ data, selected, dragging }: NodeProps<IdeaNode>) {
   return <div data-idea-id={idea.id}
     style={motionStyle(idea, data.clusterLabel)}
     role="group" tabIndex={0} aria-label={`Idea: ${idea.title}. Press Enter to select.`}
-    className={`board-bubble ${selected ? "is-selected" : ""} ${data.source ? "is-source" : ""} ${data.editing ? "is-editing" : ""} ${dragging ? "is-dragging" : ""} ${data.mergeIndex ? "is-merge-source" : ""} ${idea.merge ? "is-merged" : ""} ${data.clusterColor === undefined ? "" : `cluster-color-${data.clusterColor}`} ${squashing}`}
+    className={`board-bubble ${data.voting ? "has-voting" : ""} ${selected ? "is-selected" : ""} ${data.source ? "is-source" : ""} ${data.editing ? "is-editing" : ""} ${dragging ? "is-dragging" : ""} ${data.mergeIndex ? "is-merge-source" : ""} ${idea.merge ? "is-merged" : ""} ${data.clusterColor === undefined ? "" : `cluster-color-${data.clusterColor}`} ${squashing}`}
     onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); event.stopPropagation(); data.onSelect(event.shiftKey); } }}
     onPointerDown={data.connecting ? data.onStartConnection : undefined}
     onDoubleClick={(event) => { if (!data.connecting) { event.stopPropagation(); data.onEdit(); } }}>
@@ -55,6 +57,7 @@ export function Bubble({ data, selected, dragging }: NodeProps<IdeaNode>) {
       <h3>{idea.title}</h3>{idea.author && !idea.merge && <small className="board-bubble-author">By {idea.author}</small>}<MarkdownText className="board-bubble-markdown">{idea.content || "Add a few details to this idea."}</MarkdownText>
       {idea.merge && <button type="button" className="board-merge-details-button nodrag nopan" onClick={(event) => { event.stopPropagation(); data.onMergeDetails?.(); }}>How this idea was made</button>}
       {idea.assistant && !data.preview && <button type="button" className="board-merge-details-button nodrag nopan" onClick={(event) => { event.stopPropagation(); data.onAssistantDetails?.(); }}>Show assistant sources</button>}
+      {data.voting && <div className="board-bubble-voting"><IdeaUpvote ideaTitle={idea.title} {...data.voting} /></div>}
       {data.connecting && <span className="board-connect-dot" aria-hidden="true" />}
     </div></div></div>
     <Handle id="target-right" type="target" position={Position.Right} isConnectable={false} className="board-hidden-handle" />

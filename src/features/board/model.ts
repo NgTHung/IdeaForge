@@ -60,7 +60,8 @@ export type Relationship = {
   author?: string;
 };
 export type ConnectionPair = { sourceId: string; targetId: string };
-export type IdeaVote = { ideaId: string; voterId: string; value: 1 | -1 };
+// Keep the legacy value so saved downvotes can be ignored without rewriting a room.
+export type IdeaVote = { ideaId: string; voterId: string; voterName?: string; value: 1 | -1 };
 export type FreeDrawStroke = { id: string; points: { x: number; y: number }[] };
 export type Board = { goal?: string; ideas: Idea[]; relationships: Relationship[]; votes?: IdeaVote[]; drawings?: FreeDrawStroke[]; dismissedConnections?: ConnectionPair[]; clusterSnapshot?: ClusterSnapshot | null };
 
