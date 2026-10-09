@@ -60,7 +60,8 @@ export type Relationship = {
   author?: string;
 };
 export type ConnectionPair = { sourceId: string; targetId: string };
-export type Board = { goal?: string; ideas: Idea[]; relationships: Relationship[]; dismissedConnections?: ConnectionPair[]; clusterSnapshot?: ClusterSnapshot | null };
+export type FreeDrawStroke = { id: string; points: { x: number; y: number }[] };
+export type Board = { goal?: string; ideas: Idea[]; relationships: Relationship[]; drawings?: FreeDrawStroke[]; dismissedConnections?: ConnectionPair[]; clusterSnapshot?: ClusterSnapshot | null };
 
 export const IDEA_CARD_SIZE = { width: 272, height: 148 } as const;
 export const MERGED_IDEA_CARD_SIZE = { width: 320, height: 184 } as const;

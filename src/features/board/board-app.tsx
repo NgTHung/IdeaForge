@@ -6,7 +6,8 @@ import Link from "next/link";
 import { createIdeaId } from "./id";
 import { initialBoard } from "./fixtures";
 import { clusterLabelsFor, createIdea, createRelationship, deleteIdea, deleteRelationship, IDEA_CARD_SIZE, ideaCardSize, moveIdea, relationshipLabels, setIdeaPinned, updateIdea, updateRelationship,
-  type Board, type Idea, type Relationship, type RelationshipType } from "./model";
+  type Board, type FreeDrawStroke, type Idea, type Relationship, type RelationshipType } from "./model";
+import { FreeDrawLayer, type FreeDrawTool } from "./free-draw-layer";
 import { Bubble, type IdeaNode } from "./bubble";
 import { MarkdownText } from "./markdown-text";
 import { OrthogonalEdge, type OrthogonalCanvasEdge } from "./orthogonal-edge";
@@ -103,6 +104,8 @@ type BoardAppProps = {
   onBackgroundBoardChange?: (update: (board: Board) => Board) => boolean;
   onTitleChange?: (title: string) => void | Promise<void>;
   historyActions?: { undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean; canWrite: boolean };
+  liveDrawings?: FreeDrawStroke[];
+  onDrawingPreviewChange?: (stroke: FreeDrawStroke | null) => void;
   authorName?: string;
   editingLocks?: Record<string, string>;
   onEditingIdeaChange?: (ideaId: string | null) => void;
@@ -119,7 +122,7 @@ function ToolButton({ label, active, disabled, title, onClick, children }: {
     title={title || label} disabled={disabled} onClick={onClick}><span className="board-tool-icon" aria-hidden="true">{children}</span></button>;
 }
 
-export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, authorName, editingLocks = {}, onEditingIdeaChange }: BoardAppProps) {
+export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange }: BoardAppProps) {
   const [localBoard, setLocalBoard] = useState<Board>(() => normalizeBoardLayout(initialBoard, {}));
   const board = sharedBoard ?? localBoard;
   const setBoard = useCallback<Dispatch<SetStateAction<Board>>>((update) => {
@@ -134,6 +137,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [shareNotice, setShareNotice] = useState("");
   const [tool, setTool] = useState<Tool>("select");
+  const [drawTool, setDrawTool] = useState<FreeDrawTool | null>(null);
+  const canWriteBoard = !onBoardChange || historyActions?.canWrite === true;
   const [selection, setSelection] = useState<Selection>(null);
   const [hoveredIdeaId, setHoveredIdeaId] = useState<string | null>(null);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
@@ -396,7 +401,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     onEditingIdeaChange(editingId ?? null);
     return () => onEditingIdeaChange(null);
   }, [editingId, onEditingIdeaChange]);
-  function cancelInteraction() { connectDrag.cancel(); setEditor(null); setDraftIdeaId(null); draftIdeaRef.current = null; setLinkDraft(null); setRelationshipEditor(null); setSourceId(null); setLinkError(""); setCondition(""); setOrganizeOpen(false); setMergePreview(null); setMergeDetailsId(null); setMergeIds([]); setMergeError(""); mergeRequestSequence.current += 1; mergeController.current?.abort(); setMergeBusy(false); setTool("select"); }
+  function cancelInteraction() { connectDrag.cancel(); setEditor(null); setDraftIdeaId(null); draftIdeaRef.current = null; setLinkDraft(null); setRelationshipEditor(null); setSourceId(null); setLinkError(""); setCondition(""); setOrganizeOpen(false); setMergePreview(null); setMergeDetailsId(null); setMergeIds([]); setMergeError(""); mergeRequestSequence.current += 1; mergeController.current?.abort(); setMergeBusy(false); setDrawTool(null); setTool("select"); }
   function removeSelection() {
     if (!selection) return;
     if (selection.kind === "idea") { setUndoPositions(null); setAssignmentUndo(null); }
@@ -433,7 +438,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     setDraftIdeaId(idea.id);
     draftIdeaRef.current = idea;
     setUndoPositions(null);
-    setTool("select"); openEditor(idea); physics.reheat();
+    setDrawTool(null); setTool("select"); openEditor(idea); physics.reheat();
   }
   function addAtCenter() {
     const bounds = canvas.current?.querySelector(".react-flow")?.getBoundingClientRect();
@@ -442,9 +447,13 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 });
   }
   function selectTool(next: Tool) {
-    connectDrag.cancel(); setTool(next); setSourceId(null); setLinkDraft(null);
+    connectDrag.cancel(); setDrawTool(null); setTool(next); setSourceId(null); setLinkDraft(null);
     const seed = next === "merge" && selection?.kind === "idea" ? [selection.id] : [];
     setSelection(null); setMergeIds(seed); setMergeError("");
+  }
+  function selectDrawTool(next: FreeDrawTool) {
+    selectTool("select");
+    setDrawTool(next);
   }
   async function fitBoard() {
     if (!flow.current || !canvas.current || board.ideas.length === 0) return;
@@ -470,7 +479,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       author: relationshipEditor?.author ?? authorName ?? "Unknown contributor" };
     const apply = relationshipEditor ? (current: Board) => updateRelationship(current, candidate.id, candidate) : (current: Board) => createRelationship(current, candidate);
     if (!commitBoardChange(apply)) { setLinkError("That relationship already exists, or the ideas are no longer available."); return; }
-    setSelection({ kind: "relationship", id: candidate.id }); setLinkDraft(null); setRelationshipEditor(null); setSourceId(null); setCondition(""); setTool("select"); physics.reheat();
+    setSelection({ kind: "relationship", id: candidate.id }); setLinkDraft(null); setRelationshipEditor(null); setSourceId(null); setCondition(""); setDrawTool(null); setTool("select"); physics.reheat();
   }
   function saveEdit(event: FormEvent) {
     event.preventDefault(); if (!editor) return;
@@ -649,7 +658,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       setSelection(null);
       setMergeError("");
       setMergeIds(ids);
-      setTool("merge");
+      setDrawTool(null); setTool("merge");
       return { ok: true };
     }
     if (draft.action.kind === "edit" && (editingLocks[draft.action.card] || editingId === draft.action.card)) {
@@ -1301,7 +1310,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
     </header>
     <div className="board-workspace">
-      <div ref={canvas} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""}`}>
+      <div ref={canvas} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""} ${drawTool ? `drawing-${drawTool}` : ""}`}>
         <ReactFlow<IdeaNode, OrthogonalCanvasEdge> nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodesChange={onNodesChange} onInit={(instance) => { flow.current = instance; setZoom(instance.getZoom()); }} onMove={(_, viewport) => setZoom(viewport.zoom)}
           onPaneClick={(event) => { if (tool === "add" && flow.current) { const point = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }); makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 }); }
             else { setSelection(null); setMergeIds([]); if (tool === "connect") { setSourceId(null); setLinkDraft(null); setTool("select"); } } }}
@@ -1311,7 +1320,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           }}
           onNodeMouseEnter={(_, node) => setHoveredIdeaId(node.id)}
           onNodeMouseLeave={() => setHoveredIdeaId(null)}
-          onEdgeClick={(_, edge) => { if (!board.relationships.some((link) => link.id === edge.id)) return; setMergeIds([]); setSelection({ kind: "relationship", id: edge.id }); setTool("select"); }}
+          onEdgeClick={(_, edge) => { if (!board.relationships.some((link) => link.id === edge.id)) return; setMergeIds([]); setSelection({ kind: "relationship", id: edge.id }); setDrawTool(null); setTool("select"); }}
           onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
           onEdgeMouseLeave={() => setHoveredEdgeId(null)}
           onNodeDragStart={(_, node) => {
@@ -1326,9 +1335,22 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           }}
           onNodeDrag={(_, node) => { physics.drag(node.id, node.position); activeDragRef.current = { id: node.id, position: node.position }; setActiveDragId(node.id); dragPositionsRef.current.set(node.id, node.position); setDragPositions((current) => ({ ...current, [node.id]: node.position })); }}
           onNodeDragStop={(_, node) => finishDrag(node.id, node.position)}
-          panOnDrag={tool === "hand" || spaceDown} nodesDraggable={tool !== "hand" && !spaceDown && tool !== "connect"}
-          nodesConnectable={false} elementsSelectable={true} elevateEdgesOnSelect={false} zoomOnDoubleClick={false} minZoom={0.15} maxZoom={1.8} defaultViewport={{ x: 185, y: 180, zoom: 0.72 }}>
+          panOnDrag={!drawTool && (tool === "hand" || spaceDown)} nodesDraggable={!drawTool && tool !== "hand" && !spaceDown && tool !== "connect"}
+          nodesConnectable={false} elementsSelectable={!drawTool} elevateEdgesOnSelect={false} zoomOnDoubleClick={false} minZoom={0.15} maxZoom={1.8} defaultViewport={{ x: 185, y: 180, zoom: 0.72 }}>
           <Background variant={BackgroundVariant.Dots} gap={23} size={1.5} color={theme === "dark" ? "#405b52" : "#b6c9bf"} />
+          <FreeDrawLayer
+            key={`${drawTool ?? "off"}-${canWriteBoard ? "write" : "read"}`}
+            strokes={board.drawings ?? []}
+            liveStrokes={liveDrawings}
+            tool={drawTool}
+            enabled={canWriteBoard}
+            onStroke={(stroke) => setBoard((current) => ({ ...current, drawings: [...(current.drawings ?? []), stroke] }))}
+            onDraft={onDrawingPreviewChange}
+            onErase={(ids) => {
+              const removed = new Set(ids);
+              setBoard((current) => ({ ...current, drawings: (current.drawings ?? []).filter((stroke) => !removed.has(stroke.id)) }));
+            }}
+          />
         </ReactFlow>
         {connectDrag.preview?.active && <svg className="board-connection-preview" aria-hidden="true">
           <path d={orthogonalPreviewPath({ x: connectDrag.preview.x1, y: connectDrag.preview.y1 }, { x: connectDrag.preview.x2, y: connectDrag.preview.y2 })} />
@@ -1345,7 +1367,16 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           <ToolButton label="Merge" active={tool === "merge"} title={`Choose 2 to ${MAX_MERGE_SOURCES} ideas to merge`} onClick={() => selectTool("merge")}>⧉</ToolButton>
           <div className="board-tool-rule" />
           <ToolButton label={clusterResult ? "Organize again" : "Organize"} active={organizeOpen} disabled={clusterBusy || assignmentBusy || clusterInput.cards.length < 2 || clusterInput.cards.length > 50 || clusterInput.tooLongCount > 0} title={clusterInput.tooLongCount ? "Shorten note text to 4,000 characters before organizing" : "Group related notes and arrange the canvas"} onClick={openOrganize}>▦</ToolButton>
-        </nav></div>
+        </nav>
+        <nav className="board-draw-toolbar" aria-label="Free drawing tools">
+          <ToolButton label="Pencil" active={drawTool === "pencil"} disabled={!canWriteBoard} onClick={() => selectDrawTool("pencil")}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16.5-.9 4.4 4.4-.9L19.8 7.7a2.1 2.1 0 0 0-3-3L4 16.5Z" /><path d="m14.8 6.7 3 3" /></svg>
+          </ToolButton>
+          <ToolButton label="Eraser" active={drawTool === "eraser"} disabled={!canWriteBoard} onClick={() => selectDrawTool("eraser")}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3.5 14.3 8.8-9.1a2 2 0 0 1 2.9 0l5.2 5.2a2 2 0 0 1 0 2.9l-6.4 6.4H8.7l-5.2-5.2a1.5 1.5 0 0 1 0-2.2Z" /><path d="m8.4 9.2 6.5 6.5M14 19.7h6.5" /></svg>
+          </ToolButton>
+        </nav>
+        </div>
         {organizeOpen && <section className="board-organize-panel" aria-label="Organize notes">
           <div className="board-organize-head"><h2>Organize notes</h2><button type="button" className="board-icon-button" aria-label="Close organize panel" onClick={() => setOrganizeOpen(false)}>×</button></div>
           <label className="board-organize-count">Groups<select value={Math.min(clusterCount, Math.max(2, Math.min(10, clusterInput.cards.length)))} onChange={(event) => setClusterCount(Number(event.target.value))} disabled={clusterBusy || clusterInput.cards.length < 2}>
@@ -1409,7 +1440,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         {chosenIdea && <button type="button" className={`board-focus-toggle${onlySelectedNodeEdges ? " is-active" : ""}`} aria-pressed={onlySelectedNodeEdges}
           onClick={() => setOnlySelectedNodeEdges((value) => !value)}>Only this node’s edges</button>}
         {(chosenIdea || chosenLink) && <div className="board-selection-bar">
-          {chosenIdea ? <><strong>{chosenIdea.title}</strong><button onClick={() => openEditor(chosenIdea)}>Edit</button><button onClick={() => { setMergeIds((current) => current.includes(chosenIdea.id) ? current : [...current, chosenIdea.id]); setSelection(null); setTool("merge"); }}>Add to merge</button><button onClick={() => { setUndoPositions(null); setBoard((current) => setIdeaPinned(current, chosenIdea.id, !chosenIdea.pinned)); if (chosenIdea.pinned) physics.reheat(); }}>{chosenIdea.pinned ? "Unpin" : "Pin"}</button>{chosenIdea.merge && <button onClick={() => setMergeDetailsId(chosenIdea.id)}>How this idea was made</button>}</>
+          {chosenIdea ? <><strong>{chosenIdea.title}</strong><button onClick={() => openEditor(chosenIdea)}>Edit</button><button onClick={() => { setMergeIds((current) => current.includes(chosenIdea.id) ? current : [...current, chosenIdea.id]); setSelection(null); setDrawTool(null); setTool("merge"); }}>Add to merge</button><button onClick={() => { setUndoPositions(null); setBoard((current) => setIdeaPinned(current, chosenIdea.id, !chosenIdea.pinned)); if (chosenIdea.pinned) physics.reheat(); }}>{chosenIdea.pinned ? "Unpin" : "Pin"}</button>{chosenIdea.merge && <button onClick={() => setMergeDetailsId(chosenIdea.id)}>How this idea was made</button>}</>
             : <><strong>{chosenLink && relationshipLabels[chosenLink.type]}</strong>{chosenLink?.explanation && <span title={[chosenLink.explanation, chosenLink.condition].filter(Boolean).join(" When: ")}>{chosenLink.explanation}{chosenLink.condition ? ` When: ${chosenLink.condition}` : ""}</span>}{chosenLink?.author && <small>By {chosenLink.author}</small>}<button onClick={() => chosenLink && openRelationshipEditor(chosenLink)}>Edit link</button></>}
           <button className="danger" onClick={removeSelection}>Delete</button></div>}
         <div className="board-zoom"><button aria-label="Zoom out" title="Zoom out" onClick={() => flow.current?.zoomOut({ duration: 180 })}>−</button><button aria-label="Fit ideas" title="Fit ideas" onClick={() => { void fitBoard(); }}>⤢</button><ZoomReadout zoom={zoom} /><button aria-label="Zoom in" title="Zoom in" onClick={() => flow.current?.zoomIn({ duration: 180 })}>＋</button></div>
@@ -1470,7 +1501,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         <button type="button" onClick={discardMerge}>Discard</button>
         {mergePreview.result.status === "useful" && <button type="button" onClick={() => setMergeEditMode((value) => !value)}>{mergeEditMode ? "Preview" : "Edit"}</button>}
         <button type="button" disabled={mergeBusy} onClick={() => void generateMerge()}>{mergeBusy ? "Generating…" : "Regenerate"}</button>
-        <button type="button" disabled={mergeBusy} onClick={() => { setMergePreview(null); setMergeEditMode(false); setMergeError(""); setTool("merge"); }}>Change sources</button>
+        <button type="button" disabled={mergeBusy} onClick={() => { setMergePreview(null); setMergeEditMode(false); setMergeError(""); setDrawTool(null); setTool("merge"); }}>Change sources</button>
         <button type="button" className="primary" disabled={mergeSaving || mergeBusy || previewStale || mergePreview.result.status !== "useful" || !mergePreview.title.trim() || !mergePreview.concept.trim()} onClick={keepMerge}>Create merged idea</button>
       </div>
     </div>}
