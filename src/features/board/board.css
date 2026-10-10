@@ -56,10 +56,10 @@
 .board-canvas .react-flow__edge.selected .react-flow__edge-path { stroke-width: 3; }
 .board-canvas .react-flow__edge-text { cursor: pointer; }
 .board-canvas .react-flow__edge-path { transition: opacity .14s ease, stroke-width .14s ease; }
-.board-canvas .board-edge-label { opacity: 1; transition: opacity .14s ease; }
-.board-canvas .board-edge-label.is-crowded { opacity: 0; }
-.board-canvas .react-flow__edge:hover .board-edge-label.is-crowded,
-.board-canvas .react-flow__edge.selected .board-edge-label.is-crowded { opacity: 1; }
+.board-canvas .board-edge-label { position: absolute; z-index: 1000; pointer-events: none; opacity: 0; visibility: hidden; transition: opacity .12s ease; }
+.board-canvas .board-edge-label.is-visible { opacity: 1; visibility: visible; }
+.board-canvas .board-edge-label-badge { display: block; padding: 4px 9px; border: 1px solid; border-radius: 999px; background: #fff; box-shadow: 0 2px 8px #203b302b; font-size: 11px; font-weight: 750; line-height: 1.2; white-space: nowrap; }
+.board-shell[data-theme="dark"] .board-edge-label-badge { background: #1c2a29; box-shadow: 0 2px 8px #0008; }
 .board-bubble { position: relative; width: 272px; height: 148px; cursor: grab; }
 .board-bubble-float { position: absolute; inset: 0; animation: board-bubble-float var(--float-duration, 6s) ease-in-out var(--float-delay, 0s) infinite; }
 .board-bubble-squash { position: absolute; inset: 0; transform-origin: center; }

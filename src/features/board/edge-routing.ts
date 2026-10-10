@@ -10,7 +10,6 @@ export type EdgeRoute = {
   bridges: { segment: number; point: Point; radius: number }[];
   curved?: boolean;
   label?: { x: number; y: number; width: number; height: number; text: string };
-  labelCrowded?: boolean;
 };
 
 type Rect = Point & { width: number; height: number };
@@ -419,7 +418,6 @@ export function routeCanvasEdges(ideas: Idea[], links: CanvasLink[], measured: R
       points, sourceSide: source.side, targetSide: target.side, curved,
       bridges: curved ? [] : bridgesFor(points, occupied),
       label,
-      labelCrowded: Boolean(label && "crowded" in label && label.crowded),
     } satisfies EdgeRoute;
     routes.set(link.id, route);
     if (!curved) occupied.push(...segments(points));
