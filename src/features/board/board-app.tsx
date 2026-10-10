@@ -40,6 +40,7 @@ import { AnimationContext, BoardActivity, ThinkingAnimation, useBoardActivity, t
 import { CursorSignals, SocialControls, useSignalQueue, type SocialControlsHandle } from "./board-social";
 import { StickerDecorations } from "./sticker-decorations";
 import { DecorateMenu } from "./decorate-menu";
+import { StarterIdeasLoading } from "./starter-ideas-loading";
 import { BoardIcon } from "./board-icons";
 import { addDecoration, moveDecoration, removeDecoration, canOpenCursorChat, signalLifetime, stickerCatalog, type NamedSignal, type SocialSignal, type StickerKind } from "./board-social-contract";
 import { canDragIdea, displayIdeas, type CanvasPoint } from "./canvas-interaction";
@@ -166,6 +167,7 @@ function ToolButton({ label, active, disabled, title, onClick, children, rewindi
 }
 
 export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", starterIdeasNotice, onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove, onCursorStyleChange, signalCursorPositions, socialSignals, onSocialSignal, boardScope = "local", connectedMembers = emptyMembers }: BoardAppProps) {
+  const starterIdeasPending = starterIdeasNotice?.kind === "pending";
   const [cursorChatOpen, setCursorChatOpen] = useState(false);
   const [localCursorPosition, setLocalCursorPosition] = useState<CanvasPoint | null>(null);
   const [chatAnchor, setChatAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -1667,8 +1669,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
         onSend={onSocialSignal ?? ((signal) => { setLocalCursorPosition(signal.position); localSignals.append({ ...signal, connectionId: 0, name: authorName || "You", expiresAt: Date.now() + signalLifetime(signal) }); })}
         onClose={() => canvas.current?.focus()} />
       {placingSticker && <div className="sticker-placement-notice" role="status">{stickerCatalog[placingSticker].glyph} Click empty canvas to place {stickerCatalog[placingSticker].label}<button type="button" onClick={() => setPlacingSticker(null)}>Cancel</button></div>}
-      {starterIdeasNotice && <div className="board-starter-ideas-notice" role={starterIdeasNotice.kind === "error" ? "alert" : "status"}>
-        <span>{starterIdeasNotice.kind === "pending" ? "Generating five starting ideas…" : starterIdeasNotice.message}</span>
+      {starterIdeasNotice && !(starterIdeasPending && board.ideas.length === 0) && <div className="board-starter-ideas-notice" role={starterIdeasNotice.kind === "error" ? "alert" : "status"}>
+        {starterIdeasPending && <ThinkingAnimation />}<span>{starterIdeasPending ? "Generating five starting ideas…" : starterIdeasNotice.message}</span>
         {starterIdeasNotice.kind === "error" && starterIdeasNotice.onRetry && <button type="button" onClick={starterIdeasNotice.onRetry}>Retry ideas</button>}
       </div>}
       {(mergeBusy || clusterBusy || assignmentBusy || clusterNamesState === "pending" || suggestions.loading) && <div className="board-ai-activity" role="status"><ThinkingAnimation /><span>{mergeBusy ? "Merging ideas…" : clusterBusy ? "Organizing…" : assignmentBusy ? "Finding a group…" : clusterNamesState === "pending" ? "Naming groups…" : "Finding links…"}</span></div>}
@@ -1801,7 +1803,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
           }}>Retry placement</button>}
           {!onBoardChange && undoPlacementAvailable && <button type="button" onClick={undoAutomaticPlacement}>Undo placement</button>}
         </aside>}
-        {board.ideas.length === 0 && <div className="board-empty"><span>✳</span><h2>Your board is ready</h2><p>Start with one thought. You can connect it to others as your map grows.</p><button onClick={addAtCenter}>＋ Add your first idea</button></div>}
+        {board.ideas.length === 0 && starterIdeasPending && <StarterIdeasLoading />}
+        {board.ideas.length === 0 && !starterIdeasPending && <div className="board-empty"><span>✳</span><h2>Your board is ready</h2><p>Start with one thought. You can connect it to others as your map grows.</p><button onClick={addAtCenter}>＋ Add your first idea</button></div>}
         {(mergeIds.length > 0 || tool === "merge") && mergeIds.every((id) => board.ideas.some((idea) => idea.id === id)) && !mergePreview && <div className="board-merge-tray" role="region" aria-label="Merge selected ideas">
           <div className="board-merge-tray-copy"><strong>{mergeIds.length < 2 ? mergeIds.length === 0 ? "Choose ideas to merge" : "Choose one more idea" : `${mergeIds.length} ideas selected`}</strong>
             <span>Choose 2–{MAX_MERGE_SOURCES} ideas</span>
