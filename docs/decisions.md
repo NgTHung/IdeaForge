@@ -159,6 +159,8 @@ For Organize, the browser sends eligible note text and the selected group count 
 
 ## Log
 
+- 2026-10-10: `work:WORK-041` extends personalization with visible achievements, placeable shared sticker decorations, merge sparks, tactile dragging and pinning, cursor reactions, temporary cursor chat, and clouds, stars, flowers, and paper cluster themes. Enter opens chat; a second Enter broadcasts a short message near the sender. Room events carry expiring reactions and messages without storing chat history. Decorations use Liveblocks Storage and current board write access and undo history. Achievement awards remain scoped to participant and board in the browser; earned badges can be placed as saved decorations. Effects respect motion settings, and RGB borders stay static.
+
 - 2026-10-10: the user found the moving RGB border distracting. `work:WORK-040` now uses a static multicolor outline on notes, clusters, and Style previews. The alternating colors stay in place even when other animations are enabled.
 
 - 2026-10-10: the user clarified the RGB appearance in `work:WORK-040`. A single border shows several alternating colors at once, and those colors travel around its fixed outline. This replaces whole-border color cycling. Notes, clusters, and Style previews share the same masked gradient, and motion-off keeps the multicolor outline static.
