@@ -162,6 +162,8 @@ For Organize, the browser sends eligible note text and the selected group count 
 
 ## Log
 
+- 2026-10-10: at the user's request, one large star button above the left toolbar opens Assistant, Suggested Links, and Conclusion. The selection toolbar sits at bottom center. Merge and Group share a highlighted vertical frame and align with the other tools. Share shows text without an icon, and Style becomes an icon-only control before the account menu. Each participant may keep up to three upvotes across the board. Top ideas ranks by score, and selecting an idea closes the list and zooms to it. Clicking the board name opens one dialog for the name and project description. Board metadata edits sync to connected participants.
+
 - 2026-10-10: `work:WORK-044` starts the design cleanup with copy and vocabulary changes. The guest lobby shows the board title and description in a single form column. The account menu keeps identity, dashboard access, and sign out. Idea cards use a single merged marker and show voters through a positive vote count. Merge provenance stays in the selection bar. The header voting list becomes Top ideas and sorts by upvotes, with alphabetical ties. Visible object labels use idea, link, and group.
 
 - 2026-10-10: `work:WORK-043` opens the reaction wheel at the pointer with R or the React button. The wheel keeps its opening position while a participant chooses and shifts inward near board edges. Keyboard activation without a pointer uses the trigger location. Temporary room events and saved board data keep their existing behavior.

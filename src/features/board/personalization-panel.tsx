@@ -40,7 +40,7 @@ export function PersonalizationPanel({ preferences, update, reducedMotion, board
     <button type="button" disabled={!canWrite} onClick={() => onStyle(kind, id, kind === "cluster" ? defaultClusterStyle : defaultObjectStyle)}>Reset {kind === "cluster" ? "group" : "idea"} style</button>
   </div>;
   return <div ref={root} className="personalization-control">
-    <button ref={trigger} type="button" className="personalization-trigger" aria-label="Personalization" aria-expanded={open} aria-controls="personalization-panel" onClick={() => setOpen((value) => !value)}><span aria-hidden="true">✿</span><span>Style</span></button>
+    <button ref={trigger} type="button" className="personalization-trigger" aria-label="Style" title="Style" aria-expanded={open} aria-controls="personalization-panel" onClick={() => setOpen((value) => !value)}><span aria-hidden="true">✿</span></button>
     {open && <aside ref={panel} id="personalization-panel" className="personalization-panel" role="dialog" aria-modal="false" aria-label="Personalization settings">
       <header><div><h2>Personalization</h2></div><button type="button" aria-label="Close personalization" onClick={() => { setOpen(false); trigger.current?.focus(); }}>×</button></header>
       <section><h3>Motion & reactions</h3>

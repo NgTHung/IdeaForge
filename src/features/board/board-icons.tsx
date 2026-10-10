@@ -14,6 +14,9 @@ const paths = {
   zoomIn: <path d="M12 5v14M5 12h14" />,
   fit: <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />,
   assistant: <><path d="m12 2 1.5 6.5L20 10l-6.5 1.5L12 18l-1.5-6.5L4 10l6.5-1.5L12 2Z" /><path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16Z" /></>,
+  suggestions: <><path d="M4 7.5h6l2 3h8" /><path d="M17 7.5h3v3" /><path d="M4 16.5h5l2-3h9" /><path d="M17 16.5h3v-3" /><circle cx="4" cy="7.5" r="1" /><circle cx="4" cy="16.5" r="1" /></>,
+  conclusion: <><path d="M5 3.5h7.5L16 7v13H5z" /><path d="M12.5 3.5V7H16M7.5 10.5h6M7.5 13.5h6M7.5 16.5h4" /></>,
+  close: <path d="m6 6 12 12M18 6 6 18" />,
 };
 
 export type BoardIconName = keyof typeof paths;
