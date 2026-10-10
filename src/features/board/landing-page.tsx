@@ -6,6 +6,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { boardIdSchema } from "@/lib/rooms";
 import { authClient } from "@/lib/auth-client";
 import { AccountMenu } from "./account-menu";
+import { createIdeaId } from "./id";
 import { LandingIllustration } from "./landing-illustration";
 import "./landing.css";
 
@@ -23,14 +24,24 @@ export function LandingPage() {
   const [joinError, setJoinError] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [isOpeningDemo, setIsOpeningDemo] = useState(false);
   const createStarted = useRef(false);
   const joinStarted = useRef(false);
+  const demoStarted = useRef(false);
 
   function createBoard() {
     if (createStarted.current) return;
     createStarted.current = true;
     setIsCreating(true);
     router.push(session ? "/boards/new" : "/login?returnTo=%2Fboards%2Fnew");
+  }
+
+  // A demo is a fresh public UUID room, so it needs no account and gets the sample ideas as its seed.
+  function openDemoBoard() {
+    if (demoStarted.current) return;
+    demoStarted.current = true;
+    setIsOpeningDemo(true);
+    router.push(`/board/${createIdeaId()}`);
   }
 
   function joinBoard(event: FormEvent<HTMLFormElement>) {
@@ -95,6 +106,15 @@ export function LandingPage() {
           <p>{step.text}</p>
         </li>)}
       </ol>
+    </section>
+    <section className="landing-demo" aria-labelledby="landing-demo-title">
+      <div>
+        <h2 id="landing-demo-title">Try a demo board</h2>
+        <p>Open a new board with five sample ideas about student study habits. You don’t need an account, and anyone you send the link to can join and edit it.</p>
+      </div>
+      <button className="landing-primary" type="button" disabled={isOpeningDemo} onClick={openDemoBoard}>
+        {isOpeningDemo ? "Opening…" : "Open demo board"}
+      </button>
     </section>
   </main>;
 }

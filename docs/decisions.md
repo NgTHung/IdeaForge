@@ -155,12 +155,15 @@ For Organize, the browser sends eligible note text and the selected group count 
 - An HTTP-only cookie identifies each guest. Before a guest connects to a board room, the app asks for a display name of up to 60 characters. It remembers the name in that browser for the next visit and stores it in an HTTP-only cookie for Liveblocks user info. The app does not verify guest names.
 - `/api/liveblocks-auth` grants access only to the requested `ideaforge:<uuid>` room.
 - Anyone with a board link can edit that board. Boards are shared demo rooms, not private workspaces.
+- Guests can open a new demo board from the landing page without an account. Creating a board with a title, goal, and dashboard entry requires sign-in.
 - **New shared board** creates a fresh, seeded board. It doesn't copy the local board.
 - Automatic relationships use bounded local candidate matching and Jev classification with a 20-second timeout. MongoDB enforces suggestion-specific daily allowances and a board cooldown. Requested relationship explanations use one Featherless attempt with a 30-second timeout. Other AI features retain provider quotas and their existing retry policy. Per-user fairness controls are deferred.
 - Vercel hosts the app at [idea-forge-wine.vercel.app](https://idea-forge-wine.vercel.app). The `idea-forge` project deploys the GitHub repository's `main` branch with Next.js and Node.js 24. Testing and the demo use this public HTTPS URL.
 - The merge route exports `maxDuration = 95` to cover three 30-second AI attempts and the retry delay. Keep Fluid compute enabled when deploying; its duration limits support this budget. See [Vercel function duration](https://vercel.com/docs/functions/configuring-functions/duration).
 
 ## Log
+
+- 2026-10-10: `work:WORK-048` adds **Open demo board** under How it works on the landing page. It sends a guest to a new random `/board/<uuid>` room without signing in, so guests can now start a board, not only join one. The room uses the existing public UUID policy, guest lobby, and sample-idea seed, and it gets no MongoDB record, owner, or dashboard entry. If authenticated boards stop being seeded with sample ideas, keep the seed for rooms without a directory record so demo boards still open with ideas. **Create board** still requires sign-in.
 
 - 2026-10-10: Signed-in visitors to `/` go straight to `/dashboard`. The server checks the Better Auth session before rendering the landing page and shows the landing page when the account service is unavailable. Sign-in without a `returnTo` path also lands on `/dashboard`. Guests still see the landing page.
 
