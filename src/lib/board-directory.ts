@@ -20,6 +20,8 @@ export type BoardMetadata = {
   id: string;
   title: string;
   description: string;
+  starterIdeas?: true;
+  canGenerateStarterIdeas?: true;
   liveblocksRoomId: string;
   createdAt: string;
   updatedAt: string;

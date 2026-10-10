@@ -162,6 +162,8 @@ For Organize, the browser sends eligible note text and the selected group count 
 
 ## Log
 
+- **2026-10-10: new boards receive five AI starting ideas.** A newly created directory-backed board opens with an empty canvas while a server-side Featherless request explores candidate ideas from its saved title and description. The app selects five distinct approaches, then inserts them together as editable Liveblocks notes with AI provenance. The board remains usable if generation fails and offers a retry. A stored room marker prevents duplicate insertion after refresh or concurrent owner tabs. Existing rooms and locally seeded demos keep their content. `work:WORK-047` tracks implementation and verification.
+
 - 2026-10-10: `work:WORK-044` starts the design cleanup with copy and vocabulary changes. The guest lobby shows the board title and description in a single form column. The account menu keeps identity, dashboard access, and sign out. Idea cards use a single merged marker and show voters through a positive vote count. Merge provenance stays in the selection bar. The header voting list becomes Top ideas and sorts by upvotes, with alphabetical ties. Visible object labels use idea, link, and group.
 
 - 2026-10-10: `work:WORK-043` opens the reaction wheel at the pointer with R or the React button. The wheel keeps its opening position while a participant chooses and shifts inward near board edges. Keyboard activation without a pointer uses the trigger location. Temporary room events and saved board data keep their existing behavior.

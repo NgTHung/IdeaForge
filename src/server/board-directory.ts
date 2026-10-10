@@ -9,6 +9,12 @@ export type BoardDocument = {
   id: string;
   title: string;
   description: string;
+  starterIdeas?: true;
+  starterIdeasJob?: {
+    status: "pending" | "running" | "failed" | "completed";
+    attemptId?: string;
+    leaseUntil?: Date;
+  };
   ownerId: string;
   liveblocksRoomId: string;
   createdAt: Date;
@@ -27,6 +33,7 @@ function metadataView(board: BoardDocument): BoardMetadata {
     id: board.id,
     title: board.title,
     description: board.description,
+    ...(board.starterIdeas ? { starterIdeas: true as const } : {}),
     liveblocksRoomId: board.liveblocksRoomId,
     createdAt: board.createdAt.toISOString(),
     updatedAt: board.updatedAt.toISOString(),
@@ -105,6 +112,8 @@ export function createBoardDirectoryHandlers({ getDatabase, getSession, getAppOr
         id,
         title: parsed.data.title,
         description: parsed.data.description,
+        starterIdeas: true,
+        starterIdeasJob: { status: "pending" },
         ownerId: userId,
         liveblocksRoomId: `ideaforge:${id}`,
         createdAt: now,
@@ -158,12 +167,15 @@ export function createBoardDirectoryHandlers({ getDatabase, getSession, getAppOr
     }),
 
     // UUIDs grant link access to metadata as well as the Liveblocks room.
-    context: (_request: Request, value: string) => apiResponse(async () => {
+    context: (request: Request, value: string) => apiResponse(async () => {
       const id = parseBoardId(value);
       const { boards } = await collections();
       const board = await boards.findOne({ id });
       if (!board) throw new HttpError(404, "Board metadata was not found.");
-      return Response.json(metadataView(board));
+      const userId = (await getSession(request))?.user?.id;
+      return Response.json({ ...metadataView(board),
+        ...(board.starterIdeas && userId === board.ownerId ? { canGenerateStarterIdeas: true } : {}),
+      });
     }),
 
     title: (request: Request, value: string) => apiResponse(async () => {

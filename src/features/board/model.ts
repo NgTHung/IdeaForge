@@ -32,6 +32,17 @@ export type IdeaDescriptionRecord = {
   model: string;
   generatedAt: string;
 };
+export type StarterIdeaRecord = {
+  batchId: string;
+  originalTitle: string;
+  originalContent: string;
+  approach: string;
+  model: string;
+  generatedAt: string;
+};
+export type StarterIdeasState =
+  | { status: "failed"; title: string; description: string }
+  | { status: "completed"; title: string; description: string; noteIds: string[]; generatedAt: string; attemptId: string };
 export type LegacyMergeRecord = {
   version?: 1;
   sources: [MergeSourceSnapshot, MergeSourceSnapshot];
@@ -65,6 +76,7 @@ export type Idea = {
   merge?: MergeRecord;
   assistant?: AssistantIdeaRecord;
   descriptionGeneration?: IdeaDescriptionRecord;
+  starterIdea?: StarterIdeaRecord;
 };
 
 export type RelationshipType = "synergy" | "conflict" | "extends";

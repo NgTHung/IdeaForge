@@ -79,6 +79,9 @@ export function Bubble({ data, selected, dragging }: NodeProps<IdeaNode>) {
       {idea.merge && data.clusterLabel && <div className="board-merged-cluster-line"><span className="board-cluster-badge">{data.clusterLabel}</span></div>}
       {data.editingBy && <span className="board-card-editing-lock" title={`${data.editingBy} is editing this idea`}>{data.editingBy} editing</span>}
       <h3>{idea.title}</h3>{idea.author && !idea.merge && <small className="board-bubble-author">By {idea.author}</small>}
+      {idea.starterIdea && <small className="board-description-provenance" title={`Generated with ${idea.starterIdea.model} on ${new Date(idea.starterIdea.generatedAt).toLocaleString()}`}>
+        {idea.title === idea.starterIdea.originalTitle && idea.content.trim() === idea.starterIdea.originalContent.trim() ? "AI starting idea" : "Edited AI starting idea"}
+      </small>}
       {idea.descriptionGeneration && <small className="board-description-provenance" title={`Generated with ${idea.descriptionGeneration.model} on ${new Date(idea.descriptionGeneration.generatedAt).toLocaleString()}`}>
         {idea.title === idea.descriptionGeneration.title && idea.content.trim() === idea.descriptionGeneration.generatedContent.trim() ? "AI-generated description" : "Edited after AI generation"}
       </small>}

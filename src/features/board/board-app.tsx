@@ -133,6 +133,7 @@ type BoardAppProps = {
   sharedBoard?: Board;
   sharedTitle?: string;
   boardDescription?: string;
+  starterIdeasNotice?: { kind: "pending" | "error"; message?: string; onRetry?: () => void } | null;
   onBoardChange?: (update: (board: Board) => Board) => boolean;
   onBackgroundBoardChange?: (update: (board: Board) => Board) => boolean;
   onTitleChange?: (title: string) => void | Promise<void>;
@@ -164,7 +165,7 @@ function ToolButton({ label, active, disabled, title, onClick, children, rewindi
     title={title || label} disabled={disabled} onClick={onClick}><span className="board-tool-icon" aria-hidden="true">{children}</span></button>;
 }
 
-export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove, onCursorStyleChange, signalCursorPositions, socialSignals, onSocialSignal, boardScope = "local", connectedMembers = emptyMembers }: BoardAppProps) {
+export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", starterIdeasNotice, onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove, onCursorStyleChange, signalCursorPositions, socialSignals, onSocialSignal, boardScope = "local", connectedMembers = emptyMembers }: BoardAppProps) {
   const [cursorChatOpen, setCursorChatOpen] = useState(false);
   const [localCursorPosition, setLocalCursorPosition] = useState<CanvasPoint | null>(null);
   const [chatAnchor, setChatAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -1666,6 +1667,10 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         onSend={onSocialSignal ?? ((signal) => { setLocalCursorPosition(signal.position); localSignals.append({ ...signal, connectionId: 0, name: authorName || "You", expiresAt: Date.now() + signalLifetime(signal) }); })}
         onClose={() => canvas.current?.focus()} />
       {placingSticker && <div className="sticker-placement-notice" role="status">{stickerCatalog[placingSticker].glyph} Click empty canvas to place {stickerCatalog[placingSticker].label}<button type="button" onClick={() => setPlacingSticker(null)}>Cancel</button></div>}
+      {starterIdeasNotice && <div className="board-starter-ideas-notice" role={starterIdeasNotice.kind === "error" ? "alert" : "status"}>
+        <span>{starterIdeasNotice.kind === "pending" ? "Generating five starting ideas…" : starterIdeasNotice.message}</span>
+        {starterIdeasNotice.kind === "error" && starterIdeasNotice.onRetry && <button type="button" onClick={starterIdeasNotice.onRetry}>Retry ideas</button>}
+      </div>}
       {(mergeBusy || clusterBusy || assignmentBusy || clusterNamesState === "pending" || suggestions.loading) && <div className="board-ai-activity" role="status"><ThinkingAnimation /><span>{mergeBusy ? "Merging ideas…" : clusterBusy ? "Organizing…" : assignmentBusy ? "Finding a group…" : clusterNamesState === "pending" ? "Naming groups…" : "Finding links…"}</span></div>}
       <div ref={canvas} tabIndex={-1} data-background={preferences.background} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""} ${drawTool ? `drawing-${drawTool}` : ""}`}
         onPointerMoveCapture={(event) => {
