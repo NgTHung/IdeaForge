@@ -16,6 +16,7 @@ import { ChatSidebar } from "./chat-sidebar";
 import { acceptAssistantCreate, assistantActionIsCurrent, type AssistantActionDraft } from "./assistant-actions";
 import { AccountMenu } from "./account-menu";
 import { ActiveMembers } from "./active-members";
+import { BoardLinkQr } from "./board-link-qr";
 import { IdeaVotes } from "./idea-votes";
 import { ConclusionPanel } from "./conclusion-panel";
 import { toggleIdeaUpvote, upvotersForIdea, votesByUser, MAX_UPVOTES_PER_PARTICIPANT } from "./idea-voting";
@@ -200,6 +201,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const [dragPositions, setDragPositions] = useState<Record<string, Idea["position"]>>({});
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [shareNotice, setShareNotice] = useState("");
+  const [shareUrl, setShareUrl] = useState("");
   const [shareOpen, setShareOpen] = useState(false);
   const [includeFreeDrawings, setIncludeFreeDrawings] = useState(true);
   const [exportingPng, setExportingPng] = useState(false);
@@ -494,8 +496,10 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     });
   }, []);
   async function copyBoardLink() {
+    const url = window.location.href;
+    setShareUrl(url);
     try {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(url);
       setShareNotice("Link copied");
       activity.notify("share", "Your board link is ready to fly.");
     } catch {
@@ -1675,18 +1679,19 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       <div className="board-top-actions">
         {onBoardChange && <>{voteUserId && <IdeaVotes ideas={board.ideas} votes={board.votes} voterId={voteUserId} voterName={authorName || "Unknown contributor"}
         canWrite={canWriteBoard} onBoardChange={onBoardChange} onUpvote={upvoteWithEffect} onFocusIdea={focusCard} />}<ActiveMembers /><div className="board-share-control" ref={shareControl}>
-        <button className="board-share-button" type="button" aria-label="Share board" aria-expanded={shareOpen} aria-haspopup="dialog" onClick={() => { setShareOpen((open) => !open); setShareNotice(""); }}>
+        <button className="board-share-button" type="button" aria-label="Share board" aria-expanded={shareOpen} aria-haspopup="dialog" onClick={() => { setShareOpen((open) => !open); setShareNotice(""); setShareUrl(""); }}>
           <span className="board-share-label">Share</span></button>
         {shareOpen && <section className="board-share-popover" role="dialog" aria-label="Share and export board">
           <div className="board-share-popover-heading"><strong>Share board</strong><button type="button" aria-label="Close share menu" onClick={() => setShareOpen(false)}>×</button></div>
           <div className="board-share-section"><span className="board-share-section-label">Share link</span>
             <button className="board-share-action" type="button" onClick={() => void copyBoardLink()}><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="6" width="9" height="11" rx="1.5"/><path d="M12 6V4.5A1.5 1.5 0 0 0 10.5 3h-6A1.5 1.5 0 0 0 3 4.5v8A1.5 1.5 0 0 0 4.5 14H7"/></svg>Copy link</button>
+            {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
+            {shareUrl && <BoardLinkQr url={shareUrl} />}
           </div>
           <div className="board-share-section"><span className="board-share-section-label">Download</span>
             <label className="board-share-drawing-option"><input type="checkbox" checked={includeFreeDrawings} disabled={exportingPng} onChange={(event) => setIncludeFreeDrawings(event.target.checked)} />Include freehand drawings</label>
             <button className="board-share-action is-primary" type="button" disabled={exportingPng} onClick={() => void exportCanvasPng(includeFreeDrawings)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 13v3a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-3"/></svg>{exportingPng ? "Preparing PNG…" : "Download PNG"}</button>
           </div>
-          {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
         </section>}
         </div></>}
         {sandbox && <a className="board-sandbox-create" href="/boards/new" target="_top">Create board</a>}
