@@ -6,7 +6,6 @@ import { useRef, useState, type FormEvent } from "react";
 import { boardIdSchema } from "@/lib/rooms";
 import { authClient } from "@/lib/auth-client";
 import { AccountMenu } from "./account-menu";
-import { createIdeaId } from "./id";
 import { LandingIllustration } from "./landing-illustration";
 import "./landing.css";
 
@@ -24,26 +23,16 @@ export function LandingPage() {
   const [joinError, setJoinError] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
-  const [isOpeningDemo, setIsOpeningDemo] = useState(false);
   const [sandboxActive, setSandboxActive] = useState(false);
   const sandboxFrame = useRef<HTMLIFrameElement>(null);
   const createStarted = useRef(false);
   const joinStarted = useRef(false);
-  const demoStarted = useRef(false);
 
   function createBoard() {
     if (createStarted.current) return;
     createStarted.current = true;
     setIsCreating(true);
     router.push(session ? "/boards/new" : "/login?returnTo=%2Fboards%2Fnew");
-  }
-
-  // A demo is a fresh public UUID room, so it needs no account and gets the sample ideas as its seed.
-  function openDemoBoard() {
-    if (demoStarted.current) return;
-    demoStarted.current = true;
-    setIsOpeningDemo(true);
-    router.push(`/board/${createIdeaId()}`);
   }
 
   // The overlay keeps wheel and touch scrolling on the page until the visitor chooses to use the board.

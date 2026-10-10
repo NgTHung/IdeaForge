@@ -28,3 +28,7 @@ On 2026-10-10, lint, typecheck, and the production build passed. Headless Chromi
 On `localhost`, the guest lobby accepted a display name and the board connected to live Liveblocks with the five sample ideas and their two links. The section stacks at 390px without horizontal overflow.
 
 Two-browser editing in a demo room, AI features on a demo board, and the deployed app were not checked.
+
+## Removal
+
+Commit `e946c6b` removed the shared demo board link from the landing page in favor of the `work:WORK-049` sandbox, and the unused handler and styles were deleted after it. `/board/<uuid>` rooms still work for anyone with a link.

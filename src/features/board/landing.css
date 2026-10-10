@@ -111,9 +111,6 @@
 .landing-try-start:hover span { transform: translateY(-1px); }
 .landing-try-start:focus-visible { outline: 3px solid #68ad91; outline-offset: -3px; border-radius: 24px; }
 .landing-try-mobile { display: none; }
-.landing-try-shared { margin: 16px 0 0; color: #557166; font-size: 14px; }
-.landing-try-shared button { padding: 0; border: 0; background: none; color: #16785f; font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-.landing-try-shared button:disabled { cursor: wait; opacity: .7; }
 
 @media (max-width: 960px) {
   .landing-hero { grid-template-columns: minmax(0, 1fr); }
