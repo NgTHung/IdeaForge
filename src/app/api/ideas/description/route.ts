@@ -1,10 +1,9 @@
 import { aiErrorResponse } from "@/lib/ai";
 import { generateIdeaDescription } from "@/lib/idea-description";
-import { ideaDescriptionRequestSchema, ideaDescriptionResponseSchema } from "@/lib/idea-description-contract";
+import { ideaDescriptionRequestSchema, ideaDescriptionResponseSchema, MAX_IDEA_DESCRIPTION_REQUEST_BYTES } from "@/lib/idea-description-contract";
 
 export const runtime = "nodejs";
 export const maxDuration = 95;
-const MAX_REQUEST_BYTES = 8_000;
 
 async function readBoundedBody(request: Request): Promise<string | null> {
   const reader = request.body?.getReader();
@@ -15,7 +14,7 @@ async function readBoundedBody(request: Request): Promise<string | null> {
     const { value, done } = await reader.read();
     if (done) break;
     totalBytes += value.byteLength;
-    if (totalBytes > MAX_REQUEST_BYTES) {
+    if (totalBytes > MAX_IDEA_DESCRIPTION_REQUEST_BYTES) {
       await reader.cancel();
       return null;
     }
@@ -29,7 +28,7 @@ async function readBoundedBody(request: Request): Promise<string | null> {
 
 export async function POST(request: Request) {
   const declaredLength = Number(request.headers.get("content-length"));
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) {
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_IDEA_DESCRIPTION_REQUEST_BYTES) {
     return Response.json({ error: "The description request is too large." }, { status: 413 });
   }
 
@@ -45,7 +44,7 @@ export async function POST(request: Request) {
   catch { return Response.json({ error: "Send valid JSON." }, { status: 400 }); }
   const parsed = ideaDescriptionRequestSchema.safeParse(payload);
   if (!parsed.success) {
-    return Response.json({ error: "Provide a title of up to 120 characters and a board goal of up to 500 characters." }, { status: 400 });
+    return Response.json({ error: "Provide a title, board goal, and board title within the allowed lengths." }, { status: 400 });
   }
 
   try {

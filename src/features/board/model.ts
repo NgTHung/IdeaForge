@@ -21,6 +21,12 @@ export type IdeaDescriptionRecord = {
   generatedContent: string;
   title: string;
   goal: string;
+  context?: {
+    boardTitle: string;
+    boardDescription?: string;
+    seedContent?: string;
+    clusterLabel?: string;
+  };
   model: string;
   generatedAt: string;
 };
