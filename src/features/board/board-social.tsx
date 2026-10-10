@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useContext, useEffect, useRef, useState, type CSSProperties } from "react";
-import { ViewportPortal } from "@xyflow/react";
+import { useViewport, ViewportPortal } from "@xyflow/react";
 import { AnimationContext } from "./board-activity";
 import { appendSignal, reactions, type NamedSignal, type SocialSignal } from "./board-social-contract";
+import { reactionShortcut, signalPosition, type CanvasPoint } from "./canvas-interaction";
 import { createIdeaId } from "./id";
 
 export function useSignalQueue() {
@@ -16,17 +17,18 @@ export function useSignalQueue() {
   }, [signals]);
   return { signals, append };
 }
-export function CursorSignals({ signals }: { signals: NamedSignal[] }) {
+export function CursorSignals({ signals, positions }: { signals: NamedSignal[]; positions: Record<number, CanvasPoint> }) {
+  const { zoom } = useViewport();
   const { motion } = useContext(AnimationContext);
   return <ViewportPortal><div className="cursor-signals" aria-live="polite">
-    {signals.map((signal) => <div key={`${signal.connectionId}:${signal.id}`} className={`cursor-signal ${motion ? "has-motion" : ""}`} data-kind={signal.kind}
-      style={{ left: signal.position.x + 18, top: signal.position.y - 20 }}>
+    {signals.map((signal) => { const point = signalPosition(signal, positions); return <div key={`${signal.connectionId}:${signal.id}`} className={`cursor-signal ${motion ? "has-motion" : ""}`} data-kind={signal.kind}
+      style={{ left: point.x, top: point.y, transform: `scale(${1 / zoom}) translate(18px, -20px)`, transformOrigin: "top left" }}>
       <span>{signal.kind === "reaction" ? reactions[signal.value] : signal.value}</span><small>{signal.name}</small>
-    </div>)}
+    </div>; })}
   </div></ViewportPortal>;
 }
-export function SocialControls({ chatOpen, setChatOpen, position, screenPosition, onSend, onClose }: {
-  chatOpen: boolean; setChatOpen: (value: boolean) => void; position: () => { x: number; y: number };
+export function SocialControls({ chatOpen, setChatOpen, position, screenPosition, onSend, onClose, shortcutsBlocked }: {
+  shortcutsBlocked: boolean; chatOpen: boolean; setChatOpen: (value: boolean) => void; position: () => { x: number; y: number };
   screenPosition: { x: number; y: number } | null; onSend: (signal: SocialSignal) => void; onClose: () => void;
 }) {
   const [wheelOpen, setWheelOpen] = useState(false);
@@ -35,6 +37,16 @@ export function SocialControls({ chatOpen, setChatOpen, position, screenPosition
   const root = useRef<HTMLDivElement>(null);
   const reactionTrigger = useRef<HTMLButtonElement>(null);
   const lastSent = useRef(0);
+  useEffect(() => {
+    const keyDown = (event: KeyboardEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const blocked = shortcutsBlocked || Boolean(target?.closest("input,textarea,select,[role='dialog'],[contenteditable]:not([contenteditable='false'])"));
+      if (event.defaultPrevented || !reactionShortcut({ key: event.key, ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, shiftKey: event.shiftKey, isComposing: event.isComposing, repeat: event.repeat, blocked })) return;
+      event.preventDefault(); setWheelOpen((value) => !value); setChatOpen(false);
+    };
+    window.addEventListener("keydown", keyDown);
+    return () => window.removeEventListener("keydown", keyDown);
+  }, [setChatOpen, shortcutsBlocked]);
   useEffect(() => { if (chatOpen) input.current?.focus(); }, [chatOpen]);
   useEffect(() => {
     if (!wheelOpen) return;
@@ -49,7 +61,7 @@ export function SocialControls({ chatOpen, setChatOpen, position, screenPosition
   }, [onSend]);
   return <>
     <div className="board-social-controls" ref={root}>
-      <button ref={reactionTrigger} type="button" aria-label="Quick reactions" aria-expanded={wheelOpen} onClick={() => { setWheelOpen((value) => !value); setChatOpen(false); }}>☺ <span>React</span></button>
+      <button ref={reactionTrigger} type="button" aria-label="Quick reactions" title="Quick reactions (R)" aria-keyshortcuts="R" aria-expanded={wheelOpen} onClick={() => { setWheelOpen((value) => !value); setChatOpen(false); }}>☺ <span>React</span><kbd>R</kbd></button>
       <button type="button" aria-label="Cursor chat" title="Cursor chat (Enter)" onClick={() => { setWheelOpen(false); setChatOpen(!chatOpen); }}>◌ <span>Chat</span><kbd>↵</kbd></button>
       {wheelOpen && <div className="reaction-wheel" role="dialog" aria-label="Choose a reaction" onKeyDown={(event) => {
         if (event.key === "Escape") { event.stopPropagation(); setWheelOpen(false); reactionTrigger.current?.focus(); }

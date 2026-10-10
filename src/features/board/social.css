@@ -32,7 +32,7 @@
 .board-sticker[data-dragging="true"] .sticker-handle { cursor: grabbing; transform: scale(1.12) rotate(8deg); }
 .board-sticker[data-selected="true"] .sticker-handle { border-color: var(--personal-accent); background: #ffffff55; }
 .sticker-remove { position: absolute; top: -9px; right: -9px; border: 1px solid #bdccc3; background: #fff; color: #8b3440; border-radius: 50%; width: 23px; height: 23px; font-size: 17px; cursor: pointer; }
-.board-social-controls { position: absolute; z-index: 28; left: 94px; bottom: 26px; display: flex; gap: 8px; }
+.board-social-controls { position: absolute; z-index: 28; left: 84px; bottom: 78px; display: flex; gap: 8px; }
 .board-social-controls > button { display: flex; gap: 7px; align-items: center; font-size: 13px; }
 .board-social-controls kbd { font-size: 10px; color: #7f8f84; }
 .reaction-wheel { position: absolute; left: 0; bottom: 60px; width: 182px; height: 182px; border: 1px solid #d0e0d5; border-radius: 50%; background: #ffffffed; box-shadow: 0 8px 40px #224d3e25; }
@@ -81,8 +81,13 @@
 .board-shell[data-theme="dark"] .cluster-decoration:is([data-border="stars"], [data-border="flowers"])::before { background-color: #1d2d27; }
 .board-shell :is(.board-decoration-controls, .board-social-controls, .cursor-chat-composer, .board-sticker) :focus-visible { outline: 3px solid var(--personal-accent); outline-offset: 3px; }
 .board-shell :is(.sticker-palette, .achievement-popup) button:disabled { opacity: .45; cursor: default; }
-@media (max-width: 640px) { .board-decoration-controls { left: 82px; top: 80px; gap: 4px; } .board-decoration-controls summary { padding: 8px; font-size: 10px; } .board-social-controls { left: 82px; bottom: 20px; } .sticker-palette { left: auto; right: 0; } .sticker-placement-notice { left: 82px; right: 12px; top: 134px; font-size: 10px; } .earned-badges { display: none; } }
+@media (max-width: 640px) { .board-decoration-controls { left: 82px; top: 80px; gap: 4px; } .board-decoration-controls summary { padding: 8px; font-size: 10px; } .board-social-controls { left: 70px; bottom: 72px; } .sticker-palette { left: auto; right: 0; } .sticker-placement-notice { left: 82px; right: 12px; top: 134px; font-size: 10px; } .earned-badges { display: none; } }
 
 .board-shell[data-motion="off"] .board-sticker[data-dragging="true"] .sticker-handle { transform: none; }
 
 .merged-note-sigil { position: absolute; top: -14px; right: -13px; display: grid; place-items: center; width: 37px; height: 37px; border: 3px solid #fff8de; border-radius: 13px; background: #f4d88e; color: #946323; font-size: 27px; rotate: 10deg; box-shadow: 0 3px 9px #70522125; pointer-events: none; }
+
+.board-shell .board-selection-bar { left: 94px; bottom: 135px; transform: none; max-width: calc(100% - 112px); overflow-x: auto; }
+.board-live-cursors { z-index: 45; }
+.board-live-cursor { width: 28px; height: 30px; }
+@media (max-width: 640px) { .board-shell .board-selection-bar { left: 82px; bottom: 127px; max-width: calc(100% - 94px); } }

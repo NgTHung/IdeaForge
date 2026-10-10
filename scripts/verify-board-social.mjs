@@ -4,6 +4,8 @@ import { randomUUID } from "node:crypto";
 import { createClient, LiveMap, LiveObject } from "@liveblocks/client";
 import { Liveblocks } from "@liveblocks/node";
 import { syncObjectMap } from "../src/features/board/shared-object-map.ts";
+import { moveIdea } from "../src/features/board/model.ts";
+import { signalPosition } from "../src/features/board/canvas-interaction.ts";
 
 const secret = process.env.LIVEBLOCKS_SECRET_KEY?.trim();
 if (!secret) throw new Error("Set LIVEBLOCKS_SECRET_KEY to run the live board social check.");
@@ -53,6 +55,18 @@ try {
   await until(() => events.length === 2, "cursor chat and reaction delivery");
   assert.deepEqual(events.map((item) => item.event), [chat, reaction]);
   assert.equal(events[0].user.info.name, "Alice");
+  const peer = () => bob.getOthers().find((other) => other.connectionId === alice.getSelf().connectionId);
+  alice.updatePresence({ cursor: { x: 200, y: 300 } });
+  await until(() => peer()?.presence.cursor?.x === 200, "live cursor movement");
+  assert.deepEqual(signalPosition({ ...chat, connectionId: alice.getSelf().connectionId }, { [alice.getSelf().connectionId]: peer().presence.cursor }), { x: 200, y: 300 });
+  alice.updatePresence({ cursor: null });
+  await until(() => peer()?.presence.cursor === null, "cursor exit cleanup");
+  bob.getStorageOrNull().get("ideas").get(original.id).set("pinned", true);
+  await until(() => alice.getStorageOrNull().get("ideas").get(original.id).get("pinned"), "remote pin during drag");
+  const current = { ideas: [alice.getStorageOrNull().get("ideas").get(original.id).toJSON()], relationships: [] };
+  assert.equal(moveIdea(current, original.id, { x: 999, y: 999 }), current);
+  bob.getStorageOrNull().get("ideas").get(original.id).set("pinned", false);
+  await until(() => !alice.getStorageOrNull().get("ideas").get(original.id).get("pinned"), "unpin synchronization");
   await until(() => alice.getStorageStatus() === "synchronized", "saved decorations");
   const reconnected = await connect("Reconnect");
   assert.deepEqual(decorations(reconnected).get(sticker.id).toJSON(), sticker);
@@ -60,7 +74,7 @@ try {
   assert.equal(reconnected.getStorageOrNull().get("chat"), undefined);
   alice.batch(() => syncObjectMap(decorations(alice), []));
   await until(() => !decorations(bob).has(sticker.id), "decoration deletion");
-  console.log("Live board social verification passed: viewer access, two-client events, saved decorations, movement, deletion, undo/redo, reconnect, and unchanged notes.");
+  console.log("Live board social verification passed: viewer access, two-client events, cursor movement and exit, following chat, remote pin guard, saved decorations, undo/redo, reconnect, and unchanged notes.");
 } finally {
   for (const leave of exits) leave();
   await service.deleteRoom(roomId);

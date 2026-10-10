@@ -211,6 +211,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     boardScope={boardId}
     connectedMembers={others.map((other) => ({ id: other.id ?? String(other.connectionId), name: other.info?.name?.trim() || "Guest" }))}
     onCursorStyleChange={updateCursorStyle}
+    signalCursorPositions={Object.fromEntries([...(self ? [self] : []), ...others].flatMap((member) => member.presence.cursor ? [[member.connectionId, member.presence.cursor]] : []))}
     socialSignals={signals}
     onSocialSignal={sendSignal}
     liveCursors={liveCursors}

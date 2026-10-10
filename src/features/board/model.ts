@@ -127,6 +127,8 @@ export function deleteIdea(board: Board, id: string): Board {
   };
 }
 export function moveIdea(board: Board, id: string, position: Idea["position"]): Board {
+  const idea = board.ideas.find((item) => item.id === id);
+  if (!idea || idea.pinned || idea.position.x === position.x && idea.position.y === position.y) return board;
   return updateIdea(board, id, { position });
 }
 export function setIdeaPinned(board: Board, id: string, pinned: boolean): Board {

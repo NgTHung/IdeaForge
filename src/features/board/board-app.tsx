@@ -39,6 +39,7 @@ import { AnimationContext, BoardActivity, AchievementCollection, ThinkingAnimati
 import { CursorSignals, SocialControls, useSignalQueue } from "./board-social";
 import { StickerDecorations, StickerPicker } from "./sticker-decorations";
 import { addDecoration, moveDecoration, removeDecoration, canOpenCursorChat, signalLifetime, stickerCatalog, type NamedSignal, type SocialSignal, type StickerKind } from "./board-social-contract";
+import { canDragIdea, displayIdeas, type CanvasPoint } from "./canvas-interaction";
 import "./board.css";
 import "./personalization.css";
 import "./social.css";
@@ -127,6 +128,7 @@ type BoardAppProps = {
   liveCursors?: LiveCursor[];
   onCursorMove?: (position: { x: number; y: number } | null) => void;
   onCursorStyleChange?: (style: CursorStyle) => void;
+  signalCursorPositions?: Record<number, CanvasPoint>;
   socialSignals?: NamedSignal[];
   onSocialSignal?: (signal: SocialSignal) => void;
   boardScope?: string;
@@ -144,12 +146,14 @@ function ToolButton({ label, active, disabled, title, onClick, children, rewindi
     title={title || label} disabled={disabled} onClick={onClick}><span className="board-tool-icon" aria-hidden="true">{children}</span></button>;
 }
 
-export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove, onCursorStyleChange, socialSignals, onSocialSignal, boardScope = "local", connectedMembers = emptyMembers }: BoardAppProps) {
+export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove, onCursorStyleChange, signalCursorPositions, socialSignals, onSocialSignal, boardScope = "local", connectedMembers = emptyMembers }: BoardAppProps) {
   const [cursorChatOpen, setCursorChatOpen] = useState(false);
+  const [localCursorPosition, setLocalCursorPosition] = useState<CanvasPoint | null>(null);
   const [chatAnchor, setChatAnchor] = useState<{ x: number; y: number } | null>(null);
   const [placingSticker, setPlacingSticker] = useState<StickerKind | null>(null);
   const cursorPoint = useRef<{ x: number; y: number } | null>(null);
   const cursorScreen = useRef<{ x: number; y: number } | null>(null);
+  const cursorActive = useRef(false);
   const localSignals = useSignalQueue();
   const [localBoard, setLocalBoard] = useState<Board>(() => normalizeBoardLayout(initialBoard, {}));
   const board = sharedBoard ?? localBoard;
@@ -1181,7 +1185,12 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     dragPositionsRef.current.delete(id);
     setDragPositions((current) => { const next = { ...current }; delete next[id]; return next; });
     const pinned = Boolean(boardRef.current.ideas.find((idea) => idea.id === id)?.pinned);
-    const resolved = commitBoardChange((current) => normalizeBoardLayout(moveIdea(current, id, position), measuredSizes, [id]));
+    const resolved = commitBoardChange((current) => {
+      if (!canDragIdea(current, id, canWriteBoard)) return current;
+      const moved = moveIdea(current, id, position);
+      return moved === current ? current : normalizeBoardLayout(moved, measuredSizes, [id]);
+    });
+    if (!resolved) physics.dragStop(id, boardRef.current.ideas.find((idea) => idea.id === id)?.position ?? position, pinned);
     if (resolved) {
       const latest = boardRef.current;
       physics.syncPositions(new Map(latest.ideas.map((idea) => [idea.id, idea.position])));
@@ -1227,11 +1236,12 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       },
     } satisfies Idea;
   }, [assistantPreview, board, authorName]);
-  const nodes: IdeaNode[] = board.ideas.map((idea) => ({
+  const visibleIdeas = useMemo(() => displayIdeas(board.ideas, dragPositions), [board.ideas, dragPositions]);
+  const nodes: IdeaNode[] = visibleIdeas.map((idea) => ({
     ...nodeLayouts[idea.id],
-    id: idea.id, type: "idea", position: dragPositions[idea.id] ?? idea.position, selected: selection?.kind === "idea" && selection.id === idea.id || mergeIds.includes(idea.id) || previewMergeIds.includes(idea.id),
+    id: idea.id, type: "idea", position: idea.position, selected: selection?.kind === "idea" && selection.id === idea.id || mergeIds.includes(idea.id) || previewMergeIds.includes(idea.id),
     className: chosenLink && (chosenLink.source === idea.id || chosenLink.target === idea.id) ? "is-related" : previewMergeIds.includes(idea.id) ? "is-merge-source" : editingLocks[idea.id] ? "is-locked-for-editing" : undefined,
-    draggable: tool !== "connect" && editor?.id !== idea.id,
+    draggable: canDragIdea(board, idea.id, canWriteBoard) && tool !== "hand" && !spaceDown && !drawTool && tool !== "connect" && editor?.id !== idea.id,
     data: { idea, editingBy: editingLocks[idea.id], connecting: tool === "connect", source: sourceId === idea.id, editing: editor?.id === idea.id, squash: squashes[idea.id] ?? null,
       voting: onBoardChange && voteUserId ? { upvoters: upvotersForIdea(board.votes, idea.id), voterId: voteUserId, canWrite: canWriteBoard,
         onUpvote: () => upvoteWithEffect(idea.id) } : undefined,
@@ -1291,13 +1301,13 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         provisional: true, ancestry: true, assistant: true,
       })));
     }
-    const routingIdeas = assistantPreviewIdea ? [...board.ideas, assistantPreviewIdea] : board.ideas;
+    const routingIdeas = assistantPreviewIdea ? [...visibleIdeas, assistantPreviewIdea] : visibleIdeas;
     const routes = routeCanvasEdges(routingIdeas, links, measuredSizes, clusterLabels);
     return links.flatMap((link) => {
       const route = routes.get(link.id);
       return route ? [{ ...link, route }] : [];
     });
-  }, [board, measuredSizes, clusterLabels, suggestions.previews, suggestions.enabled, assistantPreview, assistantPreviewIdea]);
+  }, [board, visibleIdeas, measuredSizes, clusterLabels, suggestions.previews, suggestions.enabled, assistantPreview, assistantPreviewIdea]);
   const edgeFocus = useMemo(() => {
     const nodes = new Set<string>();
     if (hoveredIdeaId) nodes.add(hoveredIdeaId);
@@ -1374,21 +1384,30 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     <div className="board-workspace">
       <div className="board-decoration-controls"><AchievementCollection achievements={activity.achievements} canWrite={canWriteBoard} onPlace={(kind) => { selectTool("select"); setPlacingSticker(kind); }} />
         <StickerPicker canWrite={canWriteBoard} onPlace={(kind) => { selectTool("select"); setPlacingSticker(kind); }} /></div>
-      <SocialControls chatOpen={cursorChatOpen} setChatOpen={openCursorChat}
+      <SocialControls shortcutsBlocked={Boolean(editor || linkDraft || relationshipEditor || mergePreview || mergeDetailsId || assistantDetailsId || organizeOpen)} chatOpen={cursorChatOpen} setChatOpen={openCursorChat}
         screenPosition={chatAnchor}
         position={() => cursorPoint.current ?? flow.current?.screenToFlowPosition({ x: (canvas.current?.getBoundingClientRect().left ?? 0) + 350, y: (canvas.current?.getBoundingClientRect().top ?? 0) + 220 }) ?? { x: 0, y: 0 }}
-        onSend={onSocialSignal ?? ((signal) => localSignals.append({ ...signal, connectionId: 0, name: authorName || "You", expiresAt: Date.now() + signalLifetime(signal) }))}
+        onSend={onSocialSignal ?? ((signal) => { setLocalCursorPosition(signal.position); localSignals.append({ ...signal, connectionId: 0, name: authorName || "You", expiresAt: Date.now() + signalLifetime(signal) }); })}
         onClose={() => canvas.current?.focus()} />
       {placingSticker && <div className="sticker-placement-notice" role="status">{stickerCatalog[placingSticker].glyph} Click empty canvas to place {stickerCatalog[placingSticker].label}<button type="button" onClick={() => setPlacingSticker(null)}>Cancel</button></div>}
       {(mergeBusy || clusterBusy || assignmentBusy || clusterNamesState === "pending" || suggestions.loading) && <div className="board-ai-activity" role="status"><ThinkingAnimation /><span>{mergeBusy ? "Merging ideas…" : clusterBusy ? "Organizing…" : assignmentBusy ? "Finding a group…" : clusterNamesState === "pending" ? "Naming groups…" : "Finding connections…"}</span></div>}
       <div ref={canvas} tabIndex={-1} data-background={preferences.background} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""} ${drawTool ? `drawing-${drawTool}` : ""}`}
-        onPointerMove={(event) => {
-          if (!(event.target instanceof Element) || !event.target.closest(".react-flow") || !flow.current) { onCursorMove?.(null); return; }
+        onPointerMoveCapture={(event) => {
+          if (!(event.target instanceof Element) || !event.target.closest(".react-flow") || !flow.current) { cursorActive.current = false; onCursorMove?.(null); return; }
+          cursorActive.current = true;
           cursorPoint.current = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY });
           cursorScreen.current = { x: event.clientX, y: event.clientY };
           onCursorMove?.(cursorPoint.current);
-        }} onPointerLeave={() => onCursorMove?.(null)}>
-        <ReactFlow<IdeaNode, OrthogonalCanvasEdge> nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodesChange={onNodesChange} onInit={(instance) => { flow.current = instance; setZoom(instance.getZoom()); }} onMove={(_, viewport) => setZoom(viewport.zoom)}
+          if (!onSocialSignal && localSignals.signals.some((signal) => signal.kind === "chat")) setLocalCursorPosition(cursorPoint.current);
+        }} onPointerLeave={() => { cursorActive.current = false; onCursorMove?.(null); }}>
+        <ReactFlow<IdeaNode, OrthogonalCanvasEdge> nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodesChange={onNodesChange} onInit={(instance) => { flow.current = instance; setZoom(instance.getZoom()); }} onMove={(_, viewport) => {
+          setZoom(viewport.zoom);
+          if (cursorActive.current && cursorScreen.current && flow.current) {
+            cursorPoint.current = flow.current.screenToFlowPosition(cursorScreen.current);
+            onCursorMove?.(cursorPoint.current);
+            if (!onSocialSignal && localSignals.signals.some((signal) => signal.kind === "chat")) setLocalCursorPosition(cursorPoint.current);
+          }
+        }}
           onPaneClick={(event) => { canvas.current?.focus(); if (placingSticker && canWriteBoard && flow.current) {
               const position = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY });
               if (commitBoardChange((current) => addDecoration(current, { id: createIdeaId(), kind: placingSticker, position, author: (authorName || "You").slice(0, 100) }))) setPlacingSticker(null);
@@ -1404,6 +1423,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
           onEdgeMouseLeave={() => setHoveredEdgeId(null)}
           onNodeDragStart={(_, node) => {
+            if (!canDragIdea(boardRef.current, node.id, canWriteBoard)) return;
             dragRevisions.current.set(node.id, (dragRevisions.current.get(node.id) ?? 0) + 1);
             if (node.id === activeAssignmentId.current) assignmentController.current?.abort();
             const startPosition = boardRef.current.ideas.find((idea) => idea.id === node.id)?.position ?? node.position;
@@ -1413,15 +1433,15 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
             setDragPositions((current) => ({ ...current, [node.id]: startPosition }));
             physics.dragStart(node.id);
           }}
-          onNodeDrag={(_, node) => { physics.drag(node.id, node.position); activeDragRef.current = { id: node.id, position: node.position }; setActiveDragId(node.id); dragPositionsRef.current.set(node.id, node.position); setDragPositions((current) => ({ ...current, [node.id]: node.position })); }}
+          onNodeDrag={(_, node) => { if (!canDragIdea(boardRef.current, node.id, canWriteBoard)) return; physics.drag(node.id, node.position); activeDragRef.current = { id: node.id, position: node.position }; setActiveDragId(node.id); dragPositionsRef.current.set(node.id, node.position); setDragPositions((current) => ({ ...current, [node.id]: node.position })); }}
           onNodeDragStop={(_, node) => finishDrag(node.id, node.position)}
           panOnDrag={!drawTool && (tool === "hand" || spaceDown)} nodesDraggable={!drawTool && tool !== "hand" && !spaceDown && tool !== "connect"}
           nodesConnectable={false} elementsSelectable={!drawTool} elevateEdgesOnSelect={false} zoomOnDoubleClick={false} minZoom={0.15} maxZoom={1.8} defaultViewport={{ x: 185, y: 180, zoom: 0.72 }}>
           {(preferences.background === "dots" || preferences.background === "grid") && <Background variant={preferences.background === "grid" ? BackgroundVariant.Lines : BackgroundVariant.Dots} gap={23} size={1.5} color={theme === "dark" ? "#405b52" : "#b6c9bf"} />}
-          <ClusterDecorations board={board} positions={dragPositions} sizes={measuredSizes} />
+          <ClusterDecorations board={board} positions={Object.fromEntries(visibleIdeas.map((idea) => [idea.id, idea.position]))} sizes={measuredSizes} />
           <BoardActivity activity={activity} board={board} positions={dragPositions} />
           <LiveCursors cursors={liveCursors} />
-          <CursorSignals signals={socialSignals ?? localSignals.signals} />
+          <CursorSignals signals={socialSignals ?? localSignals.signals} positions={signalCursorPositions ?? (localCursorPosition ? { 0: localCursorPosition } : {})} />
           <StickerDecorations decorations={board.decorations ?? []} canWrite={canWriteBoard} onMove={(id, position) => { if (canWriteBoard) commitBoardChange((current) => moveDecoration(current, id, position)); }} onRemove={(id) => { if (canWriteBoard) commitBoardChange((current) => removeDecoration(current, id)); }} />
           <FreeDrawLayer
             key={`${drawTool ?? "off"}-${canWriteBoard ? "write" : "read"}`}
