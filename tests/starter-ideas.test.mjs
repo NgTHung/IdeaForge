@@ -81,6 +81,8 @@ test("one room commit inserts five notes and the marker only once", () => {
   assert.equal(root.get("ideas").size, 5);
   const changed = new LiveObject({ title: "New title", ideas: new LiveMap(), starterIdeasState: null });
   assert.equal(commitStarterIdeas(changed, result, result.description), false);
+  const editedDescription = new LiveObject({ title: result.title, description: "Edited description", ideas: new LiveMap(), starterIdeasState: null });
+  assert.equal(commitStarterIdeas(editedDescription, result, result.description), false);
   assert.equal(changed.get("ideas").size, 0);
 });
 

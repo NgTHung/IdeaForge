@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import type { IdeaVote } from "./model";
+import { MAX_UPVOTES_PER_PARTICIPANT } from "./idea-voting";
 import { voterNameFor } from "./idea-voting";
 import "./idea-upvote.css";
 
@@ -10,16 +11,18 @@ export type IdeaUpvoteProps = {
   upvoters: IdeaVote[];
   voterId: string;
   canWrite: boolean;
+  voteLimitReached?: boolean;
   onUpvote: () => void;
   showUpvoters?: boolean;
 };
 
-export function IdeaUpvote({ ideaTitle, upvoters, voterId, canWrite, onUpvote, showUpvoters = true }: IdeaUpvoteProps) {
+export function IdeaUpvote({ ideaTitle, upvoters, voterId, canWrite, voteLimitReached = false, onUpvote, showUpvoters = true }: IdeaUpvoteProps) {
   const [open, setOpen] = useState(false);
   const popoverId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const selected = upvoters.some((vote) => vote.voterId === voterId);
+  const limitReached = voteLimitReached && !selected;
   const title = ideaTitle.trim() || "untitled idea";
 
   useEffect(() => {
@@ -46,9 +49,9 @@ export function IdeaUpvote({ ideaTitle, upvoters, voterId, canWrite, onUpvote, s
   return <div ref={rootRef} className="idea-upvote nodrag nopan nowheel"
     onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}
     onDoubleClick={(event) => event.stopPropagation()}>
-    <button type="button" className="idea-upvote-button" disabled={!canWrite} aria-pressed={selected}
+    <button type="button" className="idea-upvote-button" disabled={!canWrite || limitReached} aria-pressed={selected}
       aria-label={`${selected ? "Remove upvote from" : "Upvote"} ${title}. ${upvoters.length} ${upvoters.length === 1 ? "upvote" : "upvotes"}.`}
-      title={canWrite ? selected ? "Remove your upvote" : "Upvote this idea" : "Only editors can upvote"}
+      title={!canWrite ? "Only editors can upvote" : limitReached ? `You used all ${MAX_UPVOTES_PER_PARTICIPANT} votes. Remove one to vote here.` : selected ? "Remove your upvote" : "Upvote this idea"}
       onClick={() => { setOpen(false); onUpvote(); }}>
       <span aria-hidden="true">{selected ? "♥" : "♡"}</span>{(!showUpvoters || upvoters.length === 0) && <span>{upvoters.length}</span>}
     </button>

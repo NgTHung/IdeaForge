@@ -27,9 +27,11 @@ export function placeStarterIdeas(existing: Idea[], result: StarterIdeasResponse
   return withResolvedNodeOverlaps({ ideas: [...existing, ...newIdeas] }, {}, fixedIds).ideas.slice(existing.length);
 }
 
-export function commitStarterIdeas(storage: LiveObject<BoardStorage>, result: StarterIdeasResponse, boardDescription: string): boolean {
+export function commitStarterIdeas(storage: LiveObject<BoardStorage>, result: StarterIdeasResponse, fallbackDescription: string): boolean {
   if (storage.get("starterIdeasState")?.get("status") === "completed") return false;
-  if (storage.get("title") !== result.title || boardDescription !== result.description) return false;
+  // Rooms created before descriptions moved into storage only have the directory copy.
+  const description = storage.get("description") ?? fallbackDescription;
+  if (storage.get("title") !== result.title || description !== result.description) return false;
   const savedIdeas = storage.get("ideas");
   const existing = [...savedIdeas.values()].map((idea) => idea.toJSON() as Idea);
   const created = placeStarterIdeas(existing, result, result.attemptId);

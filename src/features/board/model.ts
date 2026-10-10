@@ -93,7 +93,7 @@ export type Relationship = {
 export type ConnectionPair = { sourceId: string; targetId: string };
 // Keep the legacy value so saved downvotes can be ignored without rewriting a room.
 export type IdeaVote = { ideaId: string; voterId: string; voterName?: string; value: 1 | -1 };
-export type FreeDrawStroke = { id: string; points: { x: number; y: number }[] };
+export type FreeDrawStroke = { id: string; points: { x: number; y: number }[]; color?: string; width?: number };
 // The request stores the selected notes, clusters, and links as they were when the draft was generated.
 export type BoardConclusion = {
   version: 1;

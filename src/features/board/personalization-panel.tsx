@@ -11,17 +11,21 @@ function Choice({ label, value, choices, onChange, disabled = false }: { label: 
   </select></label>;
 }
 const colors = ["default", ...Object.keys(palette)];
-export function PersonalizationPanel({ preferences, update, reducedMotion, board, selectedIdeaId, selectedLinkId, canWrite, onStyle }: {
+export function PersonalizationPanel({ preferences, update, reducedMotion, board, selectedIdeaId, selectedLinkId, canWrite, onStyle, onFocusGroup }: {
   preferences: Personalization; update: (patch: Partial<Personalization>) => void; reducedMotion: boolean; board: Board;
   selectedIdeaId?: string; selectedLinkId?: string; canWrite: boolean;
   onStyle: (kind: "idea" | "relationship" | "cluster", id: string, style: ObjectStyle | ClusterStyle | RelationshipStyle) => void;
+  onFocusGroup: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState("");
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLElement>(null);
   const idea = board.ideas.find((item) => item.id === selectedIdeaId);
   const link = board.relationships.find((item) => item.id === selectedLinkId);
+  const groups = board.clusterSnapshot?.result.groups ?? [];
+  const selectedGroup = groups.find((group) => group.id === selectedGroupId);
   useEffect(() => {
     if (!open) return;
     panel.current?.querySelector<HTMLButtonElement>("button")?.focus();
@@ -40,9 +44,9 @@ export function PersonalizationPanel({ preferences, update, reducedMotion, board
     <button type="button" disabled={!canWrite} onClick={() => onStyle(kind, id, kind === "cluster" ? defaultClusterStyle : defaultObjectStyle)}>Reset {kind === "cluster" ? "group" : "idea"} style</button>
   </div>;
   return <div ref={root} className="personalization-control">
-    <button ref={trigger} type="button" className="personalization-trigger" aria-label="Personalization" aria-expanded={open} aria-controls="personalization-panel" onClick={() => setOpen((value) => !value)}><span aria-hidden="true">✿</span><span>Style</span></button>
+    <button ref={trigger} type="button" className="personalization-trigger" aria-label="Style" title="Style" aria-expanded={open} aria-controls="personalization-panel" onClick={() => setOpen((value) => !value)}><span aria-hidden="true">✿</span></button>
     {open && <aside ref={panel} id="personalization-panel" className="personalization-panel" role="dialog" aria-modal="false" aria-label="Personalization settings">
-      <header><div><h2>Personalization</h2></div><button type="button" aria-label="Close personalization" onClick={() => { setOpen(false); trigger.current?.focus(); }}>×</button></header>
+      <header><div><h2>Style & display</h2><p>Choose how your board looks and feels.</p></div><button type="button" aria-label="Close personalization" onClick={() => { setOpen(false); trigger.current?.focus(); }}>×</button></header>
       <section><h3>Motion & reactions</h3>
         <label className="personalization-check personalization-animation-toggle"><input type="checkbox" checked={preferences.animations} onChange={(event) => update({ animations: event.target.checked })} />Enable animations</label>
         {reducedMotion && <p>Your device requests reduced motion.</p>}
@@ -59,7 +63,7 @@ export function PersonalizationPanel({ preferences, update, reducedMotion, board
         <div className="personalization-cursor-preview" style={{ color: preferences.cursor.color === "default" ? "#32856a" : palette[preferences.cursor.color] }} aria-label="Cursor preview"><span aria-hidden="true">{preferences.cursor.shape === "cat" ? "/ᐠ｡ꞈ｡ᐟ\\" : preferences.cursor.shape === "arrow" ? "➤" : "●"}</span> You</div>
         <button type="button" onClick={() => update(defaultPreferences)}>Reset personal preferences</button>
       </section>
-      <section><h3>Style selected</h3><p>{canWrite ? "Shared styles are visible to everyone on this board." : "You can preview shared styles. Only editors can change them."}</p>
+      <section><h3>Selected idea or link</h3><p>{canWrite ? "Changes are shared with everyone on this board." : "You can preview styles. Only editors can change them."}</p>
         {idea && objectControls("idea", idea.id, idea.appearance ?? defaultObjectStyle, idea.title)}
         {link && <div className="personalization-object"><Choice label="Link color" value={link.appearance?.color ?? "default"} choices={colors} disabled={!canWrite} onChange={(color) => onStyle("relationship", link.id, { ...link.appearance ?? defaultRelationshipStyle, color: color as RelationshipStyle["color"] })} />
           <Choice label="Link stroke" value={link.appearance?.stroke ?? "solid"} choices={["solid", "dashed", "dotted"]} disabled={!canWrite} onChange={(stroke) => onStyle("relationship", link.id, { ...link.appearance ?? defaultRelationshipStyle, stroke: stroke as RelationshipStyle["stroke"] })} />
@@ -67,7 +71,19 @@ export function PersonalizationPanel({ preferences, update, reducedMotion, board
           <button type="button" disabled={!canWrite} onClick={() => onStyle("relationship", link.id, defaultRelationshipStyle)}>Reset link style</button></div>}
         {!idea && !link && <p>Select an idea or link to style it.</p>}
       </section>
-      <section><h3>Groups</h3>{board.clusterSnapshot?.result.groups.map((group, index) => objectControls("cluster", group.id, group.appearance ?? defaultClusterStyle, group.label.trim() || `Group ${index + 1}`)) ?? <p>Organize your ideas to name and decorate groups.</p>}</section>
+      <section><h3>Groups</h3>{groups.length > 0 ? <>
+        <p>Choose a group to focus it on the canvas and edit its style.</p>
+        <label className="personalization-choice personalization-group-choice"><span>Group</span><select aria-label="Choose group to style" value={selectedGroupId} onChange={(event) => {
+          const groupId = event.target.value;
+          setSelectedGroupId(groupId);
+          if (groupId) onFocusGroup(groupId);
+        }}>
+          <option value="">Select a group…</option>
+          {groups.map((group, index) => <option key={group.id} value={group.id}>{group.label.trim() || `Group ${index + 1}`} · {group.noteIds.length} ideas</option>)}
+        </select></label>
+        {selectedGroup && objectControls("cluster", selectedGroup.id, selectedGroup.appearance ?? defaultClusterStyle,
+          selectedGroup.label.trim() || `Group ${groups.indexOf(selectedGroup) + 1}`)}
+      </> : <p>Organize your ideas to create groups.</p>}</section>
     </aside>}
   </div>;
 }

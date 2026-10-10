@@ -8,6 +8,8 @@ import { initialBoard } from "./fixtures";
 import { clusterLabelsFor, createIdea, createRelationship, deleteIdea, deleteRelationship, IDEA_CARD_SIZE, ideaCardSize, moveIdea, relationshipLabels, setIdeaPinned, updateIdea, updateRelationship,
   type Board, type FreeDrawStroke, type Idea, type IdeaDescriptionRecord, type Relationship, type RelationshipType } from "./model";
 import { FreeDrawLayer, type FreeDrawTool } from "./free-draw-layer";
+import { defaultFreeDrawWidth, freeDrawColor, freeDrawWidth } from "./free-draw-style";
+import { inlineSvgPaintForExport } from "./export-svg-paint";
 import { Bubble, type IdeaNode } from "./bubble";
 import { MarkdownText } from "./markdown-text";
 import { OrthogonalEdge, type OrthogonalCanvasEdge } from "./orthogonal-edge";
@@ -16,9 +18,11 @@ import { ChatSidebar } from "./chat-sidebar";
 import { acceptAssistantCreate, assistantActionIsCurrent, type AssistantActionDraft } from "./assistant-actions";
 import { AccountMenu } from "./account-menu";
 import { ActiveMembers } from "./active-members";
+import { BoardLinkQr } from "./board-link-qr";
 import { IdeaVotes } from "./idea-votes";
-import { ConclusionPanel, ConclusionTrigger } from "./conclusion-panel";
-import { toggleIdeaUpvote, upvotersForIdea } from "./idea-voting";
+import { ConclusionPanel } from "./conclusion-panel";
+import { toggleIdeaUpvote, upvotersForIdea, votesByUser, MAX_UPVOTES_PER_PARTICIPANT } from "./idea-voting";
+import { AiToolsMenu } from "./ai-tools-menu";
 import { LiveCursors, type LiveCursor } from "./live-cursors";
 import { useConnectDrag } from "./use-connect-drag";
 import { usePhysics, type Contact } from "./use-physics";
@@ -46,6 +50,7 @@ import { addDecoration, moveDecoration, removeDecoration, canOpenCursorChat, sig
 import { canDragIdea, displayIdeas, type CanvasPoint } from "./canvas-interaction";
 import { canFillEditorDescription, canRequestIdeaDescription, fitIdeaDescriptionContext, ideaDescriptionGoal, type IdeaDescriptionContext, type IdeaDescriptionRequestState } from "./description-generation";
 import { ideaDescriptionResponseSchema } from "@/lib/idea-description-contract";
+import { BOARD_DESCRIPTION_MAX_LENGTH, BOARD_TITLE_MAX_LENGTH } from "@/lib/board-directory";
 import "./board.css";
 import "./personalization.css";
 import "./social.css";
@@ -137,7 +142,7 @@ type BoardAppProps = {
   starterIdeasNotice?: { kind: "pending" | "error"; message?: string; onRetry?: () => void } | null;
   onBoardChange?: (update: (board: Board) => Board) => boolean;
   onBackgroundBoardChange?: (update: (board: Board) => Board) => boolean;
-  onTitleChange?: (title: string) => void | Promise<void>;
+  onMetadataChange?: (metadata: { title: string; description: string }) => void | Promise<void>;
   historyActions?: { undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean; canWrite: boolean };
   liveDrawings?: FreeDrawStroke[];
   onDrawingPreviewChange?: (stroke: FreeDrawStroke | null) => void;
@@ -153,20 +158,25 @@ type BoardAppProps = {
   onSocialSignal?: (signal: SocialSignal) => void;
   boardScope?: string;
   connectedMembers?: ConnectedMember[];
+  // A local board embedded on the landing page; it hides features that need a shared room or an account.
+  sandbox?: boolean;
 };
 
 function ZoomReadout({ zoom }: { zoom: number }) {
   return <span className="board-zoom-level" aria-live="off">{Math.round(zoom * 100)}%</span>;
 }
 
-function ToolButton({ label, active, disabled, title, onClick, children, rewinding }: {
+function ToolButton({ label, active, disabled, title, onClick, children, rewinding, buttonRef, expanded }: {
   label: string; active?: boolean; disabled?: boolean; title?: string; onClick?: () => void; children: React.ReactNode; rewinding?: boolean;
+  buttonRef?: React.Ref<HTMLButtonElement>; expanded?: boolean;
 }) {
-  return <button type="button" className={`board-tool ${active ? "active" : ""} ${rewinding ? "is-rewinding" : ""}`} aria-label={label} aria-pressed={disabled ? undefined : active}
+  return <button ref={buttonRef} type="button" className={`board-tool ${active ? "active" : ""} ${rewinding ? "is-rewinding" : ""}`} aria-label={label} aria-pressed={disabled ? undefined : active} aria-expanded={expanded}
     title={title || label} disabled={disabled} onClick={onClick}><span className="board-tool-icon" aria-hidden="true">{children}</span></button>;
 }
 
-export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", starterIdeasNotice, onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove, onCursorStyleChange, signalCursorPositions, socialSignals, onSocialSignal, boardScope = "local", connectedMembers = emptyMembers }: BoardAppProps) {
+const pencilColors = ["#176c52", "#377dcc", "#8655b5", "#d34876", "#d87532", "#374151"];
+
+export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", starterIdeasNotice, onBoardChange, onBackgroundBoardChange, onMetadataChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove, onCursorStyleChange, signalCursorPositions, socialSignals, onSocialSignal, boardScope = "local", connectedMembers = emptyMembers, sandbox = false }: BoardAppProps) {
   const starterIdeasPending = starterIdeasNotice?.kind === "pending";
   const [cursorChatOpen, setCursorChatOpen] = useState(false);
   const [localCursorPosition, setLocalCursorPosition] = useState<CanvasPoint | null>(null);
@@ -180,6 +190,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
   const board = sharedBoard ?? localBoard;
   const { preferences, update: updatePreferences, motion, reducedMotion } = usePersonalization();
   const theme = preferences.theme;
+  const defaultPencilColor = theme === "dark" ? "#7bd6af" : "#176c52";
   const motionRef = useRef(motion);
   useEffect(() => { motionRef.current = motion; }, [motion]);
   const activity = useBoardActivity(board, connectedMembers, boardScope, voteUserId ?? "local", preferences);
@@ -189,12 +200,17 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
     else setLocalBoard(update);
   }, [onBoardChange]);
   const [localTitle, setLocalTitle] = useState("Student collaboration ideas");
+  const [localBoardDescription, setLocalBoardDescription] = useState(boardDescription);
   const title = sharedTitle ?? localTitle;
-  const [titleDraft, setTitleDraft] = useState<string | null>(null);
-  const [titleError, setTitleError] = useState("");
+  const displayedBoardDescription = sharedBoard ? boardDescription : localBoardDescription;
+  const [metadataDraft, setMetadataDraft] = useState<{ title: string; description: string } | null>(null);
+  const [metadataError, setMetadataError] = useState("");
+  const [metadataSaving, setMetadataSaving] = useState(false);
+  const metadataTrigger = useRef<HTMLButtonElement>(null);
   const [dragPositions, setDragPositions] = useState<Record<string, Idea["position"]>>({});
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [shareNotice, setShareNotice] = useState("");
+  const [shareUrl, setShareUrl] = useState("");
   const [shareOpen, setShareOpen] = useState(false);
   const [includeFreeDrawings, setIncludeFreeDrawings] = useState(true);
   const [exportingPng, setExportingPng] = useState(false);
@@ -202,6 +218,11 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
   const [exportFailed, setExportFailed] = useState(false);
   const [tool, setTool] = useState<Tool>("select");
   const [drawTool, setDrawTool] = useState<FreeDrawTool | null>(null);
+  const [pencilSettingsOpen, setPencilSettingsOpen] = useState(false);
+  const [pencilColor, setPencilColor] = useState<string | null>(null);
+  const [pencilWidth, setPencilWidth] = useState(defaultFreeDrawWidth);
+  const pencilButton = useRef<HTMLButtonElement>(null);
+  const activePencilColor = pencilColor ?? defaultPencilColor;
   const canWriteBoard = !onBoardChange || historyActions?.canWrite === true;
   const [selection, setSelection] = useState<Selection>(null);
   const [hoveredIdeaId, setHoveredIdeaId] = useState<string | null>(null);
@@ -228,6 +249,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
   const [lockNotice, setLockNotice] = useState("");
   const [physicsEnabled, setPhysicsEnabled] = useState(!onBoardChange);
   const [chatOpen, setChatOpen] = useState(false);
+  const [suggestedLinksOpen, setSuggestedLinksOpen] = useState(false);
   const [conclusionOpen, setConclusionOpen] = useState(false);
   const closeConclusion = useCallback(() => setConclusionOpen(false), []);
   const [assistantPreview, setAssistantPreview] = useState<AssistantActionDraft | null>(null);
@@ -265,7 +287,6 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
   const editorDraftRef = useRef<EditorDraft | null>(null);
   const editorGeneratedRef = useRef<IdeaDescriptionRecord | null>(null);
   const draftIdeaRef = useRef<Idea | null>(null);
-  const suppressTitleCommit = useRef(false);
   const boardRef = useRef(board);
   const dragPositionsRef = useRef(new Map<string, Idea["position"]>());
   const activeDragRef = useRef<{ id: string; position: Idea["position"] } | null>(null);
@@ -291,6 +312,17 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
   const autoPlacePreference = useRef(autoPlaceNewNotes);
   const boardTitleRef = useRef(title);
   const canWriteRef = useRef(canWriteBoard);
+  useEffect(() => {
+    if (!metadataDraft) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape" || metadataSaving) return;
+      setMetadataDraft(null);
+      setMetadataError("");
+      metadataTrigger.current?.focus();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [metadataDraft, metadataSaving]);
   useEffect(() => { boardTitleRef.current = title; }, [title]);
   useEffect(() => { canWriteRef.current = canWriteBoard; }, [canWriteBoard]);
   useEffect(() => { autoPlacePreference.current = autoPlaceNewNotes; }, [autoPlaceNewNotes]);
@@ -381,7 +413,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
   const clusterLabels = useMemo(() => new Map(clusterResult?.assignments.map((assignment) => [assignment.noteId, clusterResult.groups.find((group) => group.id === assignment.clusterId)?.label ?? ""])), [clusterResult]);
   const getIdeaDescriptionContext = useCallback((draft: EditorDraft): IdeaDescriptionContext => {
     const boardTitle = boundedDescriptionText(boardTitleRef.current.trim() || "Untitled board", 80);
-    const boardDescriptionText = boundedDescriptionText(boardDescription, 600);
+    const boardDescriptionText = boundedDescriptionText(displayedBoardDescription, 600);
     const seedContentText = boundedDescriptionText(draft.content, 1200);
     const clusterLabel = !clusterStale && boardRef.current.ideas.some((idea) => idea.id === draft.id)
       ? boundedDescriptionText(clusterLabels.get(draft.id) ?? "", 100) : "";
@@ -392,7 +424,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
       ...(seedContentText ? { seedContent: seedContentText } : {}),
       ...(clusterLabel ? { clusterLabel } : {}),
     });
-  }, [boardDescription, clusterStale, clusterLabels]);
+  }, [displayedBoardDescription, clusterStale, clusterLabels]);
   useEffect(() => {
     const pending = descriptionRequest.current;
     const current = editorDraftRef.current;
@@ -401,7 +433,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
     pending.controller.abort();
     descriptionRequest.current = null;
     setDescriptionStatus(null);
-  }, [board, title, boardDescription, clusterLabels, clusterStale, canWriteBoard, getIdeaDescriptionContext]);
+  }, [board, title, displayedBoardDescription, clusterLabels, clusterStale, canWriteBoard, getIdeaDescriptionContext]);
   const clusterColors = useMemo(() => new Map(clusterResult?.groups.flatMap((group, index) => group.noteIds.map((id) => [id, index % 5] as const))), [clusterResult]);
   const clusterAccents = useMemo(() => new Map(clusterResult?.groups.flatMap((group) => group.noteIds.map((id) => [id, group.appearance && styleColor(group.appearance.color)] as const))), [clusterResult]);
   const chosenIdea = selection?.kind === "idea" ? board.ideas.find((idea) => idea.id === selection.id) : undefined;
@@ -437,21 +469,37 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
     setClusterNamesState("idle");
     setClusterNamesError("");
   }, [board.clusterSnapshot, board.ideas]);
-  async function changeTitle(nextTitle: string) {
-    nextTitle = nextTitle.trim();
-    if (!nextTitle) { setTitleError("The board title cannot be empty."); return; }
-    if (nextTitle === title) return;
-    if (onTitleChange) {
-      setTitleError("");
-      try { await onTitleChange(nextTitle); boardTitleRef.current = nextTitle; }
-      catch (error) { setTitleError(error instanceof Error ? error.message : "The board title could not be saved."); }
-    }
-    else { boardTitleRef.current = nextTitle; setLocalTitle(nextTitle); }
+  function openMetadataEditor() {
+    setMetadataError("");
+    setMetadataDraft({ title, description: displayedBoardDescription });
   }
-  function commitTitleDraft() {
-    if (suppressTitleCommit.current) { suppressTitleCommit.current = false; setTitleDraft(null); return; }
-    if (titleDraft !== null) void changeTitle(titleDraft);
-    setTitleDraft(null);
+  function closeMetadataEditor() {
+    if (metadataSaving) return;
+    setMetadataDraft(null);
+    setMetadataError("");
+    metadataTrigger.current?.focus();
+  }
+  async function saveBoardMetadata(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!metadataDraft || metadataSaving) return;
+    const next = { title: metadataDraft.title.trim(), description: metadataDraft.description.trim() };
+    if (!next.title) { setMetadataError("Enter a board name."); return; }
+    setMetadataSaving(true);
+    setMetadataError("");
+    try {
+      if (onMetadataChange) await onMetadataChange(next);
+      else {
+        setLocalTitle(next.title);
+        setLocalBoardDescription(next.description);
+      }
+      boardTitleRef.current = next.title;
+      setMetadataDraft(null);
+      metadataTrigger.current?.focus();
+    } catch (error) {
+      setMetadataError(error instanceof Error ? error.message : "The board details could not be saved.");
+    } finally {
+      setMetadataSaving(false);
+    }
   }
   const focusCard = useCallback((cardId: string) => {
     if (!boardRef.current.ideas.some((idea) => idea.id === cardId)) return;
@@ -462,8 +510,10 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
     });
   }, []);
   async function copyBoardLink() {
+    const url = window.location.href;
+    setShareUrl(url);
     try {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(url);
       setShareNotice("Link copied");
       activity.notify("share", "Your board link is ready to fly.");
     } catch {
@@ -544,7 +594,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
     }
     setCursorChatOpen(open);
   }
-  function cancelInteraction() { setPlacingSticker(null); setCursorChatOpen(false); connectDrag.cancel(); closeEditor(); setDraftIdeaId(null); draftIdeaRef.current = null; setLinkDraft(null); setRelationshipEditor(null); setSourceId(null); setLinkError(""); setCondition(""); setOrganizeOpen(false); setMergePreview(null); setMergeDetailsId(null); setMergeIds([]); setMergeError(""); mergeRequestSequence.current += 1; mergeController.current?.abort(); setMergeBusy(false); setDrawTool(null); setTool("select"); }
+  function cancelInteraction() { setPlacingSticker(null); setCursorChatOpen(false); connectDrag.cancel(); closeEditor(); setDraftIdeaId(null); draftIdeaRef.current = null; setLinkDraft(null); setRelationshipEditor(null); setSourceId(null); setLinkError(""); setCondition(""); setOrganizeOpen(false); setMergePreview(null); setMergeDetailsId(null); setMergeIds([]); setMergeError(""); mergeRequestSequence.current += 1; mergeController.current?.abort(); setMergeBusy(false); setPencilSettingsOpen(false); setDrawTool(null); setTool("select"); }
   function removeSelection() {
     if (!selection) return;
     if (selection.kind === "idea") { setUndoPositions(null); setAssignmentUndo(null); }
@@ -594,21 +644,25 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
     setUndoPositions(null);
     setDrawTool(null); setTool("select"); openEditor(idea); physics.reheat();
   }
+  function addAtScreenPoint(screen: { x: number; y: number }) {
+    if (!flow.current) return;
+    const point = flow.current.screenToFlowPosition(screen);
+    makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 });
+  }
   function addAtCenter() {
     const bounds = canvas.current?.querySelector(".react-flow")?.getBoundingClientRect();
-    if (!bounds || !flow.current) return;
-    const point = flow.current.screenToFlowPosition({ x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 });
-    makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 });
+    if (bounds) addAtScreenPoint({ x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 });
   }
   function selectTool(next: Tool) {
     setPlacingSticker(null);
-    connectDrag.cancel(); setDrawTool(null); setTool(next); setSourceId(null); setLinkDraft(null);
+    connectDrag.cancel(); setDrawTool(null); setPencilSettingsOpen(false); setTool(next); setSourceId(null); setLinkDraft(null);
     const seed = next === "merge" && selection?.kind === "idea" ? [selection.id] : [];
     setSelection(null); setMergeIds(seed); setMergeError("");
   }
   function selectDrawTool(next: FreeDrawTool) {
     selectTool("select");
     setDrawTool(next);
+    setPencilSettingsOpen(next === "pencil");
   }
   async function fitBoard() {
     if (!flow.current || !canvas.current || board.ideas.length === 0) return;
@@ -640,6 +694,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
     const previousViewport = instance.getViewport();
     const nodes = instance.getNodes();
     const nodeBounds = getNodesBounds(nodes);
+    const originalGroupBorderColors = new Map<HTMLElement, { value: string; priority: string }>();
+    let restoreSvgPaint = () => {};
     let bounds = nodeBounds;
     let drawingBounds: { left: number; top: number; right: number; bottom: number } | null = null;
     const drawings = includeDrawings ? board.drawings ?? [] : [];
@@ -666,6 +722,12 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
         await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
       }
       const { toPng } = await import("html-to-image");
+      for (const element of target.querySelectorAll<HTMLElement>(".cluster-decoration[data-boundary='true']")) {
+        originalGroupBorderColors.set(element, { value: element.style.getPropertyValue("border-color"), priority: element.style.getPropertyPriority("border-color") });
+        const styleColor = getComputedStyle(element).getPropertyValue("--style-color").trim() || "#32856a";
+        element.style.setProperty("border-color", styleColor, "important");
+      }
+      restoreSvgPaint = inlineSvgPaintForExport(target);
       const pixelRatio = Math.min(2, 4096 / Math.max(target.clientWidth, target.clientHeight));
       const dataUrl = await toPng(target, {
         backgroundColor: theme === "dark" ? "#172321" : "#f0f5f1",
@@ -687,15 +749,16 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
         if (!context) throw new Error("Canvas rendering is unavailable");
         context.drawImage(image, 0, 0);
         context.scale(output.width / target.clientWidth, output.height / target.clientHeight);
-        context.strokeStyle = theme === "dark" ? "#7bd6af" : "#176c52";
-        context.lineWidth = 3.2;
         context.lineCap = "round";
         context.lineJoin = "round";
         for (const stroke of drawings) {
           if (stroke.points.length === 0) continue;
+          context.strokeStyle = freeDrawColor(stroke.color, defaultPencilColor);
+          context.lineWidth = freeDrawWidth(stroke.width);
           context.beginPath();
           context.moveTo(stroke.points[0].x * exportViewport.zoom + exportViewport.x, stroke.points[0].y * exportViewport.zoom + exportViewport.y);
-          for (const point of stroke.points.slice(1)) {
+          for (let index = 1; index < stroke.points.length; index += 1) {
+            const point = stroke.points[index];
             context.lineTo(point.x * exportViewport.zoom + exportViewport.x, point.y * exportViewport.zoom + exportViewport.y);
           }
           context.stroke();
@@ -715,6 +778,11 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
     } finally {
       try { await instance.setViewport(previousViewport, { duration: 0 }); }
       catch { /* Keep the board usable even if the viewport cannot be restored. */ }
+      restoreSvgPaint();
+      for (const [element, original] of originalGroupBorderColors) {
+        if (original.value) element.style.setProperty("border-color", original.value, original.priority);
+        else element.style.removeProperty("border-color");
+      }
       target.classList.remove("board-exporting");
       exportingPngRef.current = false;
       setExportingPng(false);
@@ -1521,6 +1589,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
     draggable: canDragIdea(board, idea.id, canWriteBoard) && tool !== "hand" && !spaceDown && !drawTool && tool !== "connect" && editor?.id !== idea.id,
     data: { idea, editingBy: editingLocks[idea.id], connecting: tool === "connect", source: sourceId === idea.id, editing: editor?.id === idea.id, squash: squashes[idea.id] ?? null,
       voting: onBoardChange && voteUserId ? { upvoters: upvotersForIdea(board.votes, idea.id), voterId: voteUserId, canWrite: canWriteBoard,
+        voteLimitReached: votesByUser(board.votes, voteUserId) >= MAX_UPVOTES_PER_PARTICIPANT,
         onUpvote: () => upvoteWithEffect(idea.id) } : undefined,
       mergeIndex: mergeIds.includes(idea.id) ? mergeIds.indexOf(idea.id) + 1 : previewMergeIds.indexOf(idea.id) + 1,
       onAssistantDetails: idea.assistant ? () => setAssistantDetailsId(idea.id) : undefined,
@@ -1632,35 +1701,57 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
   }
   return <AnimationContext.Provider value={{ preferences, motion }}><main className="board-shell" data-theme={theme} data-motion={motion ? "on" : "off"} style={{ "--personal-accent": styleColor(preferences.accent) ?? "#168264" } as React.CSSProperties}>
     <header className="board-topbar" aria-label="Board controls"><div className="board-brand">
-      <Link href="/" className="board-brand-home" aria-label="IdeaForge home" title="IdeaForge home"><span className="board-brand-symbol" aria-hidden="true">✳</span></Link>
-      <div className="board-title-group"><input aria-label="Board title" value={titleDraft ?? title} maxLength={80} onChange={(event) => setTitleDraft(event.target.value)}
-        onBlur={commitTitleDraft} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); if (event.key === "Escape") { suppressTitleCommit.current = true; setTitleDraft(null); event.currentTarget.blur(); } }} />
-        {boardDescription.trim() && <p className="board-description" title={boardDescription.trim()}>{boardDescription.trim()}</p>}</div></div>
-      {titleError && <span className="board-title-save-error" role="alert">{titleError}</span>}
-      <div className="board-top-actions"><ConclusionTrigger open={conclusionOpen} hasConclusion={Boolean(board.conclusion)} onToggle={() => setConclusionOpen((value) => !value)} />
+      <Link href="/" target={sandbox ? "_top" : undefined} className="board-brand-home" aria-label="IdeaForge home" title="IdeaForge home"><span className="board-brand-symbol" aria-hidden="true">✳</span></Link>
+      <div className="board-title-group"><button ref={metadataTrigger} type="button" className="board-title-trigger" aria-label="Edit board name and description" title="Edit board name and description" onClick={openMetadataEditor}>
+          <span>{title}</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m3.5 14.5-.8 3 3-.8L16.5 5.9a2.1 2.1 0 0 0-3-3L3.5 14.5Z"/><path d="m12.5 4 3 3"/></svg>
+        </button>{displayedBoardDescription.trim() && <p className="board-description" title={displayedBoardDescription.trim()}>{displayedBoardDescription.trim()}</p>}</div></div>
+      <div className="board-top-actions">
         {onBoardChange && <>{voteUserId && <IdeaVotes ideas={board.ideas} votes={board.votes} voterId={voteUserId} voterName={authorName || "Unknown contributor"}
-        canWrite={canWriteBoard} onBoardChange={onBoardChange} onUpvote={upvoteWithEffect} />}<ActiveMembers /><div className="board-share-control" ref={shareControl}>
-        <button className="board-share-button" type="button" aria-label="Share board" aria-expanded={shareOpen} aria-haspopup="dialog" onClick={() => { setShareOpen((open) => !open); setShareNotice(""); }}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11.5 3.5h5v5M16.2 3.8 9.5 10.5" /><path d="M14.5 10.5v4.8a1.2 1.2 0 0 1-1.2 1.2H4.7a1.2 1.2 0 0 1-1.2-1.2V6.7a1.2 1.2 0 0 1 1.2-1.2h4.8" /></svg>
+        canWrite={canWriteBoard} onBoardChange={onBoardChange} onUpvote={upvoteWithEffect} onFocusIdea={focusCard} />}<ActiveMembers /><div className="board-share-control" ref={shareControl}>
+        <button className="board-share-button" type="button" aria-label="Share board" aria-expanded={shareOpen} aria-haspopup="dialog" onClick={() => { setShareOpen((open) => !open); setShareNotice(""); setShareUrl(""); }}>
           <span className="board-share-label">Share</span></button>
         {shareOpen && <section className="board-share-popover" role="dialog" aria-label="Share and export board">
           <div className="board-share-popover-heading"><strong>Share board</strong><button type="button" aria-label="Close share menu" onClick={() => setShareOpen(false)}>×</button></div>
           <div className="board-share-section"><span className="board-share-section-label">Share link</span>
             <button className="board-share-action" type="button" onClick={() => void copyBoardLink()}><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="6" width="9" height="11" rx="1.5"/><path d="M12 6V4.5A1.5 1.5 0 0 0 10.5 3h-6A1.5 1.5 0 0 0 3 4.5v8A1.5 1.5 0 0 0 4.5 14H7"/></svg>Copy link</button>
+            {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
+            {shareUrl && <BoardLinkQr url={shareUrl} />}
           </div>
           <div className="board-share-section"><span className="board-share-section-label">Download</span>
             <label className="board-share-drawing-option"><input type="checkbox" checked={includeFreeDrawings} disabled={exportingPng} onChange={(event) => setIncludeFreeDrawings(event.target.checked)} />Include freehand drawings</label>
             <button className="board-share-action is-primary" type="button" disabled={exportingPng} onClick={() => void exportCanvasPng(includeFreeDrawings)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 13v3a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-3"/></svg>{exportingPng ? "Preparing PNG…" : "Download PNG"}</button>
           </div>
-          {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
         </section>}
         </div></>}
-        <button className={`board-assistant-launch ${chatOpen ? "is-open" : ""}`} type="button" aria-expanded={chatOpen} onClick={() => setChatOpen((value) => !value)}>
-          <BoardIcon name="assistant" /><span>Assistant</span></button>
-        <AccountMenu />
+        {sandbox && <a className="board-sandbox-create" href="/boards/new" target="_top">Create board</a>}
         <PersonalizationPanel preferences={preferences} update={updatePreferences} reducedMotion={reducedMotion} board={board} selectedIdeaId={chosenIdea?.id} selectedLinkId={chosenLink?.id} canWrite={canWriteBoard}
-          onStyle={(kind, id, style) => { if (canWriteBoard) commitBoardChange((current) => setObjectAppearance(current, kind, id, style)); }} /></div>
+          onStyle={(kind, id, style) => { if (canWriteBoard) commitBoardChange((current) => setObjectAppearance(current, kind, id, style)); }}
+          onFocusGroup={(groupId) => {
+            const group = clusterResult?.groups.find((candidate) => candidate.id === groupId);
+            const available = new Set(flow.current?.getNodes().map((node) => node.id) ?? []);
+            const ids = group?.noteIds.filter((id) => available.has(id)) ?? [];
+            if (ids.length) void flow.current?.fitView({ nodes: ids.map((id) => ({ id })), padding: 0.42, duration: motionRef.current ? 320 : 0 });
+          }} />
+        {!sandbox && <AccountMenu />}
+      </div>
     </header>
+    {metadataDraft && <div className="board-metadata-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeMetadataEditor(); }}>
+      <section className="board-metadata-dialog" role="dialog" aria-modal="true" aria-labelledby="board-metadata-title">
+        <header><div><h2 id="board-metadata-title">Board details</h2><p>Set the name and description your team sees.</p></div>
+          <button type="button" className="board-icon-button" aria-label="Close board details" disabled={metadataSaving} onClick={closeMetadataEditor}>×</button></header>
+        <form onSubmit={(event) => void saveBoardMetadata(event)}>
+          <label htmlFor="board-metadata-name">Board name</label>
+          <input id="board-metadata-name" autoFocus required maxLength={BOARD_TITLE_MAX_LENGTH} value={metadataDraft.title}
+            onChange={(event) => { setMetadataDraft({ ...metadataDraft, title: event.target.value }); setMetadataError(""); }} />
+          <label htmlFor="board-metadata-description">Project description</label>
+          <textarea id="board-metadata-description" rows={5} maxLength={BOARD_DESCRIPTION_MAX_LENGTH} value={metadataDraft.description}
+            onChange={(event) => { setMetadataDraft({ ...metadataDraft, description: event.target.value }); setMetadataError(""); }} />
+          {metadataError && <p className="board-metadata-error" role="alert">{metadataError}</p>}
+          <div className="board-metadata-actions"><button type="button" disabled={metadataSaving} onClick={closeMetadataEditor}>Cancel</button>
+            <button type="submit" className="primary" disabled={metadataSaving || !metadataDraft.title.trim()}>{metadataSaving ? "Saving…" : "Save details"}</button></div>
+        </form>
+      </section>
+    </div>}
     <div ref={workspace} className="board-workspace" onPointerMoveCapture={(event) => { cursorScreen.current = { x: event.clientX, y: event.clientY }; }}>
       <SocialControls ref={socialControls} container={workspaceElement} shortcutsBlocked={Boolean(editor || linkDraft || relationshipEditor || mergePreview || mergeDetailsId || assistantDetailsId || organizeOpen)} chatOpen={cursorChatOpen} setChatOpen={openCursorChat}
         screenPosition={chatAnchor}
@@ -1681,7 +1772,13 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
           cursorPoint.current = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY });
           onCursorMove?.(cursorPoint.current);
           if (!onSocialSignal && localSignals.signals.some((signal) => signal.kind === "chat")) setLocalCursorPosition(cursorPoint.current);
-        }} onPointerLeave={() => { cursorActive.current = false; onCursorMove?.(null); }}>
+        }} onPointerLeave={() => { cursorActive.current = false; onCursorMove?.(null); }}
+        onDoubleClick={(event) => {
+          // Only empty canvas: idea cards handle their own double-click to edit.
+          if (!(event.target instanceof Element) || !event.target.classList.contains("react-flow__pane")) return;
+          if (!canWriteBoard || tool !== "select" || drawTool || placingSticker || spaceDown || editor) return;
+          addAtScreenPoint({ x: event.clientX, y: event.clientY });
+        }}>
         <ReactFlow<IdeaNode, OrthogonalCanvasEdge> nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodesChange={onNodesChange} onInit={(instance) => { flow.current = instance; setZoom(instance.getZoom()); }} onMove={(_, viewport) => {
           setZoom(viewport.zoom);
           if (cursorActive.current && cursorScreen.current && flow.current) {
@@ -1693,7 +1790,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
           onPaneClick={(event) => { canvas.current?.focus(); if (placingSticker && canWriteBoard && flow.current) {
               const position = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY });
               if (commitBoardChange((current) => addDecoration(current, { id: createIdeaId(), kind: placingSticker, position, author: (authorName || "You").slice(0, 100) }))) setPlacingSticker(null);
-            } else if (tool === "add" && flow.current) { const point = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }); makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 }); }
+            } else if (tool === "add") addAtScreenPoint({ x: event.clientX, y: event.clientY });
             else { setSelection(null); setMergeIds([]); if (tool === "connect") { setSourceId(null); setLinkDraft(null); setTool("select"); } } }}
           onNodeClick={(event, node) => {
             if (tool === "merge") selectMergeNote(node.id, true);
@@ -1730,6 +1827,9 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
             strokes={board.drawings ?? []}
             liveStrokes={liveDrawings}
             tool={drawTool}
+            color={activePencilColor}
+            width={pencilWidth}
+            defaultColor={defaultPencilColor}
             enabled={canWriteBoard}
             onStroke={(stroke) => setBoard((current) => ({ ...current, drawings: [...(current.drawings ?? []), stroke] }))}
             onDraft={onDrawingPreviewChange}
@@ -1746,21 +1846,38 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
           <path d={orthogonalPreviewPath({ x: connectDrag.preview.x1, y: connectDrag.preview.y1 }, { x: connectDrag.preview.x2, y: connectDrag.preview.y2 })} />
           <circle cx={connectDrag.preview.x2} cy={connectDrag.preview.y2} r="6" />
         </svg>}
-        <nav className="board-toolbar" aria-label="Board tools">
+        <div className="board-tool-dock">
+          {!sandbox && <AiToolsMenu hasConclusion={Boolean(board.conclusion)}
+            onAssistant={() => { setSuggestedLinksOpen(false); setChatOpen(true); }}
+            onSuggestedLinks={() => { setChatOpen(false); setSuggestedLinksOpen((value) => !value); }}
+            onConclusion={() => { setChatOpen(false); setSuggestedLinksOpen(false); setConclusionOpen(true); }} />}
+          <nav className="board-toolbar" aria-label="Board tools">
           <ToolButton label="Select" title={drawTool ? "Stop drawing and select ideas" : "Select ideas"}
             active={tool === "select" && !drawTool} onClick={() => selectTool("select")}><BoardIcon name="select" /></ToolButton>
           <ToolButton label="Pan" active={tool === "hand"} title="Pan (hold Space)" onClick={() => selectTool("hand")}><BoardIcon name="pan" /></ToolButton>
           <div className="board-tool-rule" />
-          <ToolButton label="Add idea" active={tool === "add"} onClick={() => selectTool("add")}><BoardIcon name="add" /></ToolButton>
+          <ToolButton label="Add idea" active={tool === "add"} title="Add idea (or double-click empty canvas)" onClick={() => selectTool("add")}><BoardIcon name="add" /></ToolButton>
           <ToolButton label="Connect" active={tool === "connect"} title={tool === "connect" ? "Connect is active. Drag from one idea into another." : "Connect ideas by dragging from one idea into another"} onClick={() => selectTool("connect")}><BoardIcon name="connect" /></ToolButton>
-          <ToolButton label="Merge" active={tool === "merge"} title={`Choose 2 to ${MAX_MERGE_SOURCES} ideas to merge`} onClick={() => selectTool("merge")}><BoardIcon name="merge" /></ToolButton>
-          <ToolButton label={clusterResult ? "Organize again" : "Organize"} active={organizeOpen} disabled={clusterBusy || assignmentBusy || clusterInput.cards.length < 2 || clusterInput.cards.length > 50 || clusterInput.tooLongCount > 0} title={clusterInput.tooLongCount ? "Shorten idea text to 4,000 characters before organizing" : "Group related ideas and arrange the canvas"} onClick={openOrganize}><BoardIcon name="organize" /></ToolButton>
+          <div className="board-tool-featured-frame" role="group" aria-label="Merge and group tools">
+            <ToolButton label="Merge" active={tool === "merge"} title={`Choose 2 to ${MAX_MERGE_SOURCES} ideas to merge`} onClick={() => selectTool("merge")}><BoardIcon name="merge" /></ToolButton>
+            <ToolButton label="Group" active={organizeOpen} disabled={clusterBusy || assignmentBusy || clusterInput.cards.length < 2 || clusterInput.cards.length > 50 || clusterInput.tooLongCount > 0} title={clusterInput.tooLongCount ? "Shorten idea text to 4,000 characters before grouping" : "Group related ideas and arrange the canvas"} onClick={openOrganize}><BoardIcon name="organize" /></ToolButton>
+          </div>
           <div className="board-tool-rule" />
-          <ToolButton label="Pencil" active={drawTool === "pencil"} disabled={!canWriteBoard} onClick={() => selectDrawTool("pencil")}><BoardIcon name="pencil" /></ToolButton>
+          <ToolButton label="Pencil" title="Pencil settings" buttonRef={pencilButton} expanded={pencilSettingsOpen} active={drawTool === "pencil"} disabled={!canWriteBoard} onClick={() => selectDrawTool("pencil")}><BoardIcon name="pencil" /></ToolButton>
           <ToolButton label="Eraser" active={drawTool === "eraser"} disabled={!canWriteBoard} onClick={() => selectDrawTool("eraser")}><BoardIcon name="eraser" /></ToolButton>
           <DecorateMenu achievements={activity.achievements} canWrite={canWriteBoard} onPlace={(kind) => { selectTool("select"); setPlacingSticker(kind); }}
             onReact={(point) => socialControls.current?.toggleReactions(point)} onMessage={() => openCursorChat(true)} />
-        </nav>
+          </nav>
+        </div>
+        {pencilSettingsOpen && drawTool === "pencil" && <section id="pencil-settings" className="board-pencil-panel" aria-label="Pencil settings">
+          <div className="board-pencil-panel-heading"><div><strong>Pencil</strong><span>Line appearance</span></div><button type="button" aria-label="Close pencil settings" onClick={() => { setPencilSettingsOpen(false); pencilButton.current?.focus(); }}>×</button></div>
+          <fieldset className="board-pencil-colors"><legend>Color</legend>
+            {pencilColors.map((color) => <button key={color} type="button" className="board-pencil-swatch" aria-label={`Pencil color ${color}`} aria-pressed={activePencilColor === color} style={{ backgroundColor: color }} onClick={() => setPencilColor(color)} />)}
+          </fieldset>
+          <label className="board-pencil-custom-color"><span>Custom color</span><input aria-label="Custom pencil color" type="color" value={activePencilColor} onChange={(event) => setPencilColor(event.target.value)} /></label>
+          <label className="board-pencil-width"><span>Thickness <output>{pencilWidth.toFixed(1)} px</output></span><input aria-label="Pencil thickness" type="range" min="1" max="12" step="0.5" value={pencilWidth} onChange={(event) => setPencilWidth(Number(event.target.value))} /></label>
+          <button type="button" className="board-pencil-reset" onClick={() => { setPencilColor(null); setPencilWidth(defaultFreeDrawWidth); }}>Reset pencil</button>
+        </section>}
         {organizeOpen && <section className="board-organize-panel" aria-label="Organize ideas">
           <div className="board-organize-head"><h2>Organize ideas</h2><button type="button" className="board-icon-button" aria-label="Close organize panel" onClick={() => setOrganizeOpen(false)}>×</button></div>
           <label className="board-organize-count">Groups<select value={Math.min(clusterCount, Math.max(2, Math.min(10, clusterInput.cards.length)))} onChange={(event) => setClusterCount(Number(event.target.value))} disabled={clusterBusy || clusterInput.cards.length < 2}>
@@ -1832,11 +1949,16 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
           <span className="board-zoom-rule" /></>}
           <button aria-label="Zoom out" title="Zoom out" onClick={() => flow.current?.zoomOut({ duration: motionRef.current ? 180 : 0 })}><BoardIcon name="zoomOut" /></button><button aria-label="Fit ideas" title="Fit ideas" onClick={() => { void fitBoard(); }}><BoardIcon name="fit" /></button><ZoomReadout zoom={zoom} /><button aria-label="Zoom in" title="Zoom in" onClick={() => flow.current?.zoomIn({ duration: motionRef.current ? 180 : 0 })}><BoardIcon name="zoomIn" /></button></div>
       </div>
-      <ConnectionSuggestionsPanel board={board} suggestions={suggestions} onBoardChange={setBoard} minimized={chatOpen} authorName={authorName} />
-      <ChatSidebar open={chatOpen} onToggle={() => setChatOpen((value) => !value)} board={board} boardTitle={title}
+      {!sandbox && <><ConnectionSuggestionsPanel board={board} suggestions={suggestions} onBoardChange={setBoard} minimized={chatOpen} authorName={authorName}
+        expanded={suggestedLinksOpen} onExpandedChange={setSuggestedLinksOpen} showTrigger={false} />
+      <ChatSidebar open={chatOpen} onToggle={() => setChatOpen((value) => {
+        const next = !value;
+        if (next) setSuggestedLinksOpen(false);
+        return next;
+      })} board={board} boardTitle={title}
         selectedCardId={selectedCardId} onFocusCard={focusCard} activeActionKey={assistantPreview?.key ?? null}
         onPreviewAction={previewAssistantAction} onUpdatePreviewAction={updateAssistantPreview}
-        onAcceptAction={acceptAssistantAction} onDiscardAction={discardAssistantPreview} />
+        onAcceptAction={acceptAssistantAction} onDiscardAction={discardAssistantPreview} /></>}
     </div>
     {mergePreview && <div className="board-merge-panel" role="dialog" aria-modal="false" aria-label="Merged idea preview">
       <div className="board-merge-panel-head"><div><span className="board-eyebrow">{mergePreview.result.excluded?.length ? `${mergePreview.result.contributions.length} OF ${mergePreview.ids.length} IDEAS USED` : `${mergePreview.ids.length} SOURCE IDEAS`}</span><h2>Merge preview</h2></div><button type="button" aria-label="Discard merge preview" onClick={discardMerge}>×</button></div>
@@ -1909,8 +2031,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
         <button type="button" className="primary" disabled={mergeSaving || mergeBusy || previewStale || mergePreview.result.status !== "useful" || !mergePreview.title.trim() || !mergePreview.concept.trim()} onClick={keepMerge}>Create merged idea</button>
       </div>
     </div>}
-    <ConclusionPanel open={conclusionOpen} board={board} boardTitle={title} canWrite={canWriteBoard} authorName={authorName || "Unknown contributor"}
-      onCommit={commitBoardChange} onClose={closeConclusion} />
+    {!sandbox && <ConclusionPanel open={conclusionOpen} board={board} boardTitle={title} canWrite={canWriteBoard} authorName={authorName || "Unknown contributor"}
+      onCommit={commitBoardChange} onClose={closeConclusion} />}
     {selectedMergeIdea?.merge && <div className="board-merge-details" role="dialog" aria-modal="false" aria-label="How this idea was made"><div className="board-merge-panel-head"><h2>How this idea was made</h2><button type="button" aria-label="Close merge details" onClick={() => setMergeDetailsId(null)}>×</button></div>
       <button type="button" className="board-merge-show-sources" onClick={() => {
         const sourceIds = mergeDisplayData(selectedMergeIdea.merge!).sources.map((source) => source.id).filter((id) => board.ideas.some((idea) => idea.id === id));

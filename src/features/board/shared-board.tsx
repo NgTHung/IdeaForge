@@ -2,6 +2,7 @@
 
 import { LiveMap, LiveObject } from "@liveblocks/client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { initialBoard } from "./fixtures";
 import { BoardApp } from "./board-app";
 import type { Board, BoardConclusion, ConnectionPair, FreeDrawStroke, Idea, IdeaVote, Relationship, StarterIdeasState } from "./model";
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
@@ -23,7 +24,7 @@ const initialTitle = "Student collaboration ideas";
 
 export function SharedBoardRoom({ boardId, metadata }: { boardId: string; metadata?: BoardMetadata | null }) {
   return <RoomProvider key={`ideaforge:${boardId}`} id={`ideaforge:${boardId}`} initialStorage={createBoardStorage(
-    metadata?.title ?? initialTitle, [], [], metadata?.title,
+    metadata?.title ?? initialTitle, metadata ? [] : initialBoard.ideas, metadata ? [] : initialBoard.relationships, metadata?.title, metadata?.description,
   )}>
     <SharedBoardContent boardId={boardId} metadata={metadata} />
   </RoomProvider>;
@@ -113,6 +114,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
   const updateEditingIdea = useCallback((editingIdeaId: string | null) => updateMyPresence({ editingIdeaId }), [updateMyPresence]);
   const snapshot = useStorage((root) => ({
     title: root.title,
+    description: root.description ?? metadata?.description ?? "",
     goal: root.goal,
     ideas: Object.values(root.ideas),
     relationships: Object.values(root.relationships),
@@ -130,7 +132,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
   const markStarterIdeasFailed = useMutation(({ storage, self }) => {
     if (!self?.canWrite || storage.get("starterIdeasState")?.get("status") === "completed") return;
     storage.set("starterIdeasState", new LiveObject({
-      status: "failed", title: storage.get("title"), description: metadata?.description ?? "",
+      status: "failed", title: storage.get("title"), description: storage.get("description") ?? metadata?.description ?? "",
     }));
   }, [metadata?.description]);
   const finishStarterAttempt = useCallback(async (attemptId: string, status: "completed" | "failed") => {
@@ -247,19 +249,20 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     changed = syncBoardConclusion(storage, next.conclusion ?? null) || changed;
     return changed;
   }, []);
-  const updateTitleMutation = useMutation(({ storage }, title: string) => {
-    if (storage.get("title") !== title) storage.set("title", title);
+  const updateMetadataMutation = useMutation(({ storage }, next: { title: string; description: string }) => {
+    if (storage.get("title") !== next.title) storage.set("title", next.title);
+    if (storage.get("description") !== next.description) storage.set("description", next.description);
   }, []);
-  const updateTitle = useCallback(async (title: string) => {
+  const updateMetadata = useCallback(async (next: { title: string; description: string }) => {
     if (metadata) {
       const response = await fetch(`/api/boards/${encodeURIComponent(boardId)}/title`, {
         method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
+        body: JSON.stringify(next),
       });
-      if (!response.ok) throw new Error("The board title could not be saved. Please try again.");
+      if (!response.ok) throw new Error("The board details could not be saved. Please try again.");
     }
-    updateTitleMutation(title);
-  }, [boardId, metadata, updateTitleMutation]);
+    updateMetadataMutation(next);
+  }, [boardId, metadata, updateMetadataMutation]);
   const changeBoard = useCallback((update: (board: Board) => Board): boolean => updateBoard(update), [updateBoard]);
   const changeBoardWithoutHistory = useCallback((update: (board: Board) => Board): boolean =>
     history.disable(() => updateBoard(update)), [history, updateBoard]);
@@ -279,7 +282,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     onSocialSignal={sendSignal}
     liveCursors={liveCursors}
     onCursorMove={updateCursorPresence}
-    boardDescription={metadata?.description ?? ""}
+    boardDescription={snapshot.description}
     starterIdeasNotice={metadata?.canGenerateStarterIdeas && snapshot.starterIdeasState?.status !== "completed"
       ? starterBusy ? { kind: "pending" } : snapshot.starterIdeasState?.status === "failed" || starterError
         ? { kind: "error", message: starterError || "Starting ideas could not be generated.", onRetry: () => void requestStarterIdeas() }
@@ -288,7 +291,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     onEditingIdeaChange={updateEditingIdea}
     onBoardChange={changeBoard}
     onBackgroundBoardChange={changeBoardWithoutHistory}
-    onTitleChange={updateTitle}
+    onMetadataChange={updateMetadata}
     historyActions={{ undo, redo, canUndo, canRedo, canWrite }}
     liveDrawings={liveDrawings}
     onDrawingPreviewChange={updateDrawingPresence}

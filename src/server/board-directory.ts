@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { Db } from "mongodb";
 import { boardIdSchema } from "@/lib/rooms";
-import { boardTitleSchema, createBoardSchema, type BoardMetadata } from "@/lib/board-directory";
+import { boardMetadataSchema, createBoardSchema, type BoardMetadata } from "@/lib/board-directory";
 import { apiResponse, HttpError, readJson, requireOrigin } from "./http";
 
 export type BoardDocument = {
@@ -182,10 +182,10 @@ export function createBoardDirectoryHandlers({ getDatabase, getSession, getAppOr
       requireOrigin(request, getAppOrigin());
       const id = parseBoardId(value);
       const payload = await readJson(request);
-      const parsed = boardTitleSchema.safeParse((payload as { title?: unknown } | null)?.title);
-      if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message ?? "Enter a valid title.");
+      const parsed = boardMetadataSchema.safeParse(payload);
+      if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message ?? "Enter valid board details.");
       const { boards } = await collections();
-      const result = await boards.updateOne({ id }, { $set: { title: parsed.data, updatedAt: new Date() } });
+      const result = await boards.updateOne({ id }, { $set: { ...parsed.data, updatedAt: new Date() } });
       if (!result.matchedCount) throw new HttpError(404, "Board metadata was not found.");
       return new Response(null, { status: 204 });
     }),

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { advanceMilestones, cursorStyleSchema, defaultPreferences, earnedAchievements, emptyLedger, parsePreferences, reachedMilestones, recordContribution, setObjectAppearance } from "../src/features/board/personalization.ts";
+import { advanceMilestones, cursorStyleSchema, defaultClusterStyle, defaultPreferences, earnedAchievements, emptyLedger, parsePreferences, reachedMilestones, recordContribution, setObjectAppearance } from "../src/features/board/personalization.ts";
 import { renameClusterGroup } from "../src/features/board/cluster-state.ts";
 
 function boardFixture() {
@@ -12,6 +12,7 @@ function boardFixture() {
     clusterSnapshot: { revision: "revision", stale: false, result: { groups: [{ id: "g1", label: "First", noteIds: ["a"] }, { id: "g2", label: "Second", noteIds: ["b"] }], assignments: [{ noteId: "a", clusterId: "g1" }], notePairs: [{ sourceId: "a", targetId: "b", similarity: .5 }] }, bubbles: [{ clusterId: "g1", x: 1, y: 2 }] } };
 }
 test("defaults preserve earlier boards and themes; invalid stored preferences fail safely", () => {
+  assert.deepEqual(defaultClusterStyle, { color: "default", border: "plain", boundary: true });
   assert.deepEqual(parsePreferences(null), defaultPreferences);
   assert.equal(parsePreferences(null, "dark").theme, "dark");
   assert.deepEqual(parsePreferences("broken"), defaultPreferences);
