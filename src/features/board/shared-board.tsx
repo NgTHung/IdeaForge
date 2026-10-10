@@ -22,7 +22,7 @@ const initialTitle = "Student collaboration ideas";
 
 export function SharedBoardRoom({ boardId, metadata }: { boardId: string; metadata?: BoardMetadata | null }) {
   return <RoomProvider key={`ideaforge:${boardId}`} id={`ideaforge:${boardId}`} initialStorage={createBoardStorage(
-    metadata?.title ?? initialTitle, initialBoard.ideas, initialBoard.relationships, metadata?.title,
+    metadata?.title ?? initialTitle, initialBoard.ideas, initialBoard.relationships, metadata?.title, metadata?.description,
   )}>
     <SharedBoardContent boardId={boardId} metadata={metadata} />
   </RoomProvider>;
@@ -109,6 +109,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
   const updateEditingIdea = useCallback((editingIdeaId: string | null) => updateMyPresence({ editingIdeaId }), [updateMyPresence]);
   const snapshot = useStorage((root) => ({
     title: root.title,
+    description: root.description ?? metadata?.description ?? "",
     goal: root.goal,
     ideas: Object.values(root.ideas),
     relationships: Object.values(root.relationships),
@@ -188,19 +189,20 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     changed = syncBoardConclusion(storage, next.conclusion ?? null) || changed;
     return changed;
   }, []);
-  const updateTitleMutation = useMutation(({ storage }, title: string) => {
-    if (storage.get("title") !== title) storage.set("title", title);
+  const updateMetadataMutation = useMutation(({ storage }, next: { title: string; description: string }) => {
+    if (storage.get("title") !== next.title) storage.set("title", next.title);
+    if (storage.get("description") !== next.description) storage.set("description", next.description);
   }, []);
-  const updateTitle = useCallback(async (title: string) => {
+  const updateMetadata = useCallback(async (next: { title: string; description: string }) => {
     if (metadata) {
       const response = await fetch(`/api/boards/${encodeURIComponent(boardId)}/title`, {
         method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
+        body: JSON.stringify(next),
       });
-      if (!response.ok) throw new Error("The board title could not be saved. Please try again.");
+      if (!response.ok) throw new Error("The board details could not be saved. Please try again.");
     }
-    updateTitleMutation(title);
-  }, [boardId, metadata, updateTitleMutation]);
+    updateMetadataMutation(next);
+  }, [boardId, metadata, updateMetadataMutation]);
   const changeBoard = useCallback((update: (board: Board) => Board): boolean => updateBoard(update), [updateBoard]);
   const changeBoardWithoutHistory = useCallback((update: (board: Board) => Board): boolean =>
     history.disable(() => updateBoard(update)), [history, updateBoard]);
@@ -220,12 +222,12 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     onSocialSignal={sendSignal}
     liveCursors={liveCursors}
     onCursorMove={updateCursorPresence}
-    boardDescription={metadata?.description ?? ""}
+    boardDescription={snapshot.description}
     editingLocks={editingLocks}
     onEditingIdeaChange={updateEditingIdea}
     onBoardChange={changeBoard}
     onBackgroundBoardChange={changeBoardWithoutHistory}
-    onTitleChange={updateTitle}
+    onMetadataChange={updateMetadata}
     historyActions={{ undo, redo, canUndo, canRedo, canWrite }}
     liveDrawings={liveDrawings}
     onDrawingPreviewChange={updateDrawingPresence}

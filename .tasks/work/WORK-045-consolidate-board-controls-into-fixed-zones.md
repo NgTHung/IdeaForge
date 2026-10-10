@@ -12,18 +12,26 @@ last_updated: 2026-10-10
 
 ## Summary
 
-Implement the first board-layout pass from the design cleanup target layout. Move controls without changing what they do: one left toolbar with drawing tools and a Decorate menu, undo and redo beside zoom, the Assistant launcher in the header, the board description under the title, and the link-visibility toggle in the selection bar. Remove the header theme toggle and the separate React, Message, Achievements, and Stickers chips. Replace glyph and emoji tool icons with one SVG set. Selection-bar merging, AI panel consolidation, the shared notice area, and the Style panel split stay for later passes.
+Consolidate board controls and make the main flows direct. Keep one left toolbar with drawing tools and a Decorate menu, place Assistant, Suggested Links, and Conclusion under one star launcher above and outside it, and move the selected-idea actions to bottom center. Pair Merge and Group vertically in a highlighted frame aligned with the other tools. Let participants edit the board name and description from one dialog, cap each participant at three upvotes across the board, and let Top ideas focus an idea when selected. Keep undo and redo beside zoom, remove the Share icon, and put icon-only Style beside the account control.
 
 ## Acceptance Criteria
 
-- [x] The left toolbar is one group with select, pan, add, connect, merge, organize, pencil, eraser, and Decorate, with no DRAW label or separate Assistant button.
+- [x] The left toolbar is one group with select, pan, add, connect, merge, group, pencil, eraser, and Decorate, with no DRAW label or separate Assistant button.
+- [x] One round star launcher sits above and outside the toolbar, and opens Assistant, Suggested Links, and Conclusion with a symbol beside each name.
+- [x] Merge and Group sit vertically in one compact highlighted frame, aligned with the other tools; the selected-idea toolbar sits at bottom center.
 - [x] Decorate opens one menu with stickers, earned achievements, and the reaction and cursor-message actions; R and Enter shortcuts keep working.
-- [x] Undo and redo sit with the zoom controls; the header has no theme toggle; the Assistant opens from the header.
-- [ ] The board description shows under the title only when it exists, and the link-visibility toggle lives in the selection bar.
+- [x] Undo and redo sit with the zoom controls, and the header has no theme toggle.
+- [x] Clicking the board name opens a dialog that saves the board name and project description for everyone on the board.
+- [x] Each participant can keep at most three upvotes; Top ideas stays sorted by score and clicking an idea closes the list and zooms to it.
+- [x] Share has no icon, and icon-only Style appears immediately before the account control.
+- [x] The board description shows under the title only when it exists, and the link-visibility toggle lives in the selection bar.
 - [x] Toolbar, zoom, history, and Assistant icons come from one SVG icon module.
-- [x] Lint, typecheck, and production build pass; browser evidence and unverified paths are recorded.
+- [x] Lint, typecheck, and production build pass; browser verification gaps are recorded.
+- [ ] Browser checks cover the AI launcher, vote limit, idea focus, metadata sync, bottom-center selection actions, and mobile layout.
 
 ## Verification
+
+On 2026-10-10, lint, typecheck, and the production build passed for the follow-up controls and board metadata editor. Typecheck and build needed workspace escalation because Next.js could not write generated files under the default sandbox. No browser session was available for this pass, so menu interaction, board metadata synchronization, the vote cap, focus and zoom, bottom-center selection actions, and mobile layout still need a browser check. The `taskroot` command is not installed in this environment, so tracker validation and lifecycle completion remain open.
 
 On 2026-10-10, lint, typecheck, the production build, and all 174 tests passed. A headless Chromium script against `next dev` joined a fresh Liveblocks room as a guest at 1280×800. The toolbar listed Select, Pan, Add idea, Connect, Merge, Organize, Pencil, Eraser, and Decorate. Undo and Redo sat with the zoom buttons, and the header showed Top ideas, members, Share, Assistant, and Style. The theme toggle, description button, React and Message chips, Achievements and Stickers chips, and DRAW label were absent. Decorate opened stickers, achievements, and reactions; Escape closed it and returned focus to Decorate. R opened the reaction wheel and Enter opened the cursor message, and the menu's React button opened the wheel. Selecting an idea showed Only its links in the selection bar, and it toggled `aria-pressed`. The Assistant opened from the header. A dark-mode screenshot showed the menu and toolbar with dark styling, and no page errors were logged.
 

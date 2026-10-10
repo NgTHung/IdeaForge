@@ -11,10 +11,12 @@ export const boardDescriptionSchema = z.string().trim().max(
   `Use ${BOARD_DESCRIPTION_MAX_LENGTH.toLocaleString()} characters or fewer.`,
 ).default("");
 
-export const createBoardSchema = z.object({
+export const boardMetadataSchema = z.object({
   title: boardTitleSchema,
   description: boardDescriptionSchema,
 }).strict();
+
+export const createBoardSchema = boardMetadataSchema;
 
 export type BoardMetadata = {
   id: string;

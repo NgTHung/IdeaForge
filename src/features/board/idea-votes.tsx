@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Idea, IdeaVote } from "./model";
-import { upvotersForIdea, toggleIdeaUpvote, voterNameFor } from "./idea-voting";
+import { MAX_UPVOTES_PER_PARTICIPANT, upvotersForIdea, toggleIdeaUpvote, voterNameFor, votesByUser } from "./idea-voting";
 import { IdeaUpvote } from "./idea-upvote";
 import type { Board } from "./model";
 import "./idea-votes.css";
 
-export function IdeaVotes({ ideas, votes = [], voterId, voterName, canWrite, onBoardChange, onUpvote }: {
+export function IdeaVotes({ ideas, votes = [], voterId, voterName, canWrite, onBoardChange, onUpvote, onFocusIdea }: {
   ideas: Idea[];
   votes?: IdeaVote[];
   voterId: string;
@@ -15,6 +15,7 @@ export function IdeaVotes({ ideas, votes = [], voterId, voterName, canWrite, onB
   canWrite: boolean;
   onBoardChange: (update: (board: Board) => Board) => boolean;
   onUpvote?: (ideaId: string) => void;
+  onFocusIdea?: (ideaId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -22,6 +23,8 @@ export function IdeaVotes({ ideas, votes = [], voterId, voterName, canWrite, onB
   const rows = useMemo(() => [...ideas].sort((left, right) =>
     upvotersForIdea(votes, right.id).length - upvotersForIdea(votes, left.id).length
     || left.title.localeCompare(right.title)), [ideas, votes]);
+  const usedVotes = votesByUser(votes, voterId);
+  const voteLimitReached = usedVotes >= MAX_UPVOTES_PER_PARTICIPANT;
 
   useEffect(() => {
     if (!open) return;
@@ -51,14 +54,15 @@ export function IdeaVotes({ ideas, votes = [], voterId, voterName, canWrite, onB
     </button>
     {open && <section id="idea-votes-popover" className="idea-votes-popover" aria-label="Top ideas">
       <header className="idea-votes-header"><strong>Top ideas</strong><span>{rows.length}</span></header>
+      <p className="idea-votes-limit" role="status">{usedVotes} of {MAX_UPVOTES_PER_PARTICIPANT} votes used</p>
       {rows.length ? <ul>{rows.map((idea) => {
         const upvoters = upvotersForIdea(votes, idea.id);
         return <li key={idea.id}>
-          <div className="idea-votes-details">
-            <span className="idea-votes-title" title={idea.title}>{idea.title.trim() || "Untitled idea"}</span>
+          <button type="button" className="idea-votes-focus" title={`Focus ${idea.title.trim() || "Untitled idea"}`} onClick={() => { setOpen(false); onFocusIdea?.(idea.id); }}>
+            <span className="idea-votes-title">{idea.title.trim() || "Untitled idea"}</span>
             <small className="idea-votes-names">{upvoters.length ? upvoters.map(voterNameFor).join(", ") : "No upvotes yet"}</small>
-          </div>
-          <IdeaUpvote ideaTitle={idea.title} upvoters={upvoters} voterId={voterId} canWrite={canWrite} showUpvoters={false}
+          </button>
+          <IdeaUpvote ideaTitle={idea.title} upvoters={upvoters} voterId={voterId} canWrite={canWrite} voteLimitReached={voteLimitReached} showUpvoters={false}
             onUpvote={() => onUpvote ? onUpvote(idea.id) : onBoardChange((board) => toggleIdeaUpvote(board, idea.id, voterId, voterName))} />
         </li>;
       })}</ul> : <p className="idea-votes-empty">Add an idea to start voting.</p>}
