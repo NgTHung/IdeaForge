@@ -4,14 +4,11 @@
 .landing-brand { display: inline-flex; align-items: center; gap: 10px; color: #24413a; font-size: 18px; font-weight: 800; letter-spacing: -.04em; text-decoration: none; }
 .landing-brand-mark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: #16785f; color: #fff; font-size: 25px; }
 .landing-content { width: 100%; max-width: 880px; min-width: 0; margin: clamp(24px, 6vh, 64px) auto 0; padding: 24px 0 50px; text-align: center; }
-.landing-content h1 { width: 100%; max-width: 720px; margin: 0 auto 12px; color: #213d36; font-size: clamp(48px, 5.2vw, 64px); letter-spacing: -.065em; line-height: 1.03; }
-.landing-headline-emphasis { display: block; width: fit-content; margin: 4px auto 0; background: linear-gradient(100deg, #12664e 0%, #16785f 48%, #2c8a59 100%); background-clip: text; -webkit-background-clip: text; color: transparent; font-style: italic; font-weight: 900; }
-.landing-actions { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 30px; margin-top: 90px; text-align: left; }
+.landing-content h1 { width: 100%; max-width: 720px; margin: 0 auto 12px; color: #213d36; font-size: clamp(36px, 4.5vw, 52px); letter-spacing: -.065em; line-height: 1.03; }
+.landing-actions { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 30px; margin-top: 48px; text-align: left; }
 .landing-card { display: flex; width: 100%; min-width: 0; flex-direction: column; padding: 28px; border: 1px solid #dce8e0; border-radius: 19px; background: #fff; box-shadow: 0 15px 45px #3158470d; }
 .landing-create-card { background: linear-gradient(145deg, #fff 45%, #f0f8f3 100%); }
-.landing-card-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: #e6f3eb; color: #16785f; font-size: 27px; font-weight: 600; }
-.landing-join-icon { font-size: 22px; }
-.landing-card h2 { margin: 18px 0 7px; color: #26453a; font-size: 20px; letter-spacing: -.03em; }
+.landing-card h2 { margin: 0 0 16px; color: #26453a; font-size: 20px; letter-spacing: -.03em; }
 .landing-primary, .landing-join-form button { display: inline-flex; align-items: center; justify-content: center; width: 100%; height: 50px; padding: 0 15px; border: 1px solid #16785f; border-radius: 10px; background: #16785f; color: white; font-size: 14px; font-weight: 700; cursor: pointer; }
 .landing-primary { margin-top: auto; }
 .landing-primary:hover, .landing-join-form button:hover { background: #11664f; }
@@ -31,3 +28,4 @@
   .landing-actions { grid-template-columns: minmax(0, 1fr); margin-top: 32px; }
   .landing-card { padding: 24px; }
 }
+.landing-card p { margin: 0 0 28px; color: #557166; font-size: 14px; line-height: 1.6; }

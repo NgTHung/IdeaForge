@@ -4,6 +4,8 @@ What's built, what's verified, and the five-day plan to the Forgehack submission
 
 ## Current status
 
+The first design cleanup pass (`work:WORK-044`) removes redundant copy, standardizes idea and link labels, simplifies entry screens and the account menu, and reduces idea-card controls. Top ideas ranks the existing upvotes. Remaining work is in [Design cleanup](design-cleanup.md).
+
 Done:
 
 - Landing screen at `/` with actions to create a shared board or join by URL or UUID.
@@ -220,3 +222,5 @@ On 2026-10-10, `work:BUG-004` fixed cursor chat positions, cursor sizing and cap
 Border decoration follow-up `work:WORK-042` is Done. Cloud notes and clusters have uneven puffs, shaded rims, wisps, and static sparkles. Cat, RGB, stars, flowers, and paper have stronger outlines and distinct ornaments on both notes and clusters, with matching Style previews. RGB keeps one static alternating multicolor line. All 174 tests, lint, typecheck, and build passed. Two live guest connections verified appearance sync and reload persistence; browser checks covered light and dark themes, motion off, hidden cluster boundaries, cloud dragging, and 390px-wide previews. Physical devices, other engines, signed-in and viewer sessions, fresh reduced-motion emulation, and deployment remain unverified for this pass.
 
 Reaction wheel follow-up `work:WORK-043` opens at the pointer with R or React, stays still while choosing, and shifts inward at board edges. Eleven focused tests, lint, typecheck, and build passed. Browser checks covered pan, zoom, desktop corners, a 390px-wide board iframe, keyboard fallback, selection, dismissal, chat exclusivity, typing guards, and named reactions across two live guest connections. Physical devices, other engines, signed-in sessions, and deployment remain unverified for this pass.
+
+Design cleanup verification on 2026-10-10 passed 18 focused voting, merge-provenance, and social tests, lint, typecheck, and the production build. The T3 browser used the Tailscale IP to check landing, sign-in and sign-up, real guest board metadata, a live Liveblocks board, vote counts and ranking, blank content, pin markers, the edit dialog, Assistant, and Style labels. Landing, login, and guest entry fit a 390px-wide same-origin iframe without horizontal overflow. Native preview resizing timed out. Signed-in account, dashboard, and board-creation flows, live AI generation, and deployment were not rechecked.

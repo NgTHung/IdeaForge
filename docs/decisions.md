@@ -57,7 +57,7 @@ A concept brief summarizes one merged concept. It covers the concept, the cards 
 
 ### Votes
 
-A vote is a social signal: each participant can give each idea one removable upvote, and the score is the number of upvoters. Idea cards and the header dropdown show scores and let people see who upvoted. Each vote stores the voter's display name so it stays visible after they leave. Older upvotes without a name show a guest label, and older downvotes do not count. Votes never choose anything.
+A vote is a social signal: each participant can give each idea one removable upvote, and the score is the number of upvoters. Idea cards and Top ideas show scores and let people see who upvoted. Top ideas sorts by upvotes, with alphabetical ties. Each vote stores the voter's display name so it stays visible after they leave. Older upvotes without a name show a guest label, and older downvotes do not count. Votes never choose anything.
 
 ### Scope
 
@@ -160,6 +160,8 @@ For Organize, the browser sends eligible note text and the selected group count 
 - The merge route exports `maxDuration = 95` to cover three 30-second AI attempts and the retry delay. Keep Fluid compute enabled when deploying; its duration limits support this budget. See [Vercel function duration](https://vercel.com/docs/functions/configuring-functions/duration).
 
 ## Log
+
+- 2026-10-10: `work:WORK-044` starts the design cleanup with copy and vocabulary changes. The guest lobby shows the board title and description in a single form column. The account menu keeps identity, dashboard access, and sign out. Idea cards use a single merged marker and show voters through a positive vote count. Merge provenance stays in the selection bar. The header voting list becomes Top ideas and sorts by upvotes, with alphabetical ties. Visible object labels use idea, link, and group.
 
 - 2026-10-10: `work:WORK-043` opens the reaction wheel at the pointer with R or the React button. The wheel keeps its opening position while a participant chooses and shifts inward near board edges. Keyboard activation without a pointer uses the trigger location. Temporary room events and saved board data keep their existing behavior.
 

@@ -91,7 +91,7 @@ export function AchievementCollection({ achievements, canWrite, onPlace }: { ach
       <div className="achievement-popup"><strong>Your achievements</strong><ul>
         {Object.entries(achievementLabels).map(([key, label]) => {
           const earned = achievements.includes(key as keyof typeof achievementLabels);
-          return <li key={key} data-earned={earned}><span aria-hidden="true">{stickerCatalog[key as StickerKind].glyph}</span><div><b>{label}</b><small>{key === "spark" ? "Save your first idea" : key === "combo" ? "Keep a merge across clusters" : "Save five ideas"}</small><span className="achievement-state">{earned ? "Earned" : "Not earned yet"}</span>
+          return <li key={key} data-earned={earned}><span aria-hidden="true">{stickerCatalog[key as StickerKind].glyph}</span><div><b>{label}</b><small>{key === "spark" ? "Save your first idea" : key === "combo" ? "Keep a merge across groups" : "Save five ideas"}</small><span className="achievement-state">{earned ? "Earned" : "Not earned yet"}</span>
             {earned && <button type="button" disabled={!canWrite} aria-label={`Place ${label} achievement sticker`} onClick={(event) => { onPlace(key as StickerKind); event.currentTarget.closest("details")?.removeAttribute("open"); }}>Place sticker ↗</button>}</div></li>;
         })}
       </ul><p>Awards stay in this browser for you and this board. Placed stickers are shared and saved.</p></div>

@@ -57,20 +57,16 @@ export function LandingPage() {
       <AccountMenu />
     </header>
     <section className="landing-content">
-      <h1>
-        Bring your team’s ideas
-        <strong className="landing-headline-emphasis">TOGETHER.</strong>
-      </h1>
+      <h1>Collect your team’s ideas and merge them with AI.</h1>
       <div className="landing-actions">
         <section className="landing-card landing-create-card">
-          <span className="landing-card-icon" aria-hidden="true">＋</span>
           <h2>Create a board</h2>
+          <p>A shared canvas for your team’s ideas, links, and merges.</p>
           <button className="landing-primary" type="button" disabled={isCreating || isPending} onClick={createBoard}>
             {isCreating ? "Opening…" : "Create board"}
           </button>
         </section>
         <section className="landing-card">
-          <span className="landing-card-icon landing-join-icon" aria-hidden="true">↗</span>
           <h2>Join a board</h2>
           <form className="landing-join-form" onSubmit={joinBoard} aria-busy={isJoining}>
             <label htmlFor="join-board">Board link or ID</label>

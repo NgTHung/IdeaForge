@@ -20,7 +20,6 @@ export type IdeaNode = Node<{
   clusterColor?: number;
   clusterAccent?: string;
   mergeIndex: number;
-  onMergeDetails?: () => void;
   onAssistantDetails?: () => void;
   onSelect: (additive: boolean) => void;
   onEdit: () => void;
@@ -75,12 +74,11 @@ export function Bubble({ data, selected, dragging }: NodeProps<IdeaNode>) {
     <Handle id="source-top" type="source" position={Position.Top} isConnectable={false} className="board-hidden-handle" />
     <div className="board-bubble-float"><div key={data.squash?.token ?? "idle"} className="board-bubble-squash"><div ref={surface} className="board-bubble-surface">
       {idea.appearance && <BorderDecorations border={idea.appearance.border} size={ideaCardSize(idea, data.clusterLabel)} />}
-      {idea.merge && <span className="merged-note-sigil" aria-hidden="true">✦</span>}
-      <div className="board-bubble-top"><span className="board-bubble-kicker">{idea.assistant ? "ASSISTANT IDEA" : idea.merge ? "✦ COMBINED CONCEPT" : "IDEA"}</span><span className="board-bubble-badges">{data.mergeIndex > 0 && <span className="board-merge-index" aria-label={`Merge idea ${data.mergeIndex}`}>{data.mergeIndex}</span>}{data.clusterLabel && !idea.merge && <span className="board-cluster-badge">{data.clusterLabel}</span>}{idea.pinned && <span ref={pin} className="board-pinned" title="Pinned idea"><span aria-hidden="true">📌</span> PINNED</span>}</span></div>
+      {idea.merge && <span className="merged-note-sigil" role="img" aria-label="Merged idea" title="Merged idea">✦</span>}
+      <div className="board-bubble-top">{idea.assistant && <span className="board-bubble-kicker">Assistant idea</span>}<span className="board-bubble-badges">{data.mergeIndex > 0 && <span className="board-merge-index" aria-label={`Merge idea ${data.mergeIndex}`}>{data.mergeIndex}</span>}{data.clusterLabel && !idea.merge && <span className="board-cluster-badge">{data.clusterLabel}</span>}{idea.pinned && <span ref={pin} className="board-pinned" role="img" aria-label="Pinned idea" title="Pinned idea"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m12 3 5 5-2 1-2 4-2-2-5 5m1-9 4-2 1-2M5 8l7 7" /></svg></span>}</span></div>
       {idea.merge && data.clusterLabel && <div className="board-merged-cluster-line"><span className="board-cluster-badge">{data.clusterLabel}</span></div>}
       {data.editingBy && <span className="board-card-editing-lock" title={`${data.editingBy} is editing this idea`}>{data.editingBy} editing</span>}
-      <h3>{idea.title}</h3>{idea.author && !idea.merge && <small className="board-bubble-author">By {idea.author}</small>}<MarkdownText className="board-bubble-markdown">{idea.content || "Add a few details to this idea."}</MarkdownText>
-      {idea.merge && <button type="button" className="board-merge-details-button nodrag nopan" onClick={(event) => { event.stopPropagation(); data.onMergeDetails?.(); }}>How this idea was made</button>}
+      <h3>{idea.title}</h3>{idea.author && !idea.merge && <small className="board-bubble-author">By {idea.author}</small>}{idea.content && <MarkdownText className="board-bubble-markdown">{idea.content}</MarkdownText>}
       {idea.assistant && !data.preview && <button type="button" className="board-merge-details-button nodrag nopan" onClick={(event) => { event.stopPropagation(); data.onAssistantDetails?.(); }}>Show assistant sources</button>}
       {data.voting && <div className="board-bubble-voting"><IdeaUpvote ideaTitle={idea.title} {...data.voting} /></div>}
       {data.connecting && <span className="board-connect-dot" aria-hidden="true" />}

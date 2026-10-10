@@ -19,7 +19,9 @@ export function IdeaVotes({ ideas, votes = [], voterId, voterName, canWrite, onB
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const rows = useMemo(() => [...ideas].sort((left, right) => left.title.localeCompare(right.title)), [ideas]);
+  const rows = useMemo(() => [...ideas].sort((left, right) =>
+    upvotersForIdea(votes, right.id).length - upvotersForIdea(votes, left.id).length
+    || left.title.localeCompare(right.title)), [ideas, votes]);
 
   useEffect(() => {
     if (!open) return;
@@ -43,12 +45,12 @@ export function IdeaVotes({ ideas, votes = [], voterId, voterName, canWrite, onB
   const totalVotes = rows.reduce((total, idea) => total + upvotersForIdea(votes, idea.id).length, 0);
   return <div className="idea-votes" ref={rootRef}>
     <button ref={triggerRef} className="idea-votes-trigger" type="button" aria-expanded={open}
-      aria-controls="idea-votes-popover" aria-label={`Vote on ideas. ${totalVotes} ${totalVotes === 1 ? "vote" : "votes"} cast.`}
-      title="Vote on ideas" onClick={() => setOpen((current) => !current)}>
-      <span aria-hidden="true">☷</span><span>Vote</span>
+      aria-controls="idea-votes-popover" aria-label={`Top ideas. ${totalVotes} ${totalVotes === 1 ? "vote" : "votes"} cast.`}
+      title="Top ideas" onClick={() => setOpen((current) => !current)}>
+      <span aria-hidden="true">☷</span><span>Top ideas</span>
     </button>
-    {open && <section id="idea-votes-popover" className="idea-votes-popover" aria-label="Vote on ideas">
-      <header className="idea-votes-header"><strong>Vote on ideas</strong><span>{rows.length}</span></header>
+    {open && <section id="idea-votes-popover" className="idea-votes-popover" aria-label="Top ideas">
+      <header className="idea-votes-header"><strong>Top ideas</strong><span>{rows.length}</span></header>
       {rows.length ? <ul>{rows.map((idea) => {
         const upvoters = upvotersForIdea(votes, idea.id);
         return <li key={idea.id}>

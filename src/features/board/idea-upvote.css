@@ -6,8 +6,6 @@
 .idea-upvote-button:disabled { cursor: not-allowed; opacity: .55; }
 .idea-upvote-button:focus-visible, .idea-upvoters-trigger:focus-visible { outline: 3px solid #68ad91; outline-offset: 2px; }
 .idea-upvoters-trigger { display: inline-flex; align-items: center; min-height: 26px; padding: 0 2px; border: 0; border-radius: 8px; color: #668075; background: transparent; font-size: 10px; cursor: pointer; }
-.idea-upvoter-avatars { display: flex; padding-left: 3px; }
-.idea-upvoter-avatars > span { display: grid; min-width: 21px; height: 21px; margin-left: -3px; padding: 0 3px; place-items: center; border: 2px solid #fff; border-radius: 50%; color: #17684f; background: #dcece3; font-size: 9px; font-weight: 800; }
 .idea-upvoters-popover { position: absolute; z-index: 30; right: 0; bottom: calc(100% + 7px); width: 200px; max-height: 180px; overflow: auto; padding: 12px; border: 1px solid #dce7e0; border-radius: 12px; color: #334840; background: #fff; box-shadow: 0 8px 24px #18392a2b; font-size: 12px; }
 .idea-upvoters-popover strong { font-size: 11px; }
 .idea-upvoters-popover ul { display: grid; gap: 5px; margin: 8px 0 0; padding: 0; list-style: none; }
@@ -18,5 +16,7 @@
 .board-shell[data-theme="dark"] .idea-upvote-button { border-color: #405650; background: #263633; }
 .board-shell[data-theme="dark"] .idea-upvote-button:hover:not(:disabled), .board-shell[data-theme="dark"] .idea-upvote-button[aria-pressed="true"] { border-color: #5c9b82; color: #b9e5cb; background: #24483b; }
 .board-shell[data-theme="dark"] .idea-upvoters-trigger, .board-shell[data-theme="dark"] .idea-upvoters-popover small { color: #9eb5aa; }
-.board-shell[data-theme="dark"] .idea-upvoter-avatars > span { border-color: #21312f; color: #b9e5cb; background: #29483a; }
 .board-shell[data-theme="dark"] .idea-upvoters-popover { border-color: #344744; color: #dce8e3; background: #1c2a29; }
+.idea-upvote-count { padding: 2px 7px; border: 1px solid #dce7e0; border-radius: 999px; color: inherit; background: #f6f8f6; font-size: 11px; font-weight: 800; }
+.idea-upvote-count:hover { border-color: #7caf98; }
+.board-shell[data-theme="dark"] .idea-upvote-count { border-color: #405650; color: #dce8e3; background: #263633; }

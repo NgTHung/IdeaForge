@@ -49,17 +49,14 @@ export function IdeaUpvote({ ideaTitle, upvoters, voterId, canWrite, onUpvote, s
     <button type="button" className="idea-upvote-button" disabled={!canWrite} aria-pressed={selected}
       aria-label={`${selected ? "Remove upvote from" : "Upvote"} ${title}. ${upvoters.length} ${upvoters.length === 1 ? "upvote" : "upvotes"}.`}
       title={canWrite ? selected ? "Remove your upvote" : "Upvote this idea" : "Only editors can upvote"}
-      onClick={onUpvote}>
-      <span aria-hidden="true">{selected ? "♥" : "♡"}</span><span>{upvoters.length}</span>
+      onClick={() => { setOpen(false); onUpvote(); }}>
+      <span aria-hidden="true">{selected ? "♥" : "♡"}</span>{(!showUpvoters || upvoters.length === 0) && <span>{upvoters.length}</span>}
     </button>
-    {showUpvoters && <button ref={triggerRef} type="button" className="idea-upvoters-trigger" aria-expanded={open} aria-controls={popoverId}
+    {showUpvoters && upvoters.length > 0 && <button ref={triggerRef} type="button" className="idea-upvoters-trigger idea-upvote-count" aria-expanded={open} aria-controls={popoverId}
       aria-label={`View upvoters for ${title}`} title="See who upvoted" onClick={() => setOpen((current) => !current)}>
-      {upvoters.length ? <span className="idea-upvoter-avatars" aria-hidden="true">
-        {upvoters.slice(0, 2).map((vote) => <span key={vote.voterId}>{voterNameFor(vote).charAt(0).toLocaleUpperCase()}</span>)}
-        {upvoters.length > 2 && <span>+{upvoters.length - 2}</span>}
-      </span> : <span>Who?</span>}
+      {upvoters.length}
     </button>}
-    {open && <section id={popoverId} className="idea-upvoters-popover" aria-label={`Upvoters for ${title}`}>
+    {open && showUpvoters && upvoters.length > 0 && <section id={popoverId} className="idea-upvoters-popover" aria-label={`Upvoters for ${title}`}>
       <strong>Upvoted by</strong>
       {upvoters.length ? <ul>{upvoters.map((vote) => <li key={vote.voterId}>
         {voterNameFor(vote)}{vote.voterId === voterId && <small> (you)</small>}

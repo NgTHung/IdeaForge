@@ -21,7 +21,6 @@
 .personalization-trigger > span:first-child { color: var(--personal-accent); font-size: 21px; }
 .personalization-panel { position: fixed; z-index: 90; right: 18px; top: 78px; width: min(380px, calc(100vw - 24px)); max-height: calc(100dvh - 100px); overflow: auto; overscroll-behavior: contain; border: 1px solid #ccded4; border-radius: 22px; padding: 20px; color: #2e493d; background: #fafcf9; box-shadow: 0 18px 70px #15382933; }
 .personalization-panel header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.personalization-eyebrow { font-size: 9px; letter-spacing: 1.5px; color: #607969; }
 .personalization-panel h2 { margin: 4px 0 0; font-size: 21px; }
 .personalization-panel h3 { margin: 0 0 14px; font-size: 15px; }
 .personalization-panel h4 { overflow-wrap: anywhere; margin: 8px 0; }
@@ -85,7 +84,7 @@
 .thinking-animation[data-style="hamster"] > span { border: 2px solid #99b1a1; border-radius: 50%; animation: time-rewind 1.4s linear infinite; }
 .thinking-animation[data-style="cauldron"] > span { animation: potion-bubble 1.2s ease-in-out infinite; }
 .board-shell[data-theme="dark"] .personalization-panel { background: #1d2c2a; color: #e0eae4; border-color: #476155; }
-.board-shell[data-theme="dark"] .personalization-panel p, .board-shell[data-theme="dark"] .personalization-eyebrow { color: #aec6b8; }
+.board-shell[data-theme="dark"] .personalization-panel p { color: #aec6b8; }
 .board-shell[data-theme="dark"] .personalization-panel section, .board-shell[data-theme="dark"] .personalization-object { border-color: #456052; }
 .board-shell[data-theme="dark"] .personalization-panel button, .board-shell[data-theme="dark"] .personalization-panel select, .board-shell[data-theme="dark"] .personalization-trigger, .board-shell[data-theme="dark"] .board-activity-notice, .board-shell[data-theme="dark"] .achievement-collection summary, .board-shell[data-theme="dark"] .achievement-collection ul, .board-shell[data-theme="dark"] .board-ai-activity { background: #243831; border-color: #476155; color: #e0eae4; }
 .board-shell[data-theme="dark"] .cluster-heading { background: #182721; color: color-mix(in srgb,var(--style-color) 55%,white); }

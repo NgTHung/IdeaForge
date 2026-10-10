@@ -72,7 +72,7 @@ export function SocialControls({ chatOpen, setChatOpen, position, screenPosition
   return <>
     <div className="board-social-controls" ref={root}>
       <button ref={reactionTrigger} type="button" aria-label="Quick reactions" title="Quick reactions (R)" aria-keyshortcuts="R" aria-expanded={wheelOpen} onClick={(event) => toggleWheel(event.detail ? { x: event.clientX, y: event.clientY } : undefined)}>☺ <span>React</span><kbd>R</kbd></button>
-      <button type="button" aria-label="Cursor chat" title="Cursor chat (Enter)" onClick={() => { setWheelAnchor(null); setChatOpen(!chatOpen); }}>◌ <span>Chat</span><kbd>↵</kbd></button>
+      <button type="button" aria-label="Cursor message" title="Cursor message (Enter)" onClick={() => { setWheelAnchor(null); setChatOpen(!chatOpen); }}>◌ <span>Message</span><kbd>↵</kbd></button>
     </div>
     {wheelAnchor && <div ref={wheel} className="reaction-wheel" role="dialog" aria-label="Choose a reaction"
       style={{ left: `clamp(var(--wheel-inset), ${wheelAnchor.x}px, calc(100% - var(--wheel-inset)))`, top: `clamp(var(--wheel-inset), ${wheelAnchor.y}px, calc(100% - var(--wheel-inset)))` }}
@@ -86,7 +86,7 @@ export function SocialControls({ chatOpen, setChatOpen, position, screenPosition
       }}><span className="reaction-wheel-center" aria-hidden="true">✦</span>{Object.entries(reactions).map(([key, glyph], index) => <button type="button" className="reaction-option" key={key} aria-label={`React with ${key}`}
         style={{ "--angle": `${index * 60 - 90}deg` } as CSSProperties}
         onClick={() => { send({ id: createIdeaId(), kind: "reaction", value: key as keyof typeof reactions, position: position() }); setWheelAnchor(null); reactionTrigger.current?.focus(); }}>{glyph}</button>)}</div>}
-    {chatOpen && <form className="cursor-chat-composer" aria-label="Cursor chat message" style={{ left: screenPosition?.x ?? 220, top: screenPosition?.y ?? 160 }}
+    {chatOpen && <form className="cursor-chat-composer" aria-label="Cursor message" style={{ left: screenPosition?.x ?? 220, top: screenPosition?.y ?? 160 }}
       onSubmit={(event) => { event.preventDefault(); if (!message.trim()) return; send({ id: createIdeaId(), kind: "chat", value: message.trim(), position: position() }); setMessage(""); setChatOpen(false); onClose(); }}
       onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Escape") { setMessage(""); setChatOpen(false); onClose(); } }}>
       <label htmlFor="cursor-message">Say something nearby</label><div><input ref={input} id="cursor-message" autoComplete="off" maxLength={140} placeholder="Type a quick message…" value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && event.nativeEvent.isComposing) event.preventDefault(); }} /><button type="submit" disabled={!message.trim()} aria-label="Send cursor message">↵</button></div>
