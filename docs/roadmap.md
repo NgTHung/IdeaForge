@@ -4,6 +4,8 @@ What's built, what's verified, and the five-day plan to the Forgehack submission
 
 ## Current status
 
+Board QR sharing (`work:WORK-050`) passed lint, typecheck, the production build, and all 195 tests on 2026-10-10. Chromium checks on a live guest board verified real clipboard copying, decoding both QR sizes to the exact copied URL including query and fragment, clipboard failure feedback, keyboard activation, focus containment, dismissal, and focus restoration. Light and dark layouts fit 320px and 390px viewports. Physical phone scanning, other browser engines, signed-in sessions, and deployment were not checked. This change makes no AI calls.
+
 The first design cleanup pass (`work:WORK-044`) removes redundant copy, standardizes idea and link labels, simplifies entry screens and the account menu, and reduces idea-card controls. Top ideas ranks the existing upvotes. Remaining work is in [Design cleanup](design-cleanup.md).
 
 Done:
@@ -21,7 +23,7 @@ Done:
 - Authenticated board creation at `/boards/new` and a personal dashboard at `/dashboard`. MongoDB stores board metadata, ownership, and membership with a pointer to each Liveblocks room; signed-in link visitors join as editors, and UUID links keep the current public edit policy.
 - Dashboard features the most recently metadata-edited board above the collection and retains it in the grid; owners can permanently delete their boards from the collection.
 - Shared boards show active pencil strokes through Liveblocks Presence, and Liveblocks Storage saves completed strokes and whole-stroke erasures beneath ideas and links.
-- The shared-board Share menu copies the board link or downloads ideas and links as PNG, optionally including saved freehand strokes; export restores the participant's viewport after capture.
+- The shared-board Share menu copies the board link and shows a QR code that opens a larger view when clicked. It also downloads ideas and links as PNG, optionally including saved freehand strokes; export restores the participant's viewport after capture.
 - Accounts, sessions, board metadata, and `/healthz` run in Next.js App Router handlers. Browser requests use the app origin, and the separate Express service is removed. MongoDB clients and account configuration initialize on demand.
 - Suggested Links across the board. The panel starts minimized, and automatic checks are off until enabled. When enabled, checks wait two seconds after saved text or goal changes. Up to three suggestions use the same canvas line and label as saved links; people can change the type, request an AI explanation, accept, or dismiss them. Dismissals save with the board for every participant. Suggestions shortlist pairs locally and classify them with Jev, exclude linked, dismissed, and merge-lineage pairs, and become invalid when source text changes. MongoDB caches results and enforces shared request allowances. Manual refresh works while automatic checks are off.
 - Merge endpoint with Zod validation and JSON output from GLM-5.3-Flash on Featherless

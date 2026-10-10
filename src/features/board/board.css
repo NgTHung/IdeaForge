@@ -16,7 +16,7 @@
 .board-share-button svg { width: 17px; height: 17px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .board-sandbox-create { display: inline-flex; align-items: center; border: 1px solid #16785f; border-radius: 8px; padding: 9px 18px; background: #16785f; color: #fff; font-weight: 700; text-decoration: none; }
 .board-sandbox-create:hover { background: #11664f; }
-.board-share-popover { position: absolute; z-index: 20; top: calc(100% + 12px); right: 0; display: grid; gap: 14px; width: min(290px, calc(100vw - 24px)); padding: 15px; border: 1px solid #dce8e0; border-radius: 13px; background: #fff; color: #243e40; box-shadow: 0 16px 42px #203b3033; }
+.board-share-popover { position: absolute; z-index: 20; top: calc(100% + 12px); right: 0; display: grid; gap: 14px; width: min(290px, calc(100vw - 24px)); max-height: calc(100dvh - 84px); overflow-y: auto; padding: 15px; border: 1px solid #dce8e0; border-radius: 13px; background: #fff; color: #243e40; box-shadow: 0 16px 42px #203b3033; }
 .board-share-popover-heading { display: flex; align-items: center; justify-content: space-between; font-size: 14px; }
 .board-share-popover-heading button { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: #657b76; font-size: 20px; }
 .board-share-section { display: grid; gap: 8px; }
@@ -29,6 +29,17 @@
 .board-share-drawing-option { display: flex; align-items: center; gap: 8px; color: #425e52; font-size: 12px; }
 .board-share-drawing-option input { width: 15px; height: 15px; margin: 0; accent-color: #16785f; }
 .board-share-notice { color: #315f4f; font-size: 11px; }
+.board-share-qr { display: grid; justify-items: center; gap: 7px; }
+.board-share-qr-trigger { display: grid; justify-items: center; gap: 6px; padding: 8px; border: 1px solid #d5e2da; border-radius: 10px; background: #fff; color: #345b4c; font: inherit; font-size: 11px; cursor: zoom-in; }
+.board-share-qr-trigger:hover { border-color: #16785f; }
+.board-share-qr-trigger:focus-visible { outline: 2px solid #16785f; outline-offset: 3px; }
+.board-share-qr-trigger > svg { display: block; width: 164px; height: 164px; }
+.board-share-qr p { margin: 0; font-size: 12px; }
+.board-share-qr-dialog { width: min(420px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); margin: auto; padding: 20px; overflow-y: auto; border: 1px solid #dce8e0; border-radius: 16px; background: #fff; color: #243e40; box-shadow: 0 24px 80px #203b304d; }
+.board-share-qr-dialog::backdrop { background: #10272199; }
+.board-share-qr-dialog h2 { margin: 0; font-size: 18px; }
+.board-share-qr-dialog > svg { display: block; width: 100%; height: auto; margin: 16px auto; border-radius: 8px; }
+.board-share-qr-dialog > p { text-align: center; }
 .board-connection-state { display: grid; min-height: 100vh; place-items: center; color: #526d62; background: #f7faf8; font: 600 14px/1.5 system-ui, sans-serif; }
 .board-top-actions > button { border: 1px solid #d4dfd9; background: #f5f7f5; color: #8c9a95; border-radius: 8px; padding: 9px 18px; font-weight: 700; }
 .board-workspace { flex: 1; min-height: 0; display: flex; position: relative; }
@@ -420,6 +431,7 @@
 .board-shell[data-theme="dark"] .board-share-action.is-primary { border-color: #248467; background: #1c795d; color: #fff; }
 .board-shell[data-theme="dark"] .board-share-drawing-option { color: #c3d4cb; }
 .board-shell[data-theme="dark"] .board-share-notice { color: #9ad1ae; }
+.board-shell[data-theme="dark"] .board-share-qr-dialog { border-color: #405650; background: #1c2a29; color: #dce8e3; }
 .board-shell[data-theme="dark"] .board-selection-bar button { background: #29453a; color: #a4dfc1; }
 .board-shell[data-theme="dark"] .board-selection-bar button.danger { background: #4b302d; color: #efaaa0; }
 .board-shell[data-theme="dark"] .board-empty p,
@@ -572,6 +584,7 @@
   .board-top-actions .account-signin { padding: 8px 7px; font-size: 11px; white-space: nowrap; }
   .board-top-actions .board-share-button { width: auto; min-width: 58px; height: 36px; justify-content: center; padding: 0 8px; }
   .board-share-label { display: inline; }
+  .board-share-popover { position: fixed; top: 70px; right: 12px; }
   .board-tool-dock { left: 10px; width: 58px; }
   .board-tool-dock .board-toolbar { width: 58px; }
   .board-tool { width: 42px; height: 42px; }
