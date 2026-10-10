@@ -10,7 +10,7 @@ last_updated: 2026-10-10
 
 ## Summary
 
-Extend WORK-039 with visible achievement badges and placeable stickers, brief merge sparks, tactile pickup/drop and pushpin motion, a quick reaction wheel, temporary cursor chat opened with Enter, and additional cluster themes. Cursor messages and reactions expire; decorations are shared, saved, editable, and undoable under existing board write access. Preserve static RGB borders, original notes, and merge source snapshots.
+Extend WORK-046 with visible achievement badges and placeable stickers, brief merge sparks, tactile pickup/drop and pushpin motion, a quick reaction wheel, temporary cursor chat opened with Enter, and additional cluster themes. Cursor messages and reactions expire; decorations are shared, saved, editable, and undoable under existing board write access. Preserve static RGB borders, original notes, and merge source snapshots.
 
 ## Implementation
 
@@ -22,7 +22,7 @@ Merged notes show a gold spark badge. Successful keeps produce a brief twelve-pa
 
 ## Verification
 
-Verified on 2026-10-10 against the production build at the Tailscale address through the T3 shared browser. The demo uses the isolated WORK-039 room. HTTP checks seeded the existing guest cookies because normal production cookies are secure; no production authentication settings changed.
+Verified on 2026-10-10 against the production build at the Tailscale address through the T3 shared browser. The demo uses the isolated WORK-046 room. HTTP checks seeded the existing guest cookies because normal production cookies are secure; no production authentication settings changed.
 
 - All 170 tests passed, including seven new social and decoration tests. They cover payload limits, expiry and deduplication, immutable decoration changes, saved snapshots, theme validation, keyboard guards, and shared object identity and field removal. Lint, typecheck, build, and diff checks passed.
 - `node scripts/verify-board-social.mjs` passed against real Liveblocks in an isolated room and deleted that test room afterward. It verified two-client named events, viewer read access, lazy decoration storage, placement and movement undo/redo, deletion, reconnect, and unchanged original notes.

@@ -1,5 +1,5 @@
 ---
-id: "WORK-039"
+id: "WORK-046"
 title: "Personalize the board with styles and playful animations"
 status: Done
 priority: "Medium"

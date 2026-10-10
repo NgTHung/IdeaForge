@@ -4,11 +4,12 @@ import { LiveMap, LiveObject } from "@liveblocks/client";
 import { useCallback, useEffect, useRef } from "react";
 import { initialBoard } from "./fixtures";
 import { BoardApp } from "./board-app";
-import type { Board, ConnectionPair, FreeDrawStroke, Idea, IdeaVote, Relationship } from "./model";
+import type { Board, BoardConclusion, ConnectionPair, FreeDrawStroke, Idea, IdeaVote, Relationship } from "./model";
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
 import { connectionPairKey } from "@/lib/connections";
 import { sameValue, updateFields, syncObjectMap } from "./shared-object-map";
 import { syncIdeaVotes } from "./shared-votes";
+import { syncBoardConclusion } from "./shared-conclusion";
 import { cursorColorForMember } from "./cursor-color";
 import type { LiveCursor } from "./live-cursors";
 import { cursorStyleSchema, styleColor, type CursorStyle } from "./personalization";
@@ -116,6 +117,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     decorations: Object.values(root.decorations ?? {}),
     dismissedConnections: Object.values(root.dismissedConnections ?? {}),
     clusterSnapshot: root.clusterSnapshot as ClusterSnapshot | undefined,
+    conclusion: (root.conclusion ?? null) as BoardConclusion | null,
   }));
   const updateBoard = useMutation(({ storage, self }, update: (board: Board) => Board) => {
     if (!self?.canWrite) return false;
@@ -135,6 +137,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
       drawings: [...drawings?.entries() ?? []].map(([, stroke]) => stroke.toJSON() as FreeDrawStroke),
       dismissedConnections: [...dismissed?.values() ?? []],
       clusterSnapshot: savedClusterSnapshot?.toJSON() as ClusterSnapshot | undefined,
+      conclusion: (storage.get("conclusion")?.toJSON() ?? null) as BoardConclusion | null,
     };
     const next = update(current);
     if (next === current) return false;
@@ -182,6 +185,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
       else storage.set("clusterSnapshot", new LiveObject(nextClusterSnapshot));
       changed = true;
     }
+    changed = syncBoardConclusion(storage, next.conclusion ?? null) || changed;
     return changed;
   }, []);
   const updateTitleMutation = useMutation(({ storage }, title: string) => {
@@ -204,7 +208,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
   if (!snapshot) return <main className="board-connection-state" aria-live="polite">Connecting to shared board…</main>;
 
   return <BoardApp
-    sharedBoard={{ decorations: snapshot.decorations as BoardDecoration[], goal: snapshot.goal, ideas: snapshot.ideas as Idea[], relationships: snapshot.relationships as Relationship[], votes: snapshot.votes as IdeaVote[], drawings: snapshot.drawings as FreeDrawStroke[], dismissedConnections: snapshot.dismissedConnections as ConnectionPair[], clusterSnapshot: snapshot.clusterSnapshot ?? null }}
+    sharedBoard={{ decorations: snapshot.decorations as BoardDecoration[], goal: snapshot.goal, ideas: snapshot.ideas as Idea[], relationships: snapshot.relationships as Relationship[], votes: snapshot.votes as IdeaVote[], drawings: snapshot.drawings as FreeDrawStroke[], dismissedConnections: snapshot.dismissedConnections as ConnectionPair[], clusterSnapshot: snapshot.clusterSnapshot ?? null, conclusion: snapshot.conclusion }}
     sharedTitle={snapshot.title}
     authorName={self?.info?.name?.trim() || "Unknown contributor"}
     voteUserId={self?.id}

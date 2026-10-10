@@ -10,7 +10,7 @@ last_updated: 2026-10-10
 
 ## Summary
 
-Follow up on completed work:WORK-039 at the user request: add a Clouds canvas background, replace rainbow decoration with a single static RGB border with alternating colors along the outline, and remove the Growing ideas plant. Verify remote cursors with two connections on the same board and explain when they appear.
+Follow up on completed work:WORK-046 at the user request: add a Clouds canvas background, replace rainbow decoration with a single static RGB border with alternating colors along the outline, and remove the Growing ideas plant. Verify remote cursors with two connections on the same board and explain when they appear.
 
 ## Acceptance Criteria
 
@@ -28,7 +28,7 @@ Clouds uses a sky gradient and repeated cloud mask on the canvas background, wit
 
 On 2026-10-10, all 163 tests, lint, typecheck, build, git diff --check, and taskroot validation passed. The preference test covers Clouds persistence and old records containing the removed mood toggle without resetting theme, cursor, animation, or effect choices.
 
-The T3 shared browser used the production build at http://100.102.144.120:3001 with live Liveblocks. The demo room from the WORK-039 walkthrough retained its named clusters and saved rainbow border, which rendered as a cycling glow. Computed styles confirmed rgb-cycle and changing border colors. A newly selected RGB note and its Style preview used the same glow, synchronized to the other connection, and survived reload. Motion-off returned animation-name none on all RGB surfaces. Clouds and note text remained readable in light and dark mode; Clouds, dark mode, and motion-off survived reload. Growing ideas and Board mood were absent, while stickers remained.
+The T3 shared browser used the production build at http://100.102.144.120:3001 with live Liveblocks. The demo room from the WORK-046 walkthrough retained its named clusters and saved rainbow border, which rendered as a cycling glow. Computed styles confirmed rgb-cycle and changing border colors. A newly selected RGB note and its Style preview used the same glow, synchronized to the other connection, and survived reload. Motion-off returned animation-name none on all RGB surfaces. Clouds and note text remained readable in light and dark mode; Clouds, dark mode, and motion-off survived reload. Growing ideas and Board mood were absent, while stickers remained.
 
 Two browser connections joined the same room, and pointer movement from Cursor check produced a named lavender cat cursor in the other connection through real Liveblocks Presence. No cursor regression was found. The initial walkthrough had only one member, so it could not show another cursor. Cursors clear on canvas exit, window blur, and hidden tabs by the existing implementation.
 

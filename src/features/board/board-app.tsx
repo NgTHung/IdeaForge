@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type FormEvent, type SetStateAction } from "react";
-import { ReactFlow, Background, BackgroundVariant, type NodeChange, type ReactFlowInstance } from "@xyflow/react";
+import { ReactFlow, Background, BackgroundVariant, getNodesBounds, getViewportForBounds, type NodeChange, type ReactFlowInstance } from "@xyflow/react";
 import Link from "next/link";
 import { createIdeaId } from "./id";
 import { initialBoard } from "./fixtures";
 import { clusterLabelsFor, createIdea, createRelationship, deleteIdea, deleteRelationship, IDEA_CARD_SIZE, ideaCardSize, moveIdea, relationshipLabels, setIdeaPinned, updateIdea, updateRelationship,
-  type Board, type FreeDrawStroke, type Idea, type Relationship, type RelationshipType } from "./model";
+  type Board, type FreeDrawStroke, type Idea, type IdeaDescriptionRecord, type Relationship, type RelationshipType } from "./model";
 import { FreeDrawLayer, type FreeDrawTool } from "./free-draw-layer";
 import { Bubble, type IdeaNode } from "./bubble";
 import { MarkdownText } from "./markdown-text";
@@ -17,6 +17,7 @@ import { acceptAssistantCreate, assistantActionIsCurrent, type AssistantActionDr
 import { AccountMenu } from "./account-menu";
 import { ActiveMembers } from "./active-members";
 import { IdeaVotes } from "./idea-votes";
+import { ConclusionPanel, ConclusionTrigger } from "./conclusion-panel";
 import { toggleIdeaUpvote, upvotersForIdea } from "./idea-voting";
 import { LiveCursors, type LiveCursor } from "./live-cursors";
 import { useConnectDrag } from "./use-connect-drag";
@@ -42,6 +43,8 @@ import { DecorateMenu } from "./decorate-menu";
 import { BoardIcon } from "./board-icons";
 import { addDecoration, moveDecoration, removeDecoration, canOpenCursorChat, signalLifetime, stickerCatalog, type NamedSignal, type SocialSignal, type StickerKind } from "./board-social-contract";
 import { canDragIdea, displayIdeas, type CanvasPoint } from "./canvas-interaction";
+import { canFillEditorDescription, canRequestIdeaDescription, fitIdeaDescriptionContext, ideaDescriptionGoal, type IdeaDescriptionContext, type IdeaDescriptionRequestState } from "./description-generation";
+import { ideaDescriptionResponseSchema } from "@/lib/idea-description-contract";
 import "./board.css";
 import "./personalization.css";
 import "./social.css";
@@ -51,6 +54,8 @@ import "./border-decorations.css";
 type Tool = "select" | "hand" | "add" | "connect" | "merge";
 type Selection = { kind: "idea" | "relationship"; id: string } | null;
 type MergePreview = { ids: string[]; fingerprint: string; result: MergeProposal; model: string; generatedAt: string; title: string; concept: string };
+type EditorDraft = { id: string; title: string; content: string };
+type DescriptionStatus = { kind: "pending" | "error" | "question"; message?: string } | null;
 const nodeTypes = { idea: Bubble, assistantPreview: Bubble };
 const edgeTypes = { orthogonal: OrthogonalEdge };
 const emptyMembers: ConnectedMember[] = [];
@@ -113,6 +118,15 @@ function textExcerpt(text: string, limit = 240): { text: string; shortened: bool
   const boundary = characters.slice(0, limit).lastIndexOf(" ");
   const cutoff = boundary > limit * 0.7 ? boundary : limit;
   return { text: `${characters.slice(0, cutoff).join("").trimEnd()}…`, shortened: true };
+}
+
+function boundedDescriptionText(text: string, limit: number): string {
+  let result = "";
+  for (const character of text.trim()) {
+    if (result.length + character.length > limit) break;
+    result += character;
+  }
+  return result.trimEnd();
 }
 
 type BoardAppProps = {
@@ -178,6 +192,11 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const [dragPositions, setDragPositions] = useState<Record<string, Idea["position"]>>({});
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [shareNotice, setShareNotice] = useState("");
+  const [shareOpen, setShareOpen] = useState(false);
+  const [includeFreeDrawings, setIncludeFreeDrawings] = useState(true);
+  const [exportingPng, setExportingPng] = useState(false);
+  const [exportMessage, setExportMessage] = useState("");
+  const [exportFailed, setExportFailed] = useState(false);
   const [tool, setTool] = useState<Tool>("select");
   const [drawTool, setDrawTool] = useState<FreeDrawTool | null>(null);
   const canWriteBoard = !onBoardChange || historyActions?.canWrite === true;
@@ -199,12 +218,15 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const [explanation, setExplanation] = useState("");
   const [condition, setCondition] = useState("");
   const [linkError, setLinkError] = useState("");
-  const [editor, setEditor] = useState<{ id: string; title: string; content: string } | null>(null);
+  const [editor, setEditor] = useState<EditorDraft | null>(null);
   const [editorPreview, setEditorPreview] = useState(false);
   const [editError, setEditError] = useState("");
+  const [descriptionStatus, setDescriptionStatus] = useState<DescriptionStatus>(null);
   const [lockNotice, setLockNotice] = useState("");
   const [physicsEnabled, setPhysicsEnabled] = useState(!onBoardChange);
   const [chatOpen, setChatOpen] = useState(false);
+  const [conclusionOpen, setConclusionOpen] = useState(false);
+  const closeConclusion = useCallback(() => setConclusionOpen(false), []);
   const [assistantPreview, setAssistantPreview] = useState<AssistantActionDraft | null>(null);
   const [assistantDetailsId, setAssistantDetailsId] = useState<string | null>(null);
   const [draftIdeaId, setDraftIdeaId] = useState<string | null>(null);
@@ -234,7 +256,11 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const workspace = useRef<HTMLDivElement>(null);
   const workspaceElement = useCallback(() => workspace.current, []);
   const socialControls = useRef<SocialControlsHandle>(null);
+  const shareControl = useRef<HTMLDivElement>(null);
+  const exportingPngRef = useRef(false);
   const titleInput = useRef<HTMLInputElement>(null);
+  const editorDraftRef = useRef<EditorDraft | null>(null);
+  const editorGeneratedRef = useRef<IdeaDescriptionRecord | null>(null);
   const draftIdeaRef = useRef<Idea | null>(null);
   const suppressTitleCommit = useRef(false);
   const boardRef = useRef(board);
@@ -253,11 +279,17 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const assignmentRequestSequence = useRef(0);
   const assignmentController = useRef<AbortController | null>(null);
   const activeAssignmentId = useRef<string | null>(null);
+  const descriptionRequest = useRef<{ request: IdeaDescriptionRequestState; controller: AbortController } | null>(null);
+  const descriptionSequence = useRef(0);
   const mergeController = useRef<AbortController | null>(null);
   const mergeRequestSequence = useRef(0);
   const mergeSaveLock = useRef(false);
   const dragRevisions = useRef(new Map<string, number>());
   const autoPlacePreference = useRef(autoPlaceNewNotes);
+  const boardTitleRef = useRef(title);
+  const canWriteRef = useRef(canWriteBoard);
+  useEffect(() => { boardTitleRef.current = title; }, [title]);
+  useEffect(() => { canWriteRef.current = canWriteBoard; }, [canWriteBoard]);
   useEffect(() => { autoPlacePreference.current = autoPlaceNewNotes; }, [autoPlaceNewNotes]);
   useEffect(() => { boardRef.current = board; }, [board]);
   useEffect(() => {
@@ -285,6 +317,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   }
   useEffect(() => () => {
     for (const timer of squashTimers.current.values()) window.clearTimeout(timer);
+    descriptionRequest.current?.controller.abort();
+    descriptionRequest.current = null;
   }, []);
   useEffect(() => {
     if (!clusterNotice) return;
@@ -342,6 +376,29 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   }, [board.ideas]);
   const clusterStale = Boolean(clusterSnapshot?.stale || clusterSnapshot && !clusterSnapshot.result.notePairs);
   const clusterLabels = useMemo(() => new Map(clusterResult?.assignments.map((assignment) => [assignment.noteId, clusterResult.groups.find((group) => group.id === assignment.clusterId)?.label ?? ""])), [clusterResult]);
+  const getIdeaDescriptionContext = useCallback((draft: EditorDraft): IdeaDescriptionContext => {
+    const boardTitle = boundedDescriptionText(boardTitleRef.current.trim() || "Untitled board", 80);
+    const boardDescriptionText = boundedDescriptionText(boardDescription, 600);
+    const seedContentText = boundedDescriptionText(draft.content, 1200);
+    const clusterLabel = !clusterStale && boardRef.current.ideas.some((idea) => idea.id === draft.id)
+      ? boundedDescriptionText(clusterLabels.get(draft.id) ?? "", 100) : "";
+    return fitIdeaDescriptionContext(draft.title.trim(), {
+      goal: boundedDescriptionText(ideaDescriptionGoal(boardRef.current, boardTitle), 500),
+      boardTitle,
+      ...(boardDescriptionText ? { boardDescription: boardDescriptionText } : {}),
+      ...(seedContentText ? { seedContent: seedContentText } : {}),
+      ...(clusterLabel ? { clusterLabel } : {}),
+    });
+  }, [boardDescription, clusterStale, clusterLabels]);
+  useEffect(() => {
+    const pending = descriptionRequest.current;
+    const current = editorDraftRef.current;
+    if (!pending || !current || canFillEditorDescription(current, pending.request, pending.request.token,
+      getIdeaDescriptionContext(current), canWriteBoard)) return;
+    pending.controller.abort();
+    descriptionRequest.current = null;
+    setDescriptionStatus(null);
+  }, [board, title, boardDescription, clusterLabels, clusterStale, canWriteBoard, getIdeaDescriptionContext]);
   const clusterColors = useMemo(() => new Map(clusterResult?.groups.flatMap((group, index) => group.noteIds.map((id) => [id, index % 5] as const))), [clusterResult]);
   const clusterAccents = useMemo(() => new Map(clusterResult?.groups.flatMap((group) => group.noteIds.map((id) => [id, group.appearance && styleColor(group.appearance.color)] as const))), [clusterResult]);
   const chosenIdea = selection?.kind === "idea" ? board.ideas.find((idea) => idea.id === selection.id) : undefined;
@@ -383,10 +440,10 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     if (nextTitle === title) return;
     if (onTitleChange) {
       setTitleError("");
-      try { await onTitleChange(nextTitle); }
+      try { await onTitleChange(nextTitle); boardTitleRef.current = nextTitle; }
       catch (error) { setTitleError(error instanceof Error ? error.message : "The board title could not be saved."); }
     }
-    else setLocalTitle(nextTitle);
+    else { boardTitleRef.current = nextTitle; setLocalTitle(nextTitle); }
   }
   function commitTitleDraft() {
     if (suppressTitleCommit.current) { suppressTitleCommit.current = false; setTitleDraft(null); return; }
@@ -409,8 +466,23 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     } catch {
       setShareNotice("Copy the board URL from your browser address bar");
     }
-    window.setTimeout(() => setShareNotice(""), 2500);
   }
+
+  useEffect(() => {
+    if (!shareOpen) return;
+    function closeShare(event: PointerEvent) {
+      if (event.target instanceof Node && !shareControl.current?.contains(event.target)) setShareOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setShareOpen(false);
+    }
+    document.addEventListener("pointerdown", closeShare);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", closeShare);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [shareOpen]);
 
   function openEditor(idea: Idea) {
     const editorName = editingLocks[idea.id];
@@ -421,9 +493,31 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     setLockNotice("");
     setMergeIds([]);
     setSelection({ kind: "idea", id: idea.id });
-    setEditor({ id: idea.id, title: idea.title, content: idea.content });
+    descriptionRequest.current?.controller.abort();
+    descriptionRequest.current = null;
+    editorGeneratedRef.current = null;
+    setDescriptionStatus(null);
+    setEditorDraft({ id: idea.id, title: idea.title, content: idea.content });
     setEditorPreview(false);
     setEditError("");
+  }
+  function setEditorDraft(next: EditorDraft | null) {
+    const pending = descriptionRequest.current;
+    if (pending && (!next || next.id !== pending.request.ideaId ||
+      next.title.trim() !== pending.request.title || next.content !== pending.request.content)) {
+      pending.controller.abort();
+      descriptionRequest.current = null;
+      setDescriptionStatus(null);
+    } else if (next && (next.title !== editorDraftRef.current?.title || next.content !== editorDraftRef.current?.content)) {
+      setDescriptionStatus(null);
+    }
+    editorDraftRef.current = next;
+    setEditor(next);
+  }
+  function closeEditor() {
+    setEditorDraft(null);
+    editorGeneratedRef.current = null;
+    setDescriptionStatus(null);
   }
   function openRelationshipEditor(relationship: Relationship) {
     setLinkDraft(null);
@@ -447,13 +541,20 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     }
     setCursorChatOpen(open);
   }
-  function cancelInteraction() { setPlacingSticker(null); setCursorChatOpen(false); connectDrag.cancel(); setEditor(null); setDraftIdeaId(null); draftIdeaRef.current = null; setLinkDraft(null); setRelationshipEditor(null); setSourceId(null); setLinkError(""); setCondition(""); setOrganizeOpen(false); setMergePreview(null); setMergeDetailsId(null); setMergeIds([]); setMergeError(""); mergeRequestSequence.current += 1; mergeController.current?.abort(); setMergeBusy(false); setDrawTool(null); setTool("select"); }
+  function cancelInteraction() { setPlacingSticker(null); setCursorChatOpen(false); connectDrag.cancel(); closeEditor(); setDraftIdeaId(null); draftIdeaRef.current = null; setLinkDraft(null); setRelationshipEditor(null); setSourceId(null); setLinkError(""); setCondition(""); setOrganizeOpen(false); setMergePreview(null); setMergeDetailsId(null); setMergeIds([]); setMergeError(""); mergeRequestSequence.current += 1; mergeController.current?.abort(); setMergeBusy(false); setDrawTool(null); setTool("select"); }
   function removeSelection() {
     if (!selection) return;
     if (selection.kind === "idea") { setUndoPositions(null); setAssignmentUndo(null); }
-    if (selection.kind === "idea") setBoard((current) => normalizeBoardLayout(deleteIdea(current, selection.id), measuredSizes));
+    if (selection.kind === "idea") {
+      setBoard((current) => normalizeBoardLayout(deleteIdea(current, selection.id), measuredSizes));
+    }
     else setBoard((current) => deleteRelationship(current, selection.id));
-    setSelection(null); setEditor(null); setLinkDraft(null); setSourceId(null);
+    setSelection(null); closeEditor(); setLinkDraft(null); setSourceId(null);
+  }
+  function undoWithEffect() {
+    if (!historyActions?.canWrite || !historyActions.canUndo) return;
+    historyActions.undo();
+    activity.notify("undo", "Rewound your last action");
   }
   useEffect(() => {
     function keyDown(event: KeyboardEvent) {
@@ -519,6 +620,103 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     const y = 190 + (availableHeight - height * zoom) / 2 - minY * zoom;
     await flow.current.setViewport({ x, y, zoom }, { duration: motionRef.current ? 250 : 0 });
   }
+  async function exportCanvasPng(includeDrawings: boolean) {
+    if (exportingPngRef.current || !flow.current || !canvas.current) return;
+    const target = canvas.current.querySelector<HTMLElement>(".react-flow");
+    if (!target || target.clientWidth < 1 || target.clientHeight < 1) {
+      setExportFailed(true);
+      setExportMessage("The canvas is not ready to export yet.");
+      return;
+    }
+
+    exportingPngRef.current = true;
+    setExportingPng(true);
+    setExportMessage("");
+    setExportFailed(false);
+    const instance = flow.current;
+    const previousViewport = instance.getViewport();
+    const nodes = instance.getNodes();
+    const nodeBounds = getNodesBounds(nodes);
+    let bounds = nodeBounds;
+    let drawingBounds: { left: number; top: number; right: number; bottom: number } | null = null;
+    const drawings = includeDrawings ? board.drawings ?? [] : [];
+    for (const stroke of drawings) for (const point of stroke.points) {
+      drawingBounds = drawingBounds ? {
+        left: Math.min(drawingBounds.left, point.x), top: Math.min(drawingBounds.top, point.y),
+        right: Math.max(drawingBounds.right, point.x), bottom: Math.max(drawingBounds.bottom, point.y),
+      } : { left: point.x, top: point.y, right: point.x, bottom: point.y };
+    }
+    if (drawingBounds) {
+      const left = nodes.length ? Math.min(nodeBounds.x, drawingBounds.left) : drawingBounds.left;
+      const top = nodes.length ? Math.min(nodeBounds.y, drawingBounds.top) : drawingBounds.top;
+      const right = nodes.length ? Math.max(nodeBounds.x + nodeBounds.width, drawingBounds.right) : drawingBounds.right;
+      const bottom = nodes.length ? Math.max(nodeBounds.y + nodeBounds.height, drawingBounds.bottom) : drawingBounds.bottom;
+      bounds = { x: left, y: top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) };
+    }
+    target.classList.add("board-exporting");
+
+    try {
+      let exportViewport = previousViewport;
+      if (nodes.length || drawingBounds) {
+        exportViewport = getViewportForBounds(bounds, target.clientWidth, target.clientHeight, 0.05, 2, 0.12);
+        await instance.setViewport(exportViewport, { duration: 0 });
+        await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
+      }
+      const { toPng } = await import("html-to-image");
+      const pixelRatio = Math.min(2, 4096 / Math.max(target.clientWidth, target.clientHeight));
+      const dataUrl = await toPng(target, {
+        backgroundColor: theme === "dark" ? "#172321" : "#f0f5f1",
+        pixelRatio,
+        cacheBust: true,
+        filter: (element) => ![
+          "board-live-cursors", "board-free-draw-visual", "board-free-draw-input", "board-free-draw-live", "board-free-draw-draft",
+        ].some((className) => element.classList?.contains(className)),
+      });
+      let downloadUrl = dataUrl;
+      if (drawings.length > 0) {
+        const image = new Image();
+        image.src = dataUrl;
+        await image.decode();
+        const output = document.createElement("canvas");
+        output.width = image.naturalWidth;
+        output.height = image.naturalHeight;
+        const context = output.getContext("2d");
+        if (!context) throw new Error("Canvas rendering is unavailable");
+        context.drawImage(image, 0, 0);
+        context.scale(output.width / target.clientWidth, output.height / target.clientHeight);
+        context.strokeStyle = theme === "dark" ? "#7bd6af" : "#176c52";
+        context.lineWidth = 3.2;
+        context.lineCap = "round";
+        context.lineJoin = "round";
+        for (const stroke of drawings) {
+          if (stroke.points.length === 0) continue;
+          context.beginPath();
+          context.moveTo(stroke.points[0].x * exportViewport.zoom + exportViewport.x, stroke.points[0].y * exportViewport.zoom + exportViewport.y);
+          for (const point of stroke.points.slice(1)) {
+            context.lineTo(point.x * exportViewport.zoom + exportViewport.x, point.y * exportViewport.zoom + exportViewport.y);
+          }
+          context.stroke();
+        }
+        downloadUrl = output.toDataURL("image/png");
+      }
+      const safeTitle = title.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, "").replace(/\s+/g, "-").slice(0, 80);
+      const link = document.createElement("a");
+      link.download = `${safeTitle || "ideaforge-board"}.png`;
+      link.href = downloadUrl;
+      link.click();
+      setExportMessage("PNG downloaded.");
+      setShareOpen(false);
+    } catch {
+      setExportFailed(true);
+      setExportMessage("Could not export the board as a PNG. Please try again.");
+    } finally {
+      try { await instance.setViewport(previousViewport, { duration: 0 }); }
+      catch { /* Keep the board usable even if the viewport cannot be restored. */ }
+      target.classList.remove("board-exporting");
+      exportingPngRef.current = false;
+      setExportingPng(false);
+    }
+  }
   function confirmLink(event: FormEvent) {
     event.preventDefault();
     if (!linkDraft && !relationshipEditor) return;
@@ -542,26 +740,95 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     const isNewIdea = draftIdeaId === editor.id;
     const updated = boardRef.current.ideas.find((idea) => idea.id === editor.id);
     const draft = isNewIdea ? draftIdeaRef.current : updated;
-    if (!draft) { setEditor(null); setDraftIdeaId(null); draftIdeaRef.current = null; return; }
-    const updatedIdea = { ...draft, title: editor.title.trim(), content: editor.content.trim() };
+    if (!draft) { closeEditor(); setDraftIdeaId(null); draftIdeaRef.current = null; return; }
+    const generated = editorGeneratedRef.current;
+    const updatedIdea = { ...draft, title: editor.title.trim(), content: editor.content.trim(),
+      ...(generated && editor.content.trim() ? { descriptionGeneration: generated } : {}) };
     setUndoPositions(null);
     setAssignmentUndo(null);
     const saved = commitBoardChange((current) => isNewIdea
       ? normalizeBoardLayout(createIdea(current, updatedIdea), measuredSizes, current.ideas.map((item) => item.id))
-      : updateIdea(current, editor.id, { title: updatedIdea.title, content: updatedIdea.content }));
+      : updateIdea(current, editor.id, { title: updatedIdea.title, content: updatedIdea.content,
+        ...(generated && updatedIdea.content ? { descriptionGeneration: generated } : {}) }));
     if (!saved) {
-      setEditor(null);
+      closeEditor();
       setDraftIdeaId(null);
       draftIdeaRef.current = null;
       return;
     }
     const updatedBoard = boardRef.current;
-    setEditor(null);
+    closeEditor();
     if (isNewIdea) {
       activity.record(updatedIdea.id, updatedBoard);
       setDraftIdeaId(null);
       draftIdeaRef.current = null;
       if (autoPlaceNewNotes && clusterText(updatedIdea)) void assignNewNote(updatedBoard, updatedIdea);
+    }
+  }
+
+  async function requestIdeaDescription() {
+    const draft = editorDraftRef.current;
+    if (!draft || !canWriteRef.current || !canRequestIdeaDescription(draft.title) || descriptionRequest.current) return;
+    if (draft.content.trim() && !window.confirm("Replace the current content with generated content?")) return;
+    const controller = new AbortController();
+    const request: IdeaDescriptionRequestState = {
+      ideaId: draft.id, title: draft.title.trim(), content: draft.content,
+      ...getIdeaDescriptionContext(draft), token: ++descriptionSequence.current,
+    };
+    const pending = { request, controller };
+    descriptionRequest.current = pending;
+    setDescriptionStatus({ kind: "pending" });
+
+    try {
+      const response = await fetch("/api/ideas/description", {
+        method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
+        body: JSON.stringify({
+          title: request.title, goal: request.goal, boardTitle: request.boardTitle,
+          ...(request.boardDescription ? { boardDescription: request.boardDescription } : {}),
+          ...(request.seedContent ? { seedContent: request.seedContent } : {}),
+          ...(request.clusterLabel ? { clusterLabel: request.clusterLabel } : {}),
+        }),
+      });
+      const payload: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = typeof payload === "object" && payload !== null && "error" in payload && typeof payload.error === "string"
+          ? payload.error : "The description could not be generated. Try again.";
+        throw new Error(message);
+      }
+      const parsed = ideaDescriptionResponseSchema.safeParse(payload);
+      if (!parsed.success) throw new Error("The description service returned an invalid response. Try again.");
+      if (descriptionRequest.current !== pending) return;
+      const current = editorDraftRef.current;
+      const valid = current && canFillEditorDescription(current, request, pending.request.token,
+        getIdeaDescriptionContext(current), canWriteRef.current);
+      descriptionRequest.current = null;
+      if (!valid || !current) { setDescriptionStatus(null); return; }
+      if (parsed.data.description) {
+        editorGeneratedRef.current = {
+          generatedContent: parsed.data.description, title: request.title, goal: request.goal,
+          context: {
+            boardTitle: request.boardTitle,
+            ...(request.boardDescription ? { boardDescription: request.boardDescription } : {}),
+            ...(request.seedContent ? { seedContent: request.seedContent } : {}),
+            ...(request.clusterLabel ? { clusterLabel: request.clusterLabel } : {}),
+          },
+          model: parsed.data.model, generatedAt: parsed.data.generatedAt,
+        };
+        setEditorDraft({ ...current, content: parsed.data.description });
+        setDescriptionStatus(null);
+      } else {
+        setDescriptionStatus({ kind: "question", message: parsed.data.question ?? "Add details to clarify this idea." });
+      }
+    } catch (error) {
+      if (descriptionRequest.current !== pending) return;
+      descriptionRequest.current = null;
+      const current = editorDraftRef.current;
+      if (controller.signal.aborted || !current || !canFillEditorDescription(current, request, request.token,
+        getIdeaDescriptionContext(current), canWriteRef.current)) {
+        setDescriptionStatus(null);
+        return;
+      }
+      setDescriptionStatus({ kind: "error", message: error instanceof Error ? error.message : "The description could not be generated. Try again." });
     }
   }
 
@@ -1360,11 +1627,6 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     });
     if (committed && added) activity.notify("vote", "A little love for this idea", ideaId);
   }
-  function undoWithEffect() {
-    if (!historyActions?.canWrite || !historyActions.canUndo) return;
-    historyActions.undo();
-    activity.notify("undo", "Rewound your last action");
-  }
   return <AnimationContext.Provider value={{ preferences, motion }}><main className="board-shell" data-theme={theme} data-motion={motion ? "on" : "off"} style={{ "--personal-accent": styleColor(preferences.accent) ?? "#168264" } as React.CSSProperties}>
     <header className="board-topbar" aria-label="Board controls"><div className="board-brand">
       <Link href="/" className="board-brand-home" aria-label="IdeaForge home" title="IdeaForge home"><span className="board-brand-symbol" aria-hidden="true">✳</span></Link>
@@ -1372,16 +1634,29 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         onBlur={commitTitleDraft} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); if (event.key === "Escape") { suppressTitleCommit.current = true; setTitleDraft(null); event.currentTarget.blur(); } }} />
         {boardDescription.trim() && <p className="board-description" title={boardDescription.trim()}>{boardDescription.trim()}</p>}</div></div>
       {titleError && <span className="board-title-save-error" role="alert">{titleError}</span>}
-      <div className="board-top-actions">{onBoardChange && <>{voteUserId && <IdeaVotes ideas={board.ideas} votes={board.votes} voterId={voteUserId} voterName={authorName || "Unknown contributor"}
-        canWrite={canWriteBoard} onBoardChange={onBoardChange} onUpvote={upvoteWithEffect} />}<ActiveMembers /><button className="board-share-button" type="button" aria-label="Share board" onClick={() => void copyBoardLink()}>
+      <div className="board-top-actions"><ConclusionTrigger open={conclusionOpen} hasConclusion={Boolean(board.conclusion)} onToggle={() => setConclusionOpen((value) => !value)} />
+        {onBoardChange && <>{voteUserId && <IdeaVotes ideas={board.ideas} votes={board.votes} voterId={voteUserId} voterName={authorName || "Unknown contributor"}
+        canWrite={canWriteBoard} onBoardChange={onBoardChange} onUpvote={upvoteWithEffect} />}<ActiveMembers /><div className="board-share-control" ref={shareControl}>
+        <button className="board-share-button" type="button" aria-label="Share board" aria-expanded={shareOpen} aria-haspopup="dialog" onClick={() => { setShareOpen((open) => !open); setShareNotice(""); }}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11.5 3.5h5v5M16.2 3.8 9.5 10.5" /><path d="M14.5 10.5v4.8a1.2 1.2 0 0 1-1.2 1.2H4.7a1.2 1.2 0 0 1-1.2-1.2V6.7a1.2 1.2 0 0 1 1.2-1.2h4.8" /></svg>
-          <span className="board-share-label">Share</span></button></>}
+          <span className="board-share-label">Share</span></button>
+        {shareOpen && <section className="board-share-popover" role="dialog" aria-label="Share and export board">
+          <div className="board-share-popover-heading"><strong>Share board</strong><button type="button" aria-label="Close share menu" onClick={() => setShareOpen(false)}>×</button></div>
+          <div className="board-share-section"><span className="board-share-section-label">Share link</span>
+            <button className="board-share-action" type="button" onClick={() => void copyBoardLink()}><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="6" width="9" height="11" rx="1.5"/><path d="M12 6V4.5A1.5 1.5 0 0 0 10.5 3h-6A1.5 1.5 0 0 0 3 4.5v8A1.5 1.5 0 0 0 4.5 14H7"/></svg>Copy link</button>
+          </div>
+          <div className="board-share-section"><span className="board-share-section-label">Download</span>
+            <label className="board-share-drawing-option"><input type="checkbox" checked={includeFreeDrawings} disabled={exportingPng} onChange={(event) => setIncludeFreeDrawings(event.target.checked)} />Include freehand drawings</label>
+            <button className="board-share-action is-primary" type="button" disabled={exportingPng} onClick={() => void exportCanvasPng(includeFreeDrawings)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 13v3a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-3"/></svg>{exportingPng ? "Preparing PNG…" : "Download PNG"}</button>
+          </div>
+          {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
+        </section>}
+        </div></>}
         <button className={`board-assistant-launch ${chatOpen ? "is-open" : ""}`} type="button" aria-expanded={chatOpen} onClick={() => setChatOpen((value) => !value)}>
           <BoardIcon name="assistant" /><span>Assistant</span></button>
         <AccountMenu />
         <PersonalizationPanel preferences={preferences} update={updatePreferences} reducedMotion={reducedMotion} board={board} selectedIdeaId={chosenIdea?.id} selectedLinkId={chosenLink?.id} canWrite={canWriteBoard}
           onStyle={(kind, id, style) => { if (canWriteBoard) commitBoardChange((current) => setObjectAppearance(current, kind, id, style)); }} /></div>
-      {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
     </header>
     <div ref={workspace} className="board-workspace" onPointerMoveCapture={(event) => { cursorScreen.current = { x: event.clientX, y: event.clientY }; }}>
       <SocialControls ref={socialControls} container={workspaceElement} shortcutsBlocked={Boolean(editor || linkDraft || relationshipEditor || mergePreview || mergeDetailsId || assistantDetailsId || organizeOpen)} chatOpen={cursorChatOpen} setChatOpen={openCursorChat}
@@ -1457,6 +1732,9 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
             }}
           />
         </ReactFlow>
+        {exportMessage && <div className={`board-export-status${exportFailed ? " is-error" : ""}`} role={exportFailed ? "alert" : "status"}>
+          <span>{exportMessage}</span><button type="button" aria-label="Dismiss export message" onClick={() => setExportMessage("")}>×</button>
+        </div>}
         {connectDrag.preview?.active && <svg className="board-connection-preview" aria-hidden="true">
           <path d={orthogonalPreviewPath({ x: connectDrag.preview.x1, y: connectDrag.preview.y1 }, { x: connectDrag.preview.x2, y: connectDrag.preview.y2 })} />
           <circle cx={connectDrag.preview.x2} cy={connectDrag.preview.y2} r="6" />
@@ -1623,6 +1901,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         <button type="button" className="primary" disabled={mergeSaving || mergeBusy || previewStale || mergePreview.result.status !== "useful" || !mergePreview.title.trim() || !mergePreview.concept.trim()} onClick={keepMerge}>Create merged idea</button>
       </div>
     </div>}
+    <ConclusionPanel open={conclusionOpen} board={board} boardTitle={title} canWrite={canWriteBoard} authorName={authorName || "Unknown contributor"}
+      onCommit={commitBoardChange} onClose={closeConclusion} />
     {selectedMergeIdea?.merge && <div className="board-merge-details" role="dialog" aria-modal="false" aria-label="How this idea was made"><div className="board-merge-panel-head"><h2>How this idea was made</h2><button type="button" aria-label="Close merge details" onClick={() => setMergeDetailsId(null)}>×</button></div>
       <button type="button" className="board-merge-show-sources" onClick={() => {
         const sourceIds = mergeDisplayData(selectedMergeIdea.merge!).sources.map((source) => source.id).filter((id) => board.ideas.some((idea) => idea.id === id));
@@ -1654,9 +1934,15 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       {selectedAssistantIdea.assistant.sources.map((source, index) => <div className="board-merge-source" key={`${source.id}-${index}`}><strong>Source {index + 1}: {source.title || "Untitled idea"}</strong><span>By {source.author}</span><MarkdownText>{source.content || "No description"}</MarkdownText></div>)}
       <small>Created by {selectedAssistantIdea.author || "Unknown contributor"} with {selectedAssistantIdea.assistant.model} on {new Date(selectedAssistantIdea.assistant.generatedAt).toLocaleString()}.</small>
     </div>}
-    {editor && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) { setEditor(null); setDraftIdeaId(null); draftIdeaRef.current = null; } }}><form className="board-dialog" onSubmit={saveEdit} aria-label="Edit idea">
-      <h2>Edit idea</h2><label>Title<input ref={titleInput} value={editor.title} maxLength={120} onChange={(event) => { setEditor({ ...editor, title: event.target.value }); setEditError(""); }} /></label>
-      <label>Content<textarea value={editor.content} maxLength={4000} rows={6} onChange={(event) => setEditor({ ...editor, content: event.target.value })} placeholder="What makes this idea useful?" /></label>
+    {editor && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) { closeEditor(); setDraftIdeaId(null); draftIdeaRef.current = null; } }}><form className="board-dialog" onSubmit={saveEdit} aria-label="Edit idea">
+      <h2>Edit idea</h2><label>Title<input ref={titleInput} value={editor.title} maxLength={120} onChange={(event) => { setEditorDraft({ ...editor, title: event.target.value }); setEditError(""); }} /></label>
+      <label>Content<textarea value={editor.content} maxLength={4000} rows={6} onChange={(event) => setEditorDraft({ ...editor, content: event.target.value })} placeholder="What makes this idea useful?" /></label>
+      {canRequestIdeaDescription(editor.title) && <div className="board-editor-description-action"><button type="button" disabled={descriptionStatus?.kind === "pending" || !canWriteBoard} onClick={() => void requestIdeaDescription()}>
+        {descriptionStatus?.kind === "pending" ? "Generating…" : descriptionStatus?.kind === "error" ? "Try again" : editor.content.trim() ? "Regenerate content" : "Generate content"}
+      </button><span>Uses the title, board goal, and any text in Content.</span></div>}
+      {descriptionStatus?.kind === "pending" && <p className="board-editor-description-status" role="status">Generating content from your title and board context…</p>}
+      {descriptionStatus?.kind === "error" && <p className="board-editor-description-status is-error" role="alert">{descriptionStatus.message}</p>}
+      {descriptionStatus?.kind === "question" && <p className="board-editor-description-status is-question" role="status">{descriptionStatus.message} Add your answer in Content, then generate again.</p>}
       <button type="button" className="board-markdown-preview-toggle" onClick={() => setEditorPreview((value) => !value)}>{editorPreview ? "Hide preview" : "Preview Markdown"}</button>
       {editorPreview && <MarkdownText className="board-markdown-edit-preview">{editor.content || "Markdown preview will appear here."}</MarkdownText>}
       {draftIdeaId === editor.id && <label className="board-auto-place-toggle"><input type="checkbox" checked={autoPlaceNewNotes} disabled={!clusterSnapshot || clusterStale || assignmentBusy} onChange={(event) => {
@@ -1670,7 +1956,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           setAssignmentBusy(false);
         }
       }} /><span><strong>Place new ideas in an existing group</strong><small>{clusterStale ? "Organize the canvas again before auto placement." : clusterSnapshot ? "Applies to new ideas created from this browser." : "Organize the canvas first to create groups."}</small></span></label>}
-      {editError && <p className="board-error" role="alert">{editError}</p>}<div className="board-dialog-actions"><button type="button" onClick={() => { setEditor(null); setDraftIdeaId(null); draftIdeaRef.current = null; }}>Cancel</button><button className="primary" type="submit">Save idea</button></div></form></div>}
+      {editError && <p className="board-error" role="alert">{editError}</p>}<div className="board-dialog-actions"><button type="button" onClick={() => { closeEditor(); setDraftIdeaId(null); draftIdeaRef.current = null; }}>Cancel</button><button className="primary" type="submit">Save idea</button></div></form></div>}
     {(linkDraft || relationshipEditor) && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) cancelInteraction(); }}><form className="board-dialog" onSubmit={confirmLink} aria-label={relationshipEditor ? "Edit link" : "Create link"}>
       <h2>{relationshipEditor ? "Edit link" : "How are they related?"}</h2><p className="board-link-direction">{board.ideas.find((idea) => idea.id === (relationshipEditor ?? linkDraft)?.source)?.title} → {board.ideas.find((idea) => idea.id === (relationshipEditor ?? linkDraft)?.target)?.title}</p>
       <label>Link type<select value={relationshipType} onChange={(event) => setRelationshipType(event.target.value as RelationshipType)}>{Object.entries(relationshipLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>

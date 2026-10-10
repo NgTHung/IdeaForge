@@ -2,6 +2,7 @@ import type { ClusterSnapshot } from "@/lib/cluster-contract";
 import type { MergeProposal, MergeResult } from "@/lib/ideas";
 import type { BoardDecoration } from "./board-social-contract";
 import type { ObjectStyle, RelationshipStyle } from "./personalization";
+import type { ConclusionDraft, ConclusionRequest } from "@/lib/conclusion";
 
 export type MergeSourceSnapshot = { id: string; title: string; content: string; author: string };
 export type MergeRelationshipSnapshot = {
@@ -15,6 +16,19 @@ export type AssistantSourceSnapshot = MergeSourceSnapshot;
 export type AssistantIdeaRecord = {
   sources: AssistantSourceSnapshot[];
   generated: { title: string; content: string };
+  model: string;
+  generatedAt: string;
+};
+export type IdeaDescriptionRecord = {
+  generatedContent: string;
+  title: string;
+  goal: string;
+  context?: {
+    boardTitle: string;
+    boardDescription?: string;
+    seedContent?: string;
+    clusterLabel?: string;
+  };
   model: string;
   generatedAt: string;
 };
@@ -50,6 +64,7 @@ export type Idea = {
   author?: string;
   merge?: MergeRecord;
   assistant?: AssistantIdeaRecord;
+  descriptionGeneration?: IdeaDescriptionRecord;
 };
 
 export type RelationshipType = "synergy" | "conflict" | "extends";
@@ -67,7 +82,19 @@ export type ConnectionPair = { sourceId: string; targetId: string };
 // Keep the legacy value so saved downvotes can be ignored without rewriting a room.
 export type IdeaVote = { ideaId: string; voterId: string; voterName?: string; value: 1 | -1 };
 export type FreeDrawStroke = { id: string; points: { x: number; y: number }[] };
-export type Board = { decorations?: BoardDecoration[]; goal?: string; ideas: Idea[]; relationships: Relationship[]; votes?: IdeaVote[]; drawings?: FreeDrawStroke[]; dismissedConnections?: ConnectionPair[]; clusterSnapshot?: ClusterSnapshot | null };
+// The request stores the selected notes, clusters, and links as they were when the draft was generated.
+export type BoardConclusion = {
+  version: 1;
+  title: string;
+  markdown: string;
+  generated: ConclusionDraft;
+  request: ConclusionRequest;
+  model: string;
+  generatedAt: string;
+  keptBy: string;
+  keptAt: string;
+};
+export type Board = { decorations?: BoardDecoration[]; goal?: string; ideas: Idea[]; relationships: Relationship[]; votes?: IdeaVote[]; drawings?: FreeDrawStroke[]; dismissedConnections?: ConnectionPair[]; clusterSnapshot?: ClusterSnapshot | null; conclusion?: BoardConclusion | null };
 
 export const IDEA_CARD_SIZE = { width: 272, height: 148 } as const;
 export const MERGED_IDEA_CARD_SIZE = { width: 320, height: 184 } as const;
