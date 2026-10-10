@@ -130,9 +130,6 @@ export function LandingPage() {
         </button>}
       </div>
       <a className="landing-primary landing-try-mobile" href="/try">Open the sandbox</a>
-      <p className="landing-try-shared">Want to try it with others?{" "}
-        <button type="button" disabled={isOpeningDemo} onClick={openDemoBoard}>{isOpeningDemo ? "Opening…" : "Open a shared demo board"}</button>
-      </p>
     </section>
   </main>;
 }
