@@ -624,11 +624,14 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     setUndoPositions(null);
     setDrawTool(null); setTool("select"); openEditor(idea); physics.reheat();
   }
+  function addAtScreenPoint(screen: { x: number; y: number }) {
+    if (!flow.current) return;
+    const point = flow.current.screenToFlowPosition(screen);
+    makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 });
+  }
   function addAtCenter() {
     const bounds = canvas.current?.querySelector(".react-flow")?.getBoundingClientRect();
-    if (!bounds || !flow.current) return;
-    const point = flow.current.screenToFlowPosition({ x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 });
-    makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 });
+    if (bounds) addAtScreenPoint({ x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 });
   }
   function selectTool(next: Tool) {
     setPlacingSticker(null);
@@ -1722,7 +1725,13 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           cursorPoint.current = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY });
           onCursorMove?.(cursorPoint.current);
           if (!onSocialSignal && localSignals.signals.some((signal) => signal.kind === "chat")) setLocalCursorPosition(cursorPoint.current);
-        }} onPointerLeave={() => { cursorActive.current = false; onCursorMove?.(null); }}>
+        }} onPointerLeave={() => { cursorActive.current = false; onCursorMove?.(null); }}
+        onDoubleClick={(event) => {
+          // Only empty canvas: idea cards handle their own double-click to edit.
+          if (!(event.target instanceof Element) || !event.target.classList.contains("react-flow__pane")) return;
+          if (!canWriteBoard || tool !== "select" || drawTool || placingSticker || spaceDown || editor) return;
+          addAtScreenPoint({ x: event.clientX, y: event.clientY });
+        }}>
         <ReactFlow<IdeaNode, OrthogonalCanvasEdge> nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodesChange={onNodesChange} onInit={(instance) => { flow.current = instance; setZoom(instance.getZoom()); }} onMove={(_, viewport) => {
           setZoom(viewport.zoom);
           if (cursorActive.current && cursorScreen.current && flow.current) {
@@ -1734,7 +1743,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           onPaneClick={(event) => { canvas.current?.focus(); if (placingSticker && canWriteBoard && flow.current) {
               const position = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY });
               if (commitBoardChange((current) => addDecoration(current, { id: createIdeaId(), kind: placingSticker, position, author: (authorName || "You").slice(0, 100) }))) setPlacingSticker(null);
-            } else if (tool === "add" && flow.current) { const point = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }); makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 }); }
+            } else if (tool === "add") addAtScreenPoint({ x: event.clientX, y: event.clientY });
             else { setSelection(null); setMergeIds([]); if (tool === "connect") { setSourceId(null); setLinkDraft(null); setTool("select"); } } }}
           onNodeClick={(event, node) => {
             if (tool === "merge") selectMergeNote(node.id, true);
@@ -1797,7 +1806,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
             active={tool === "select" && !drawTool} onClick={() => selectTool("select")}><BoardIcon name="select" /></ToolButton>
           <ToolButton label="Pan" active={tool === "hand"} title="Pan (hold Space)" onClick={() => selectTool("hand")}><BoardIcon name="pan" /></ToolButton>
           <div className="board-tool-rule" />
-          <ToolButton label="Add idea" active={tool === "add"} onClick={() => selectTool("add")}><BoardIcon name="add" /></ToolButton>
+          <ToolButton label="Add idea" active={tool === "add"} title="Add idea (or double-click empty canvas)" onClick={() => selectTool("add")}><BoardIcon name="add" /></ToolButton>
           <ToolButton label="Connect" active={tool === "connect"} title={tool === "connect" ? "Connect is active. Drag from one idea into another." : "Connect ideas by dragging from one idea into another"} onClick={() => selectTool("connect")}><BoardIcon name="connect" /></ToolButton>
           <div className="board-tool-featured-frame" role="group" aria-label="Merge and group tools">
             <ToolButton label="Merge" active={tool === "merge"} title={`Choose 2 to ${MAX_MERGE_SOURCES} ideas to merge`} onClick={() => selectTool("merge")}><BoardIcon name="merge" /></ToolButton>
