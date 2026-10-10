@@ -75,8 +75,7 @@ export function Bubble({ data, selected, dragging }: NodeProps<IdeaNode>) {
     <div className="board-bubble-float"><div key={data.squash?.token ?? "idle"} className="board-bubble-squash"><div ref={surface} className="board-bubble-surface">
       {idea.appearance && <BorderDecorations border={idea.appearance.border} size={ideaCardSize(idea, data.clusterLabel)} />}
       {idea.merge && <span className="merged-note-sigil" role="img" aria-label="Merged idea" title="Merged idea">✦</span>}
-      <div className="board-bubble-top">{idea.assistant && <span className="board-bubble-kicker">Assistant idea</span>}<span className="board-bubble-badges">{data.mergeIndex > 0 && <span className="board-merge-index" aria-label={`Merge idea ${data.mergeIndex}`}>{data.mergeIndex}</span>}{data.clusterLabel && !idea.merge && <span className="board-cluster-badge">{data.clusterLabel}</span>}{idea.pinned && <span ref={pin} className="board-pinned" role="img" aria-label="Pinned idea" title="Pinned idea"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m12 3 5 5-2 1-2 4-2-2-5 5m1-9 4-2 1-2M5 8l7 7" /></svg></span>}</span></div>
-      {idea.merge && data.clusterLabel && <div className="board-merged-cluster-line"><span className="board-cluster-badge">{data.clusterLabel}</span></div>}
+      <div className="board-bubble-top"><span className="board-bubble-kicker">{idea.merge ? "Combined" : idea.assistant ? "AI Suggested" : "Idea"}</span><span className="board-bubble-badges">{data.mergeIndex > 0 && <span className="board-merge-index" aria-label={`Merge idea ${data.mergeIndex}`}>{data.mergeIndex}</span>}{idea.pinned && <span ref={pin} className="board-pinned" role="img" aria-label="Pinned idea" title="Pinned idea"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m12 3 5 5-2 1-2 4-2-2-5 5m1-9 4-2 1-2M5 8l7 7" /></svg></span>}</span></div>
       {data.editingBy && <span className="board-card-editing-lock" title={`${data.editingBy} is editing this idea`}>{data.editingBy} editing</span>}
       <h3>{idea.title}</h3>{idea.author && !idea.merge && <small className="board-bubble-author">By {idea.author}</small>}
       {idea.descriptionGeneration && <small className="board-description-provenance" title={`Generated with ${idea.descriptionGeneration.model} on ${new Date(idea.descriptionGeneration.generatedAt).toLocaleString()}`}>
@@ -84,6 +83,7 @@ export function Bubble({ data, selected, dragging }: NodeProps<IdeaNode>) {
       </small>}
       {idea.content && <MarkdownText className="board-bubble-markdown">{idea.content}</MarkdownText>}
       {idea.assistant && !data.preview && <button type="button" className="board-merge-details-button nodrag nopan" onClick={(event) => { event.stopPropagation(); data.onAssistantDetails?.(); }}>Show assistant sources</button>}
+      {data.clusterLabel && <div className="board-bubble-group-line"><span className="board-cluster-badge" title={data.clusterLabel}>{data.clusterLabel}</span></div>}
       {data.voting && <div className="board-bubble-voting"><IdeaUpvote ideaTitle={idea.title} {...data.voting} /></div>}
       {data.connecting && <span className="board-connect-dot" aria-hidden="true" />}
     </div></div></div>

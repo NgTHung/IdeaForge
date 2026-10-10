@@ -163,6 +163,9 @@ For Organize, the browser sends eligible note text and the selected group count 
 ## Log
 
 - 2026-10-10: at the user's request, one large star button above the left toolbar opens Assistant, Suggested Links, and Conclusion. The selection toolbar sits at bottom center. Merge and Group share a highlighted vertical frame and align with the other tools. Share shows text without an icon, and Style becomes an icon-only control before the account menu. Each participant may keep up to three upvotes across the board. Top ideas ranks by score, and selecting an idea closes the list and zooms to it. Clicking the board name opens one dialog for the name and project description. Board metadata edits sync to connected participants.
+- 2026-10-10: clicking an active toolbar tool again returns to Select. Group closes its panel and returns to Select when clicked again.
+- 2026-10-10: the toolbar combines Select and Pan. Clicking an idea selects it, and dragging empty canvas pans. Idea cards show the group name, a type label, the full centered title, and votes by default; hover, focus, or selection reveals the full details. Type labels are Idea, Combined, or AI Suggested.
+- 2026-10-10: idea cards keep the type label on one line at the upper left and the group name on one line at the lower left. Default titles use larger text and wrap at word boundaries.
 
 - 2026-10-10: Signed-in visitors to `/` go straight to `/dashboard`. The server checks the Better Auth session before rendering the landing page and shows the landing page when the account service is unavailable. Sign-in without a `returnTo` path also lands on `/dashboard`. Guests still see the landing page.
 
