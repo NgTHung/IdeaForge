@@ -34,7 +34,7 @@ export function PersonalizationPanel({ preferences, update, reducedMotion, board
     <h4>{label}</h4>
     <div className="personalization-preview" data-border={style.border} style={{ "--style-color": style.color === "default" ? "#32856a" : palette[style.color] } as React.CSSProperties}>{label || "Your note"}<span>{style.border === "cat" ? " /ᐠ｡ꞈ｡ᐟ\\" : style.border === "rainbow" ? " RGB" : ""}</span></div>
     <Choice label={`${label} color`} value={style.color} choices={colors} disabled={!canWrite} onChange={(color) => onStyle(kind, id, { ...style, color: color as ObjectStyle["color"] })} />
-    <Choice label={`${label} border`} value={style.border} choices={["plain", "cat", "rainbow"]} disabled={!canWrite} onChange={(border) => onStyle(kind, id, { ...style, border: border as ObjectStyle["border"] })} />
+    <Choice label={`${label} border`} value={style.border} choices={kind === "cluster" ? ["plain", "cat", "rainbow", "clouds", "stars", "flowers", "paper"] : ["plain", "cat", "rainbow"]} disabled={!canWrite} onChange={(border) => onStyle(kind, id, kind === "cluster" ? { ...style as ClusterStyle, border: border as ClusterStyle["border"] } : { ...style as ObjectStyle, border: border as ObjectStyle["border"] })} />
     {kind === "cluster" && <label className="personalization-check"><input type="checkbox" checked={(style as ClusterStyle).boundary} disabled={!canWrite} onChange={(event) => onStyle(kind, id, { ...style, boundary: event.target.checked })} />Show cluster boundary</label>}
     <button type="button" disabled={!canWrite} onClick={() => onStyle(kind, id, kind === "cluster" ? defaultClusterStyle : defaultObjectStyle)}>Reset {kind} style</button>
   </div>;

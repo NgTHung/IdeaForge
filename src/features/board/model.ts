@@ -1,5 +1,6 @@
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
 import type { MergeProposal, MergeResult } from "@/lib/ideas";
+import type { BoardDecoration } from "./board-social-contract";
 import type { ObjectStyle, RelationshipStyle } from "./personalization";
 
 export type MergeSourceSnapshot = { id: string; title: string; content: string; author: string };
@@ -66,7 +67,7 @@ export type ConnectionPair = { sourceId: string; targetId: string };
 // Keep the legacy value so saved downvotes can be ignored without rewriting a room.
 export type IdeaVote = { ideaId: string; voterId: string; voterName?: string; value: 1 | -1 };
 export type FreeDrawStroke = { id: string; points: { x: number; y: number }[] };
-export type Board = { goal?: string; ideas: Idea[]; relationships: Relationship[]; votes?: IdeaVote[]; drawings?: FreeDrawStroke[]; dismissedConnections?: ConnectionPair[]; clusterSnapshot?: ClusterSnapshot | null };
+export type Board = { decorations?: BoardDecoration[]; goal?: string; ideas: Idea[]; relationships: Relationship[]; votes?: IdeaVote[]; drawings?: FreeDrawStroke[]; dismissedConnections?: ConnectionPair[]; clusterSnapshot?: ClusterSnapshot | null };
 
 export const IDEA_CARD_SIZE = { width: 272, height: 148 } as const;
 export const MERGED_IDEA_CARD_SIZE = { width: 320, height: 184 } as const;

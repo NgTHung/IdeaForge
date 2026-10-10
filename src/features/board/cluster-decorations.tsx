@@ -18,7 +18,7 @@ export function ClusterDecorations({ board, positions, sizes }: { board: Board; 
       const height = Math.max(...bounds.map((item) => item.y + item.height)) - top + 18;
       const style = group.appearance ?? defaultClusterStyle;
       return <div key={group.id} className="cluster-decoration" data-border={style.border} data-boundary={style.boundary} style={{ left, top, width, height, "--style-color": styleColor(style.color) ?? "#32856a" } as React.CSSProperties}>
-        <div className="cluster-heading" title={label}><span aria-hidden="true">{style.border === "cat" && style.boundary ? "/ᐠ｡ꞈ｡ᐟ\\ " : ""}</span>{label}</div>
+        <div className="cluster-heading" title={label}><span aria-hidden="true">{style.boundary ? ({ cat: "/ᐠ｡ꞈ｡ᐟ\\ ", clouds: "☁ ", stars: "✦ ", flowers: "✿ ", paper: "▤ " } as Record<string, string>)[style.border] : ""}</span>{label}</div>
       </div>;
     })}
   </div></ViewportPortal>;

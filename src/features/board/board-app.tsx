@@ -36,8 +36,12 @@ import { ClusterDecorations } from "./cluster-decorations";
 import { usePersonalization } from "./use-personalization";
 import { setObjectAppearance, styleColor, type CursorStyle } from "./personalization";
 import { AnimationContext, BoardActivity, AchievementCollection, ThinkingAnimation, useBoardActivity, type ConnectedMember } from "./board-activity";
+import { CursorSignals, SocialControls, useSignalQueue } from "./board-social";
+import { StickerDecorations, StickerPicker } from "./sticker-decorations";
+import { addDecoration, moveDecoration, removeDecoration, canOpenCursorChat, signalLifetime, stickerCatalog, type NamedSignal, type SocialSignal, type StickerKind } from "./board-social-contract";
 import "./board.css";
 import "./personalization.css";
+import "./social.css";
 
 type Tool = "select" | "hand" | "add" | "connect" | "merge";
 type Selection = { kind: "idea" | "relationship"; id: string } | null;
@@ -123,6 +127,8 @@ type BoardAppProps = {
   liveCursors?: LiveCursor[];
   onCursorMove?: (position: { x: number; y: number } | null) => void;
   onCursorStyleChange?: (style: CursorStyle) => void;
+  socialSignals?: NamedSignal[];
+  onSocialSignal?: (signal: SocialSignal) => void;
   boardScope?: string;
   connectedMembers?: ConnectedMember[];
 };
@@ -138,7 +144,13 @@ function ToolButton({ label, active, disabled, title, onClick, children, rewindi
     title={title || label} disabled={disabled} onClick={onClick}><span className="board-tool-icon" aria-hidden="true">{children}</span></button>;
 }
 
-export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove, onCursorStyleChange, boardScope = "local", connectedMembers = emptyMembers }: BoardAppProps) {
+export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove, onCursorStyleChange, socialSignals, onSocialSignal, boardScope = "local", connectedMembers = emptyMembers }: BoardAppProps) {
+  const [cursorChatOpen, setCursorChatOpen] = useState(false);
+  const [chatAnchor, setChatAnchor] = useState<{ x: number; y: number } | null>(null);
+  const [placingSticker, setPlacingSticker] = useState<StickerKind | null>(null);
+  const cursorPoint = useRef<{ x: number; y: number } | null>(null);
+  const cursorScreen = useRef<{ x: number; y: number } | null>(null);
+  const localSignals = useSignalQueue();
   const [localBoard, setLocalBoard] = useState<Board>(() => normalizeBoardLayout(initialBoard, {}));
   const board = sharedBoard ?? localBoard;
   const { preferences, update: updatePreferences, motion, reducedMotion } = usePersonalization();
@@ -417,7 +429,14 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     onEditingIdeaChange(editingId ?? null);
     return () => onEditingIdeaChange(null);
   }, [editingId, onEditingIdeaChange]);
-  function cancelInteraction() { connectDrag.cancel(); setEditor(null); setDraftIdeaId(null); draftIdeaRef.current = null; setLinkDraft(null); setRelationshipEditor(null); setSourceId(null); setLinkError(""); setCondition(""); setOrganizeOpen(false); setMergePreview(null); setMergeDetailsId(null); setMergeIds([]); setMergeError(""); mergeRequestSequence.current += 1; mergeController.current?.abort(); setMergeBusy(false); setDrawTool(null); setTool("select"); }
+  function openCursorChat(open: boolean) {
+    if (open && cursorScreen.current && canvas.current) {
+      const bounds = canvas.current.getBoundingClientRect();
+      setChatAnchor({ x: Math.max(90, Math.min(bounds.width - 320, cursorScreen.current.x - bounds.left + 18)), y: Math.max(20, Math.min(bounds.height - 120, cursorScreen.current.y - bounds.top - 70)) });
+    }
+    setCursorChatOpen(open);
+  }
+  function cancelInteraction() { setPlacingSticker(null); setCursorChatOpen(false); connectDrag.cancel(); setEditor(null); setDraftIdeaId(null); draftIdeaRef.current = null; setLinkDraft(null); setRelationshipEditor(null); setSourceId(null); setLinkError(""); setCondition(""); setOrganizeOpen(false); setMergePreview(null); setMergeDetailsId(null); setMergeIds([]); setMergeError(""); mergeRequestSequence.current += 1; mergeController.current?.abort(); setMergeBusy(false); setDrawTool(null); setTool("select"); }
   function removeSelection() {
     if (!selection) return;
     if (selection.kind === "idea") { setUndoPositions(null); setAssignmentUndo(null); }
@@ -439,6 +458,10 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         return;
       }
       if (event.key === "Escape") { cancelInteraction(); setSelection(null); return; }
+      if (event.key === "Enter" && !event.defaultPrevented && !event.repeat && !event.isComposing && !event.ctrlKey && !event.metaKey && !event.altKey &&
+        canOpenCursorChat(target, Boolean(editor || linkDraft || relationshipEditor || mergePreview || mergeDetailsId || assistantDetailsId || organizeOpen))) {
+        event.preventDefault(); openCursorChat(true); return;
+      }
       if (typing) return;
       if (event.code === "Space") { event.preventDefault(); setSpaceDown(true); }
       if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); removeSelection(); }
@@ -463,6 +486,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 });
   }
   function selectTool(next: Tool) {
+    setPlacingSticker(null);
     connectDrag.cancel(); setDrawTool(null); setTool(next); setSourceId(null); setLinkDraft(null);
     const seed = next === "merge" && selection?.kind === "idea" ? [selection.id] : [];
     setSelection(null); setMergeIds(seed); setMergeError("");
@@ -1348,15 +1372,27 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
     </header>
     <div className="board-workspace">
-      <AchievementCollection achievements={activity.achievements} />
+      <div className="board-decoration-controls"><AchievementCollection achievements={activity.achievements} canWrite={canWriteBoard} onPlace={(kind) => { selectTool("select"); setPlacingSticker(kind); }} />
+        <StickerPicker canWrite={canWriteBoard} onPlace={(kind) => { selectTool("select"); setPlacingSticker(kind); }} /></div>
+      <SocialControls chatOpen={cursorChatOpen} setChatOpen={openCursorChat}
+        screenPosition={chatAnchor}
+        position={() => cursorPoint.current ?? flow.current?.screenToFlowPosition({ x: (canvas.current?.getBoundingClientRect().left ?? 0) + 350, y: (canvas.current?.getBoundingClientRect().top ?? 0) + 220 }) ?? { x: 0, y: 0 }}
+        onSend={onSocialSignal ?? ((signal) => localSignals.append({ ...signal, connectionId: 0, name: authorName || "You", expiresAt: Date.now() + signalLifetime(signal) }))}
+        onClose={() => canvas.current?.focus()} />
+      {placingSticker && <div className="sticker-placement-notice" role="status">{stickerCatalog[placingSticker].glyph} Click empty canvas to place {stickerCatalog[placingSticker].label}<button type="button" onClick={() => setPlacingSticker(null)}>Cancel</button></div>}
       {(mergeBusy || clusterBusy || assignmentBusy || clusterNamesState === "pending" || suggestions.loading) && <div className="board-ai-activity" role="status"><ThinkingAnimation /><span>{mergeBusy ? "Merging ideas…" : clusterBusy ? "Organizing…" : assignmentBusy ? "Finding a group…" : clusterNamesState === "pending" ? "Naming groups…" : "Finding connections…"}</span></div>}
-      <div ref={canvas} data-background={preferences.background} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""} ${drawTool ? `drawing-${drawTool}` : ""}`}
+      <div ref={canvas} tabIndex={-1} data-background={preferences.background} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""} ${drawTool ? `drawing-${drawTool}` : ""}`}
         onPointerMove={(event) => {
           if (!(event.target instanceof Element) || !event.target.closest(".react-flow") || !flow.current) { onCursorMove?.(null); return; }
-          onCursorMove?.(flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }));
+          cursorPoint.current = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+          cursorScreen.current = { x: event.clientX, y: event.clientY };
+          onCursorMove?.(cursorPoint.current);
         }} onPointerLeave={() => onCursorMove?.(null)}>
         <ReactFlow<IdeaNode, OrthogonalCanvasEdge> nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodesChange={onNodesChange} onInit={(instance) => { flow.current = instance; setZoom(instance.getZoom()); }} onMove={(_, viewport) => setZoom(viewport.zoom)}
-          onPaneClick={(event) => { if (tool === "add" && flow.current) { const point = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }); makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 }); }
+          onPaneClick={(event) => { canvas.current?.focus(); if (placingSticker && canWriteBoard && flow.current) {
+              const position = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+              if (commitBoardChange((current) => addDecoration(current, { id: createIdeaId(), kind: placingSticker, position, author: (authorName || "You").slice(0, 100) }))) setPlacingSticker(null);
+            } else if (tool === "add" && flow.current) { const point = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }); makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 }); }
             else { setSelection(null); setMergeIds([]); if (tool === "connect") { setSourceId(null); setLinkDraft(null); setTool("select"); } } }}
           onNodeClick={(event, node) => {
             if (tool === "merge") selectMergeNote(node.id, true);
@@ -1385,6 +1421,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           <ClusterDecorations board={board} positions={dragPositions} sizes={measuredSizes} />
           <BoardActivity activity={activity} board={board} positions={dragPositions} />
           <LiveCursors cursors={liveCursors} />
+          <CursorSignals signals={socialSignals ?? localSignals.signals} />
+          <StickerDecorations decorations={board.decorations ?? []} canWrite={canWriteBoard} onMove={(id, position) => { if (canWriteBoard) commitBoardChange((current) => moveDecoration(current, id, position)); }} onRemove={(id) => { if (canWriteBoard) commitBoardChange((current) => removeDecoration(current, id)); }} />
           <FreeDrawLayer
             key={`${drawTool ?? "off"}-${canWriteBoard ? "write" : "read"}`}
             strokes={board.drawings ?? []}

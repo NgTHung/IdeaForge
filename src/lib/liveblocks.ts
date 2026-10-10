@@ -2,10 +2,12 @@ import { createClient, LiveMap, LiveObject } from "@liveblocks/client";
 import { createRoomContext } from "@liveblocks/react";
 import type { ConnectionPair, FreeDrawStroke, Idea, IdeaVote, Relationship } from "@/features/board/model";
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
+import type { BoardDecoration, SocialSignal } from "@/features/board/board-social-contract";
 import type { CursorStyle } from "@/features/board/personalization";
 
 export type BoardStorage = {
   title: string;
+  decorations?: LiveMap<string, LiveObject<BoardDecoration>>;
   goal?: string;
   ideas: LiveMap<string, LiveObject<Idea>>;
   relationships: LiveMap<string, LiveObject<Relationship>>;
@@ -23,8 +25,8 @@ type BoardUserMeta = { id?: string; info?: { name?: string; avatar?: string } };
 const client = createClient({ authEndpoint: "/api/liveblocks-auth" });
 
 export const { RoomProvider, useMutation, useStatus, useStorage, useOthers, useSelf, useUpdateMyPresence,
-  useHistory, useUndo, useRedo, useCanUndo, useCanRedo } =
-  createRoomContext<BoardPresence, BoardStorage, BoardUserMeta>(client);
+  useHistory, useUndo, useRedo, useCanUndo, useCanRedo, useBroadcastEvent, useEventListener } =
+  createRoomContext<BoardPresence, BoardStorage, BoardUserMeta, SocialSignal>(client);
 
 export function createBoardStorage(title: string, ideas: Idea[], relationships: Relationship[], goal = "Help students build a consistent study habit.") {
   return {
@@ -32,6 +34,7 @@ export function createBoardStorage(title: string, ideas: Idea[], relationships: 
     goal,
     ideas: new LiveMap(ideas.map((idea) => [idea.id, new LiveObject(idea)])),
     relationships: new LiveMap(relationships.map((link) => [link.id, new LiveObject(link)])),
+    decorations: new LiveMap<string, LiveObject<BoardDecoration>>(),
     votes: new LiveMap<string, IdeaVote>(),
     drawings: new LiveMap<string, LiveObject<FreeDrawStroke>>(),
     dismissedConnections: new LiveMap<string, ConnectionPair>(),

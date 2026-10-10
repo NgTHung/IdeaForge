@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { ViewportPortal } from "@xyflow/react";
 import { achievementLabels, achievementLedgerSchema, advanceMilestones, defaultPreferences, earnedAchievements, emptyLedger, reachedMilestones, recordContribution, type AchievementLedger, type EffectKind, type Personalization } from "./personalization";
+import { stickerCatalog, type StickerKind } from "./board-social-contract";
 import type { Board } from "./model";
 
 export const AnimationContext = createContext({ preferences: defaultPreferences, motion: false });
@@ -15,14 +16,14 @@ export function useBoardActivity(board: Board, members: ConnectedMember[], scope
   const ledgerKey = `ideaforge-achievements-v1:${scope}:${userId}`;
   const [ledger, setLedger] = useState<AchievementLedger>(emptyLedger);
   const ledgerRef = useRef<AchievementLedger>(emptyLedger);
-  const loaded = useRef(false);
+  const loaded = useRef<string | null>(null);
   const [events, setEvents] = useState<Activity[]>([]);
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
   const sequence = useRef(0);
   const preferencesRef = useRef(preferences);
   useEffect(() => { preferencesRef.current = preferences; }, [preferences]);
   useEffect(() => {
-    loaded.current = true;
+    loaded.current = ledgerKey;
     ledgerRef.current = loadLedger(ledgerKey);
     const frame = requestAnimationFrame(() => setLedger(ledgerRef.current));
     const pendingTimers = timers.current;
@@ -36,7 +37,7 @@ export function useBoardActivity(board: Board, members: ConnectedMember[], scope
     timers.current.add(timer);
   }, []);
   const record = useCallback((ideaId: string, current: Board, sources?: string[]) => {
-    if (!loaded.current) ledgerRef.current = loadLedger(ledgerKey);
+    if (loaded.current !== ledgerKey) { ledgerRef.current = loadLedger(ledgerKey); loaded.current = ledgerKey; }
     const before = earnedAchievements(ledgerRef.current);
     const next = recordContribution(ledgerRef.current, ideaId, current, sources);
     ledgerRef.current = next;
@@ -59,7 +60,7 @@ export function useBoardActivity(board: Board, members: ConnectedMember[], scope
   return { events, notify, record, achievements: earnedAchievements(ledger) };
 }
 function ActivityGlyph({ kind, preferences }: { kind: EffectKind; preferences: Personalization }) {
-  if (kind === "merge") return <span className="activity-merge"><span>🐱</span><span>🐱</span><span>✨</span></span>;
+  if (kind === "merge") return <span className="merge-sparks"><span className="merge-spark-core">✦</span>{Array.from({ length: 12 }, (_, index) => <i key={index} style={{ "--spark-angle": `${index * 30}deg`, "--spark-delay": `${index % 3 * 70}ms` } as React.CSSProperties}>✧</i>)}</span>;
   const glyphs: Record<EffectKind, string> = {
     merge: "", vote: preferences.reaction === "cat" ? "😻" : preferences.reaction === "frog" ? "🐸" : "♥",
     entrance: "🪂", thinking: "", undo: "⏪", milestone: preferences.milestone === "ducks" ? "🦆 🦆 🦆" : "🎉 ✨ 🎊",
@@ -83,12 +84,18 @@ export function BoardActivity({ activity, board, positions }: { activity: Return
     })}</div></ViewportPortal>
   </>;
 }
-export function AchievementCollection({ achievements }: { achievements: ReturnType<typeof earnedAchievements> }) {
-  const { preferences } = useContext(AnimationContext);
-  return <aside className="board-achievements" aria-label="Achievement stickers">
-    {preferences.effects.achievement && <details className="achievement-collection"><summary>Stickers · {achievements.length}/3</summary><ul>
-      {Object.entries(achievementLabels).map(([key, label]) => <li key={key} data-earned={achievements.includes(key as keyof typeof achievementLabels)}><span aria-hidden="true">{achievements.includes(key as keyof typeof achievementLabels) ? "★" : "☆"}</span><span>{label}<small>{key === "spark" ? "Save your first idea" : key === "combo" ? "Keep a merge across clusters" : "Save five ideas"}</small></span></li>)}
-    </ul><p>Saved for you and this board in this browser.</p></details>}
+export function AchievementCollection({ achievements, canWrite, onPlace }: { achievements: ReturnType<typeof earnedAchievements>; canWrite: boolean; onPlace: (kind: StickerKind) => void }) {
+  return <aside className="board-achievements" aria-label="Achievements">
+    <details className="achievement-collection"><summary><span aria-hidden="true">🏅</span> Achievements <b>{achievements.length}/3</b>
+      <span className="earned-badges" aria-hidden="true">{achievements.map((key) => <span key={key}>{stickerCatalog[key].glyph}</span>)}</span></summary>
+      <div className="achievement-popup"><strong>Your achievements</strong><ul>
+        {Object.entries(achievementLabels).map(([key, label]) => {
+          const earned = achievements.includes(key as keyof typeof achievementLabels);
+          return <li key={key} data-earned={earned}><span aria-hidden="true">{stickerCatalog[key as StickerKind].glyph}</span><div><b>{label}</b><small>{key === "spark" ? "Save your first idea" : key === "combo" ? "Keep a merge across clusters" : "Save five ideas"}</small><span className="achievement-state">{earned ? "Earned" : "Not earned yet"}</span>
+            {earned && <button type="button" disabled={!canWrite} aria-label={`Place ${label} achievement sticker`} onClick={(event) => { onPlace(key as StickerKind); event.currentTarget.closest("details")?.removeAttribute("open"); }}>Place sticker ↗</button>}</div></li>;
+        })}
+      </ul><p>Awards stay in this browser for you and this board. Placed stickers are shared and saved.</p></div>
+    </details>
   </aside>;
 }
 export function ThinkingAnimation() {
