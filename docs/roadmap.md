@@ -133,6 +133,10 @@ Personalization in `work:WORK-039` is Done. Open Style to customize cursors, not
 
 Verification on 2026-10-09 passed all 163 tests, lint, typecheck, and the production build. Browser checks used the Tailscale address `100.102.144.120` with live Liveblocks rooms and real Organize, naming, and merge provider calls. Checks covered two-browser style sync, reloads, named cat and rainbow clusters, cursor alignment during pan and zoom, dragging bounds, read-only controls, merge snapshots, action effects, reduced motion, and a 390-pixel mobile viewport. A temporary HTTPS proxy verified clipboard success; HTTP verified clipboard failure. A deliberately aborted assistant request verified thinking cleanup and error feedback. Signed-in browser sessions, other browser engines, production deployment, and kept conclusion snapshots were not exercised; conclusion storage is absent from this checkout. The WORK-039 task records the detailed evidence.
 
+Personalization follow-up `work:WORK-040` is Done. Style includes a Clouds canvas background and glowing RGB borders that cycle colors. Existing rainbow selections render as RGB without changing their saved identifiers. The Growing ideas plant and Board mood toggle are removed; achievement stickers remain. Cursor settings explain that other participants see your styled cursor when you point inside the same board.
+
+Verification on 2026-10-10 passed all 163 tests, lint, typecheck, and the production build. The T3 shared browser verified light and dark Clouds, reload persistence, existing and newly selected RGB borders on clusters and notes, matching settings previews, and static borders with animations disabled. Two live browser connections verified a named cat cursor through Liveblocks. Native reduced-motion emulation, signed-in sessions, other browser engines, and deployment were not rechecked. The existing reduced-motion hook and CSS use the same motion-off behavior. AI calls were not needed for this follow-up.
+
 If the schedule slips, cut in this order:
 
 1. Board assistant.

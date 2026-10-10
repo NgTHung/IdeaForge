@@ -75,7 +75,7 @@ Stretch:
 
 - A board assistant that proposes create, edit, link, and merge actions as previews. A board this size fits in one prompt, so the assistant uses the whole board as context and needs no retrieval. Work may start when its technical prerequisites are ready. The design is in [Board assistant](assistant.md).
 - Live cursors are a stretch feature. Work started at the user's request before the Day 3 exit checks.
-- Personalization for cursors, notes, relationship lines, the board UI, and named cluster decorations, including cat and rainbow borders. Activity effects cover merges, upvotes, contributor entrances, AI requests, undo, team milestones, achievement stickers, sharing, and a plant that reflects board activity. `work:WORK-039` tracks this stretch work.
+- Personalization for cursors, notes, relationship lines, the board UI, and named cluster decorations, including cat and cycling RGB borders. Canvas backgrounds include Clouds. Activity effects cover merges, upvotes, contributor entrances, AI requests, undo, team milestones, achievement stickers, and sharing. `work:WORK-039` introduced this stretch work; `work:WORK-040` adds Clouds and RGB and removes the activity plant.
 
 Deferred:
 
