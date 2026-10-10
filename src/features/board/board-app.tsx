@@ -44,6 +44,7 @@ import "./board.css";
 import "./personalization.css";
 import "./social.css";
 import "./cloud-frame.css";
+import "./border-decorations.css";
 
 type Tool = "select" | "hand" | "add" | "connect" | "merge";
 type Selection = { kind: "idea" | "relationship"; id: string } | null;

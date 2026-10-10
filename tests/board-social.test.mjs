@@ -60,7 +60,10 @@ test("all extra cluster themes preserve names, note content, and stored snapshot
     assert.equal(styled.clusterSnapshot.result.groups[0].label, "Saved name");
     assert.equal(styled.clusterSnapshot.revision, "r");
     assert.equal(styled.ideas, board.ideas);
-    if (border !== "clouds") assert.equal(setObjectAppearance(board, "idea", "source", { color: "lavender", border }), board);
+    const note = setObjectAppearance(board, "idea", "source", { color: "lavender", border });
+    assert.equal(note.ideas[0].appearance.border, border);
+    assert.equal(note.ideas[0].merge, board.ideas[0].merge);
+    assert.equal(note.clusterSnapshot, board.clusterSnapshot);
   }
 });
 

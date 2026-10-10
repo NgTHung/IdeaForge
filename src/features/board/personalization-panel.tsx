@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { borderSchema, clusterStyleSchema, defaultClusterStyle, defaultObjectStyle, defaultPreferences, defaultRelationshipStyle, effectLabels, palette, type Personalization, type ObjectStyle, type ClusterStyle, type RelationshipStyle } from "./personalization";
 import type { Board } from "./model";
-import { CloudFrame } from "./cloud-frame";
+import { BorderDecorations } from "./border-decorations";
 
 function Choice({ label, value, choices, onChange, disabled = false }: { label: string; value: string; choices: readonly string[]; onChange: (value: string) => void; disabled?: boolean }) {
   return <label className="personalization-choice"><span>{label}</span><select aria-label={label} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
@@ -33,7 +33,7 @@ export function PersonalizationPanel({ preferences, update, reducedMotion, board
   }, [open]);
   const objectControls = (kind: "idea" | "cluster", id: string, style: ObjectStyle | ClusterStyle, label: string) => <div className="personalization-object" key={id}>
     <h4>{label}</h4>
-    <div className="personalization-preview" data-border={style.border} style={{ "--style-color": style.color === "default" ? "#32856a" : palette[style.color] } as React.CSSProperties}>{style.border === "clouds" && <CloudFrame />}{label || "Your note"}<span>{style.border === "cat" ? " /ᐠ｡ꞈ｡ᐟ\\" : style.border === "rainbow" ? " RGB" : ""}</span></div>
+    <div className="personalization-preview" data-border={style.border} style={{ "--style-color": style.color === "default" ? "#32856a" : palette[style.color] } as React.CSSProperties}><BorderDecorations border={style.border} />{label || "Your note"}</div>
     <Choice label={`${label} color`} value={style.color} choices={colors} disabled={!canWrite} onChange={(color) => onStyle(kind, id, { ...style, color: color as ObjectStyle["color"] })} />
     <Choice label={`${label} border`} value={style.border} choices={kind === "cluster" ? clusterStyleSchema.shape.border.options : borderSchema.options} disabled={!canWrite} onChange={(border) => onStyle(kind, id, kind === "cluster" ? { ...style as ClusterStyle, border: border as ClusterStyle["border"] } : { ...style as ObjectStyle, border: border as ObjectStyle["border"] })} />
     {kind === "cluster" && <label className="personalization-check"><input type="checkbox" checked={(style as ClusterStyle).boundary} disabled={!canWrite} onChange={(event) => onStyle(kind, id, { ...style, boundary: event.target.checked })} />Show cluster boundary</label>}

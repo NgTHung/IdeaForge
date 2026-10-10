@@ -5,7 +5,7 @@ import { MarkdownText } from "./markdown-text";
 import { IdeaUpvote, type IdeaUpvoteProps } from "./idea-upvote";
 import { AnimationContext } from "./board-activity";
 import { styleColor } from "./personalization";
-import { CloudFrame } from "./cloud-frame";
+import { BorderDecorations } from "./border-decorations";
 
 export type IdeaNode = Node<{
   idea: Idea;
@@ -37,7 +37,7 @@ function motionStyle(idea: Idea, clusterLabel?: string): CSSProperties {
     height: size.height,
     "--float-duration": `${2.5 + seed % 17 / 10}s`,
     "--float-delay": `${-(seed % 53 / 10)}s`,
-    "--style-color": idea.appearance ? styleColor(idea.appearance.color) ?? (idea.appearance.border === "clouds" ? "#32856a" : undefined) : undefined,
+    "--style-color": idea.appearance ? styleColor(idea.appearance.color) ?? "#32856a" : undefined,
   } as CSSProperties;
 }
 
@@ -74,7 +74,7 @@ export function Bubble({ data, selected, dragging }: NodeProps<IdeaNode>) {
     <Handle id="target-top" type="target" position={Position.Top} isConnectable={false} className="board-hidden-handle" />
     <Handle id="source-top" type="source" position={Position.Top} isConnectable={false} className="board-hidden-handle" />
     <div className="board-bubble-float"><div key={data.squash?.token ?? "idle"} className="board-bubble-squash"><div ref={surface} className="board-bubble-surface">
-      {idea.appearance?.border === "clouds" && <CloudFrame size={ideaCardSize(idea, data.clusterLabel)} />}
+      {idea.appearance && <BorderDecorations border={idea.appearance.border} size={ideaCardSize(idea, data.clusterLabel)} />}
       {idea.merge && <span className="merged-note-sigil" aria-hidden="true">✦</span>}
       <div className="board-bubble-top"><span className="board-bubble-kicker">{idea.assistant ? "ASSISTANT IDEA" : idea.merge ? "✦ COMBINED CONCEPT" : "IDEA"}</span><span className="board-bubble-badges">{data.mergeIndex > 0 && <span className="board-merge-index" aria-label={`Merge idea ${data.mergeIndex}`}>{data.mergeIndex}</span>}{data.clusterLabel && !idea.merge && <span className="board-cluster-badge">{data.clusterLabel}</span>}{idea.pinned && <span ref={pin} className="board-pinned" title="Pinned idea"><span aria-hidden="true">📌</span> PINNED</span>}</span></div>
       {idea.merge && data.clusterLabel && <div className="board-merged-cluster-line"><span className="board-cluster-badge">{data.clusterLabel}</span></div>}

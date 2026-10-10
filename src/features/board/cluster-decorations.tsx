@@ -4,7 +4,7 @@ import { ViewportPortal } from "@xyflow/react";
 import { defaultClusterStyle, styleColor } from "./personalization";
 import { ideaCardSize, type Board } from "./model";
 import type { NodeSize } from "./node-layout";
-import { CloudFrame } from "./cloud-frame";
+import { BorderDecorations } from "./border-decorations";
 
 export function ClusterDecorations({ board, positions, sizes }: { board: Board; positions: Record<string, { x: number; y: number }>; sizes: Record<string, NodeSize | undefined> }) {
   return <ViewportPortal><div className="cluster-decorations">
@@ -19,7 +19,7 @@ export function ClusterDecorations({ board, positions, sizes }: { board: Board; 
       const height = Math.max(...bounds.map((item) => item.y + item.height)) - top + 18;
       const style = group.appearance ?? defaultClusterStyle;
       return <div key={group.id} className="cluster-decoration" data-border={style.border} data-boundary={style.boundary} style={{ left, top, width, height, "--style-color": styleColor(style.color) ?? "#32856a" } as React.CSSProperties}>
-        {style.border === "clouds" && style.boundary && <CloudFrame cluster size={{ width, height }} />}
+        {style.boundary && <BorderDecorations border={style.border} cluster size={{ width, height }} />}
         <div className="cluster-heading" title={label}><span aria-hidden="true">{style.boundary ? ({ cat: "/ᐠ｡ꞈ｡ᐟ\\ ", clouds: "☁ ", stars: "✦ ", flowers: "✿ ", paper: "▤ " } as Record<string, string>)[style.border] : ""}</span>{label}</div>
       </div>;
     })}
