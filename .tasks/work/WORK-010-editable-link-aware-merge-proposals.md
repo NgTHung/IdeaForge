@@ -8,7 +8,7 @@ milestone: "day-2"
 depends_on: ["WORK-004", "WORK-011"]
 impact: "Changes the merge request and result schemas, the merge prompt, and the preview panel."
 tags: ["enhancement", "ready-for-agent"]
-last_updated: "2026-10-08"
+last_updated: "2026-10-10"
 ---
 
 ## Summary
@@ -25,9 +25,11 @@ Owner: AI2 for the prompt and schema, with SE1 for the preview UI. Merge preview
 - [x] The proposal lists the assumptions the concept introduces, alongside each source's contribution and the tension.
 - [x] A proposal can't be kept if any source card's text, selected relationship, or board goal changed since generation; the UI offers regeneration.
 - [x] The kept card's source snapshot stores the goal, the model, and the generation time.
-- [x] New merge prompts target concise concepts and per-source contributions in the notes' language; the preview leads with the concept and first experiment while expandable sections retain all reasoning and source snapshots.
+- [x] New merge prompts target concise concepts and per-source contributions in English, regardless of source language; the preview leads with the concept and first experiment while expandable sections retain all reasoning and source snapshots.
 
 ## Implementation note — 2026-10-07
+
+On 2026-10-10, the user requested English for every generated merge text field, regardless of source language. Live GLM calls returned English for the affected board's preserved English inputs and for Vietnamese notes with a Vietnamese goal. Nine focused merge checks, lint, typecheck, and build passed. Lint reported one existing unused-function warning in `board-app.tsx`.
 
 The two-note flow was extended on 2026-10-08 to accept 2–8 selected notes. The route validates unique source IDs and typed endpoint pairs, total and per-note text limits, and exact per-source contribution IDs. New merge records use version 2 and preserve all selected source snapshots and typed links; a display normalizer keeps version-1 records readable. The canvas adds removable, reorderable chips, a change-sources action, source count, and focusable ancestry. Lint, typecheck, and build status are recorded in `docs/roadmap.md` after this pass. A live Featherless merge and shared-room N-way persistence have not been verified.
 
