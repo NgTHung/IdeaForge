@@ -7,6 +7,7 @@ import type { CursorStyle } from "@/features/board/personalization";
 
 export type BoardStorage = {
   title: string;
+  description?: string;
   decorations?: LiveMap<string, LiveObject<BoardDecoration>>;
   goal?: string;
   ideas: LiveMap<string, LiveObject<Idea>>;
@@ -30,9 +31,10 @@ export const { RoomProvider, useMutation, useStatus, useStorage, useOthers, useS
   useHistory, useUndo, useRedo, useCanUndo, useCanRedo, useBroadcastEvent, useEventListener } =
   createRoomContext<BoardPresence, BoardStorage, BoardUserMeta, SocialSignal>(client);
 
-export function createBoardStorage(title: string, ideas: Idea[], relationships: Relationship[], goal = "Help students build a consistent study habit.") {
+export function createBoardStorage(title: string, ideas: Idea[], relationships: Relationship[], goal = "Help students build a consistent study habit.", description = "") {
   return {
     title,
+    description,
     goal,
     ideas: new LiveMap(ideas.map((idea) => [idea.id, new LiveObject(idea)])),
     relationships: new LiveMap(relationships.map((link) => [link.id, new LiveObject(link)])),

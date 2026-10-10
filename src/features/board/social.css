@@ -47,7 +47,7 @@
 
 .merged-note-sigil { position: absolute; top: -14px; right: -13px; display: grid; place-items: center; width: 37px; height: 37px; border: 3px solid #fff8de; border-radius: 13px; background: #f4d88e; color: #946323; font-size: 27px; rotate: 10deg; box-shadow: 0 3px 9px #70522125; pointer-events: none; }
 
-.board-shell .board-selection-bar { left: 94px; bottom: 135px; transform: none; max-width: calc(100% - 112px); overflow-x: auto; }
+.board-shell .board-selection-bar { left: 50%; top: auto; bottom: 70px; transform: translateX(-50%); max-width: calc(100% - 100px); overflow: visible; }
 .board-live-cursors { z-index: 45; }
 .board-live-cursor { width: 28px; height: 30px; }
-@media (max-width: 640px) { .board-shell .board-selection-bar { left: 82px; bottom: 127px; max-width: calc(100% - 94px); } }
+@media (max-width: 640px) { .board-shell .board-selection-bar { left: 50%; top: auto; bottom: 70px; transform: translateX(-50%); max-width: calc(100% - 76px); white-space: normal; } }
