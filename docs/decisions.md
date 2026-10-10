@@ -162,6 +162,8 @@ For Organize, the browser sends eligible note text and the selected group count 
 
 ## Log
 
+- 2026-10-10: the Style panel uses a group selector that focuses the selected group's ideas, and group boundaries show by default. The pencil opens color and thickness controls; saved strokes keep those values so collaborators and PNG exports render them consistently. PNG export writes each group border's saved color explicitly and falls back to a solid colored outline for RGB groups whose mask cannot be serialized reliably.
+
 - 2026-10-10: `work:WORK-044` starts the design cleanup with copy and vocabulary changes. The guest lobby shows the board title and description in a single form column. The account menu keeps identity, dashboard access, and sign out. Idea cards use a single merged marker and show voters through a positive vote count. Merge provenance stays in the selection bar. The header voting list becomes Top ideas and sorts by upvotes, with alphabetical ties. Visible object labels use idea, link, and group.
 
 - 2026-10-10: `work:WORK-043` opens the reaction wheel at the pointer with R or the React button. The wheel keeps its opening position while a participant chooses and shifts inward near board edges. Keyboard activation without a pointer uses the trigger location. Temporary room events and saved board data keep their existing behavior.

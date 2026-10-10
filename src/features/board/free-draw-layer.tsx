@@ -4,10 +4,11 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { Panel, useReactFlow, useViewport, ViewportPortal } from "@xyflow/react";
 import { createIdeaId } from "./id";
 import type { FreeDrawStroke } from "./model";
+import { freeDrawColor, freeDrawWidth } from "./free-draw-style";
 
 export type FreeDrawTool = "pencil" | "eraser";
 type Point = FreeDrawStroke["points"][number];
-type Gesture = { id: string; pointerId: number; tool: FreeDrawTool; points: Point[]; erased: Set<string>; lastPresenceUpdate: number };
+type Gesture = { id: string; pointerId: number; tool: FreeDrawTool; points: Point[]; erased: Set<string>; color: string; width: number; lastPresenceUpdate: number };
 
 function distanceToSegmentSquared(point: Point, start: Point, end: Point) {
   const dx = end.x - start.x;
@@ -27,6 +28,9 @@ export function FreeDrawLayer({
   strokes,
   liveStrokes = [],
   tool,
+  color,
+  width,
+  defaultColor,
   enabled,
   onStroke,
   onErase,
@@ -35,6 +39,9 @@ export function FreeDrawLayer({
   strokes: FreeDrawStroke[];
   liveStrokes?: FreeDrawStroke[];
   tool: FreeDrawTool | null;
+  color: string;
+  width: number;
+  defaultColor: string;
   enabled: boolean;
   onStroke: (stroke: FreeDrawStroke) => void;
   onErase: (ids: string[]) => void;
@@ -68,7 +75,7 @@ export function FreeDrawLayer({
     event.preventDefault();
     event.stopPropagation();
     const point = pointFromEvent(event);
-    const nextGesture: Gesture = { id: createIdeaId(), pointerId: event.pointerId, tool, points: [point], erased: new Set(), lastPresenceUpdate: event.timeStamp };
+    const nextGesture: Gesture = { id: createIdeaId(), pointerId: event.pointerId, tool, points: [point], erased: new Set(), color, width, lastPresenceUpdate: event.timeStamp };
     gesture.current = nextGesture;
     inputLayer.current?.setPointerCapture(event.pointerId);
     if (tool === "pencil") setDraftPoints(nextGesture.points);
@@ -78,7 +85,7 @@ export function FreeDrawLayer({
       setErasingIds([...nextGesture.erased]);
       setCursorPoint(point);
     }
-    if (tool === "pencil") onDraft?.({ id: nextGesture.id, points: [point] });
+    if (tool === "pencil") onDraft?.({ id: nextGesture.id, points: [point], color: nextGesture.color, width: nextGesture.width });
   }
 
   function pointerMove(event: ReactPointerEvent<SVGSVGElement>) {
@@ -98,7 +105,7 @@ export function FreeDrawLayer({
       setDraftPoints([...activeGesture.points]);
       if (event.timeStamp - activeGesture.lastPresenceUpdate >= 80) {
         activeGesture.lastPresenceUpdate = event.timeStamp;
-        onDraft?.({ id: activeGesture.id, points: [...activeGesture.points] });
+        onDraft?.({ id: activeGesture.id, points: [...activeGesture.points], color: activeGesture.color, width: activeGesture.width });
       }
     } else {
       const radius = 16 / Math.max(zoom, 0.15);
@@ -117,7 +124,7 @@ export function FreeDrawLayer({
     if (commit && activeGesture.tool === "pencil") {
       const points = activeGesture.points;
       if (points.length === 1) points.push({ x: points[0].x + 0.1, y: points[0].y + 0.1 });
-      onStroke({ id: activeGesture.id, points });
+      onStroke({ id: activeGesture.id, points, color: activeGesture.color, width: activeGesture.width });
       onDraft?.(null);
     } else if (commit && activeGesture.erased.size) onErase([...activeGesture.erased]);
     else if (activeGesture.tool === "pencil") onDraft?.(null);
@@ -128,9 +135,9 @@ export function FreeDrawLayer({
   return <>
     <ViewportPortal>
       <svg className="board-free-draw-visual" aria-hidden="true">
-        {strokes.filter((stroke) => !erasingIds.includes(stroke.id)).map((stroke) => <path key={stroke.id} d={strokePath(stroke.points)} />)}
-        {liveStrokes.map((stroke) => <path className="board-free-draw-live" key={stroke.id} d={strokePath(stroke.points)} />)}
-        {draftPoints.length > 0 && <path className="board-free-draw-draft" d={strokePath(draftPoints)} />}
+        {strokes.filter((stroke) => !erasingIds.includes(stroke.id)).map((stroke) => <path key={stroke.id} d={strokePath(stroke.points)} style={{ stroke: freeDrawColor(stroke.color, defaultColor), strokeWidth: freeDrawWidth(stroke.width) }} />)}
+        {liveStrokes.map((stroke) => <path className="board-free-draw-live" key={stroke.id} d={strokePath(stroke.points)} style={{ stroke: freeDrawColor(stroke.color, color), strokeWidth: freeDrawWidth(stroke.width) }} />)}
+        {draftPoints.length > 0 && <path className="board-free-draw-draft" d={strokePath(draftPoints)} style={{ stroke: color, strokeWidth: width }} />}
         {active && tool === "eraser" && cursorPoint && <circle className="board-free-draw-eraser-cursor" cx={cursorPoint.x} cy={cursorPoint.y} r={16 / Math.max(zoom, 0.15)} />}
       </svg>
     </ViewportPortal>
