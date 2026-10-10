@@ -4,6 +4,8 @@ What IdeaForge is, how it's built, and why. The initial decisions were accepted 
 
 ## Product
 
+On 2026-10-10, `work:WORK-042` extends Clouds from cluster boundaries to note styles at the user's request. Notes, clusters, and Style previews share a puffy cloud treatment with soft shading, small cloud wisps, and static accents. Decorations remain outside readable content and ignore pointer input. Existing note bounds, link routing, cluster membership, saved colors, and merge provenance stay authoritative.
+
 Pitch: a shared canvas where a team finds which of its ideas are worth combining, combines them into new concepts, and can trace who contributed what.
 
 Audience: student teams brainstorming hackathon projects, who struggle to turn scattered contributions into one concept they want to build. Both the audience and the benefit are hypotheses to test this week, not established demand.
