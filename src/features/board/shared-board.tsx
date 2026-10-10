@@ -1,10 +1,10 @@
 "use client";
 
 import { LiveMap, LiveObject } from "@liveblocks/client";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { initialBoard } from "./fixtures";
 import { BoardApp } from "./board-app";
-import type { Board, BoardConclusion, ConnectionPair, FreeDrawStroke, Idea, IdeaVote, Relationship } from "./model";
+import type { Board, BoardConclusion, ConnectionPair, FreeDrawStroke, Idea, IdeaVote, Relationship, StarterIdeasState } from "./model";
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
 import { connectionPairKey } from "@/lib/connections";
 import { sameValue, updateFields, syncObjectMap } from "./shared-object-map";
@@ -14,6 +14,8 @@ import { cursorColorForMember } from "./cursor-color";
 import type { LiveCursor } from "./live-cursors";
 import { cursorStyleSchema, styleColor, type CursorStyle } from "./personalization";
 import type { BoardMetadata } from "@/lib/board-directory";
+import { starterIdeasResponseSchema, type StarterIdeasResponse } from "@/lib/starter-ideas-contract";
+import { commitStarterIdeas as commitStarterIdeaBatch } from "./starter-ideas";
 import { useSignalQueue } from "./board-social";
 import { socialSignalSchema, signalLifetime, type BoardDecoration, type SocialSignal } from "./board-social-contract";
 import { createBoardStorage, RoomProvider, useCanRedo, useCanUndo, useHistory, useMutation, useOthers, useRedo, useSelf, useStorage, useUndo, useUpdateMyPresence, useBroadcastEvent, useEventListener } from "@/lib/liveblocks";
@@ -22,7 +24,7 @@ const initialTitle = "Student collaboration ideas";
 
 export function SharedBoardRoom({ boardId, metadata }: { boardId: string; metadata?: BoardMetadata | null }) {
   return <RoomProvider key={`ideaforge:${boardId}`} id={`ideaforge:${boardId}`} initialStorage={createBoardStorage(
-    metadata?.title ?? initialTitle, initialBoard.ideas, initialBoard.relationships, metadata?.title, metadata?.description,
+    metadata?.title ?? initialTitle, metadata ? [] : initialBoard.ideas, metadata ? [] : initialBoard.relationships, metadata?.title, metadata?.description,
   )}>
     <SharedBoardContent boardId={boardId} metadata={metadata} />
   </RoomProvider>;
@@ -36,6 +38,9 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
   const canUndo = useCanUndo();
   const canRedo = useCanRedo();
   const canWrite = Boolean(self?.canWrite);
+  const [starterBusy, setStarterBusy] = useState(false);
+  const [starterError, setStarterError] = useState("");
+  const starterAttempted = useRef(false);
   const others = useOthers();
   const updateMyPresence = useUpdateMyPresence();
   const broadcast = useBroadcastEvent();
@@ -119,7 +124,62 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     dismissedConnections: Object.values(root.dismissedConnections ?? {}),
     clusterSnapshot: root.clusterSnapshot as ClusterSnapshot | undefined,
     conclusion: (root.conclusion ?? null) as BoardConclusion | null,
+    starterIdeasState: (root.starterIdeasState ?? null) as StarterIdeasState | null,
   }));
+  const commitStarterIdeas = useMutation(({ storage, self }, result: StarterIdeasResponse) => {
+    return self?.canWrite ? commitStarterIdeaBatch(storage, result, metadata?.description ?? "") : false;
+  }, [metadata?.description]);
+  const markStarterIdeasFailed = useMutation(({ storage, self }) => {
+    if (!self?.canWrite || storage.get("starterIdeasState")?.get("status") === "completed") return;
+    storage.set("starterIdeasState", new LiveObject({
+      status: "failed", title: storage.get("title"), description: storage.get("description") ?? metadata?.description ?? "",
+    }));
+  }, [metadata?.description]);
+  const finishStarterAttempt = useCallback(async (attemptId: string, status: "completed" | "failed") => {
+    try {
+      await fetch(`/api/boards/${encodeURIComponent(boardId)}/starter-ideas`, {
+        method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attemptId, status }),
+      });
+    } catch {
+      // The room marker remains authoritative; an expired server lease allows recovery.
+    }
+  }, [boardId]);
+  const requestStarterIdeas = useCallback(async () => {
+    if (!metadata?.canGenerateStarterIdeas || starterBusy) return;
+    setStarterBusy(true);
+    setStarterError("");
+    let attemptId: string | undefined;
+    try {
+      const response = await fetch(`/api/boards/${encodeURIComponent(boardId)}/starter-ideas`, {
+        method: "POST", credentials: "include",
+      });
+      const payload: unknown = await response.json();
+      if (response.status === 409 && (payload as { code?: string })?.code === "in_progress") {
+        setStarterError("Starting ideas are being generated in another tab. Retry after a few minutes if they do not appear.");
+        return;
+      }
+      if (!response.ok) throw new Error((payload as { error?: string })?.error || "Starting ideas could not be generated.");
+      const result = starterIdeasResponseSchema.safeParse(payload);
+      if (!result.success) throw new Error("The provider returned an invalid set of starting ideas.");
+      attemptId = result.data.attemptId;
+      if (!history.disable(() => commitStarterIdeas(result.data))) {
+        throw new Error("The board changed while ideas were generating. Retry with its current title.");
+      }
+      void finishStarterAttempt(attemptId, "completed");
+    } catch (error) {
+      if (attemptId) void finishStarterAttempt(attemptId, "failed");
+      history.disable(() => markStarterIdeasFailed());
+      setStarterError(error instanceof Error ? error.message : "Starting ideas could not be generated.");
+    } finally {
+      setStarterBusy(false);
+    }
+  }, [boardId, commitStarterIdeas, finishStarterAttempt, history, markStarterIdeasFailed, metadata?.canGenerateStarterIdeas, starterBusy]);
+  useEffect(() => {
+    if (!snapshot || !metadata?.canGenerateStarterIdeas || !canWrite || snapshot.starterIdeasState || starterAttempted.current) return;
+    starterAttempted.current = true;
+    void requestStarterIdeas();
+  }, [canWrite, metadata?.canGenerateStarterIdeas, requestStarterIdeas, snapshot]);
   const updateBoard = useMutation(({ storage, self }, update: (board: Board) => Board) => {
     if (!self?.canWrite) return false;
     const ideas = storage.get("ideas");
@@ -223,6 +283,10 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     liveCursors={liveCursors}
     onCursorMove={updateCursorPresence}
     boardDescription={snapshot.description}
+    starterIdeasNotice={metadata?.canGenerateStarterIdeas && snapshot.starterIdeasState?.status !== "completed"
+      ? starterBusy ? { kind: "pending" } : snapshot.starterIdeasState?.status === "failed" || starterError
+        ? { kind: "error", message: starterError || "Starting ideas could not be generated.", onRetry: () => void requestStarterIdeas() }
+        : null : null}
     editingLocks={editingLocks}
     onEditingIdeaChange={updateEditingIdea}
     onBoardChange={changeBoard}

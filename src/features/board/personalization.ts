@@ -28,7 +28,7 @@ export const defaultPreferences: Personalization = {
   reaction: "heart", thinking: "cauldron", milestone: "confetti",
 };
 export const defaultObjectStyle: ObjectStyle = { color: "default", border: "plain" };
-export const defaultClusterStyle: ClusterStyle = { ...defaultObjectStyle, boundary: false };
+export const defaultClusterStyle: ClusterStyle = { ...defaultObjectStyle, boundary: true };
 export const defaultRelationshipStyle: RelationshipStyle = { color: "default", stroke: "solid" };
 export function styleColor(color: z.infer<typeof colorSchema>) { return color === "default" ? undefined : palette[color]; }
 export function parsePreferences(value: string | null, legacyTheme?: string | null): Personalization {

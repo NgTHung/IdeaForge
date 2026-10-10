@@ -32,6 +32,17 @@ export type IdeaDescriptionRecord = {
   model: string;
   generatedAt: string;
 };
+export type StarterIdeaRecord = {
+  batchId: string;
+  originalTitle: string;
+  originalContent: string;
+  approach: string;
+  model: string;
+  generatedAt: string;
+};
+export type StarterIdeasState =
+  | { status: "failed"; title: string; description: string }
+  | { status: "completed"; title: string; description: string; noteIds: string[]; generatedAt: string; attemptId: string };
 export type LegacyMergeRecord = {
   version?: 1;
   sources: [MergeSourceSnapshot, MergeSourceSnapshot];
@@ -65,6 +76,7 @@ export type Idea = {
   merge?: MergeRecord;
   assistant?: AssistantIdeaRecord;
   descriptionGeneration?: IdeaDescriptionRecord;
+  starterIdea?: StarterIdeaRecord;
 };
 
 export type RelationshipType = "synergy" | "conflict" | "extends";
@@ -81,7 +93,7 @@ export type Relationship = {
 export type ConnectionPair = { sourceId: string; targetId: string };
 // Keep the legacy value so saved downvotes can be ignored without rewriting a room.
 export type IdeaVote = { ideaId: string; voterId: string; voterName?: string; value: 1 | -1 };
-export type FreeDrawStroke = { id: string; points: { x: number; y: number }[] };
+export type FreeDrawStroke = { id: string; points: { x: number; y: number }[]; color?: string; width?: number };
 // The request stores the selected notes, clusters, and links as they were when the draft was generated.
 export type BoardConclusion = {
   version: 1;
