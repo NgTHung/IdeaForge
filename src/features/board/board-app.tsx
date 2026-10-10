@@ -1383,11 +1383,12 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         <button className="board-theme-toggle" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} aria-pressed={theme === "dark"} onClick={() => updatePreferences({ theme: theme === "dark" ? "light" : "dark" })}>{theme === "dark" ? "☼" : "◐"}</button></div>
       {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
     </header>
-    <div className="board-workspace">
+    <div className="board-workspace" onPointerMoveCapture={(event) => { cursorScreen.current = { x: event.clientX, y: event.clientY }; }}>
       <div className="board-decoration-controls"><AchievementCollection achievements={activity.achievements} canWrite={canWriteBoard} onPlace={(kind) => { selectTool("select"); setPlacingSticker(kind); }} />
         <StickerPicker canWrite={canWriteBoard} onPlace={(kind) => { selectTool("select"); setPlacingSticker(kind); }} /></div>
       <SocialControls shortcutsBlocked={Boolean(editor || linkDraft || relationshipEditor || mergePreview || mergeDetailsId || assistantDetailsId || organizeOpen)} chatOpen={cursorChatOpen} setChatOpen={openCursorChat}
         screenPosition={chatAnchor}
+        pointerPosition={() => cursorScreen.current}
         position={() => cursorPoint.current ?? flow.current?.screenToFlowPosition({ x: (canvas.current?.getBoundingClientRect().left ?? 0) + 350, y: (canvas.current?.getBoundingClientRect().top ?? 0) + 220 }) ?? { x: 0, y: 0 }}
         onSend={onSocialSignal ?? ((signal) => { setLocalCursorPosition(signal.position); localSignals.append({ ...signal, connectionId: 0, name: authorName || "You", expiresAt: Date.now() + signalLifetime(signal) }); })}
         onClose={() => canvas.current?.focus()} />
@@ -1398,7 +1399,6 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           if (!(event.target instanceof Element) || !event.target.closest(".react-flow") || !flow.current) { cursorActive.current = false; onCursorMove?.(null); return; }
           cursorActive.current = true;
           cursorPoint.current = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY });
-          cursorScreen.current = { x: event.clientX, y: event.clientY };
           onCursorMove?.(cursorPoint.current);
           if (!onSocialSignal && localSignals.signals.some((signal) => signal.kind === "chat")) setLocalCursorPosition(cursorPoint.current);
         }} onPointerLeave={() => { cursorActive.current = false; onCursorMove?.(null); }}>
