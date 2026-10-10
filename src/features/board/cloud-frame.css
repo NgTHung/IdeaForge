@@ -1,0 +1,62 @@
+.cloud-frame {
+  --cloud-fill-top: color-mix(in srgb, var(--style-color, #397aab) 5%, #fff);
+  --cloud-fill-bottom: color-mix(in srgb, var(--style-color, #397aab) 16%, #edf5ff);
+  --cloud-rim-top: #fff;
+  --cloud-rim-bottom: color-mix(in srgb, var(--style-color, #397aab) 42%, #d9e9fb);
+  position: absolute; inset: 0; z-index: -1; pointer-events: none;
+}
+.cloud-frame-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 7px 6px #52779720); }
+.cloud-frame-halo { fill: none; stroke: color-mix(in srgb, var(--style-color, #397aab) 20%, transparent); stroke-width: 12px; }
+.cloud-frame-shape { stroke-width: 2.5px; stroke-linejoin: round; }
+.cloud-frame-highlight { fill: none; stroke: #fff; stroke-width: 1px; stroke-opacity: .5; transform: translateY(-3px); }
+.cloud-fill-top { stop-color: var(--cloud-fill-top); }
+.cloud-fill-bottom { stop-color: var(--cloud-fill-bottom); }
+.cloud-rim-top { stop-color: var(--cloud-rim-top); }
+.cloud-rim-bottom { stop-color: var(--cloud-rim-bottom); }
+.cloud-wisp { position: absolute; width: 48px; height: 26px; overflow: visible; filter: drop-shadow(0 3px 2px #668bab25); }
+.cloud-wisp > path:first-child { fill: color-mix(in srgb, var(--style-color, #397aab) 12%, #fff); stroke: var(--cloud-rim-bottom); stroke-width: 1.5px; }
+.cloud-wisp-shine { fill: none; stroke: #fff; stroke-width: 2px; stroke-linecap: round; }
+.cloud-wisp-left { left: -23px; top: 21%; rotate: -12deg; }
+.cloud-wisp-right { right: -20px; bottom: -8px; rotate: 8deg; }
+.cloud-frame .cloud-twinkle { position: absolute; display: block; margin: 0; color: color-mix(in srgb, var(--style-color, #397aab) 45%, #fff); font-size: 17px; line-height: 1; text-shadow: 0 1px 2px #fff; }
+.cloud-twinkle-top { right: 25px; top: -23px; }
+.cloud-frame .cloud-twinkle-bottom { left: 24px; bottom: -22px; font-size: 12px; }
+.cloud-frame[data-cloud-kind="cluster"] {
+  --cloud-fill-top: color-mix(in srgb, var(--style-color) 4%, #ffffff8a);
+  --cloud-fill-bottom: color-mix(in srgb, var(--style-color) 9%, #e6f0ff40);
+}
+.cloud-frame[data-cloud-kind="cluster"] .cloud-frame-halo { stroke-width: 22px; }
+.cloud-frame[data-cloud-kind="cluster"] .cloud-frame-shape { stroke-width: 3px; }
+.cloud-frame[data-cloud-kind="cluster"] .cloud-frame-svg { filter: drop-shadow(0 12px 14px #5c7a9b1a); }
+.cloud-frame[data-cloud-kind="cluster"] .cloud-wisp { width: 78px; height: 42px; }
+.cloud-frame[data-cloud-kind="cluster"] .cloud-wisp-left { left: -43px; top: 28%; }
+.cloud-frame[data-cloud-kind="cluster"] .cloud-wisp-right { right: -30px; bottom: 18%; }
+.cloud-frame[data-cloud-kind="cluster"] .cloud-wisp-bottom { bottom: -21px; left: 16%; width: 59px; height: 32px; }
+.cloud-frame[data-cloud-kind="cluster"] .cloud-twinkle-top { top: -38px; right: 12%; font-size: 25px; }
+.cloud-frame[data-cloud-kind="cluster"] .cloud-twinkle-bottom { bottom: -34px; left: 43%; font-size: 20px; }
+.cloud-frame .cloud-twinkle-side { right: -34px; top: 25%; font-size: 15px; }
+.cloud-dots { position: absolute; right: 23%; bottom: -24px; width: 5px; height: 5px; border-radius: 50%; background: #ffffffbf; box-shadow: 10px 6px 0 -1px #ffffff9e, 19px 2px 0 -1px #ffffff80; }
+.board-shell[data-theme] :is(.board-bubble[data-border="clouds"] .board-bubble-surface, .personalization-preview[data-border="clouds"], .cluster-decoration[data-border="clouds"][data-boundary="true"]) { background: transparent; border-color: transparent; box-shadow: none; isolation: isolate; }
+.board-shell[data-theme] .board-bubble[data-border="clouds"].is-selected .board-bubble-surface { outline: none; }
+.board-shell .board-bubble[data-border="clouds"]:is(.is-selected, .is-source) .cloud-frame-shape { stroke: var(--personal-accent); stroke-width: 3px; }
+.board-bubble[data-border="clouds"].is-source .cloud-frame-shape { stroke-dasharray: 7 4; }
+.board-bubble[data-border="clouds"].is-selected .cloud-frame-halo { stroke: color-mix(in srgb, var(--personal-accent) 28%, transparent); }
+.board-bubble[data-border="clouds"].is-dragging .cloud-frame-svg { filter: drop-shadow(0 19px 12px #29476145); }
+.react-flow__node.is-related .board-bubble[data-border="clouds"] .cloud-frame-shape { stroke: var(--personal-accent); }
+.react-flow__node.is-locked-for-editing .board-bubble[data-border="clouds"] .cloud-frame-shape { stroke: #ba943e; }
+.board-shell .personalization-preview[data-border="clouds"] { margin: 30px 12px; min-height: 65px; padding: 18px; }
+.board-shell .cluster-decoration[data-border="clouds"][data-boundary="true"] .cluster-heading { top: 0; border-radius: 16px; padding: 5px 12px; background: color-mix(in srgb, var(--style-color) 9%, #fff); color: color-mix(in srgb, var(--style-color) 80%, #243e55); box-shadow: 0 2px 8px #5c7a9b16; }
+.board-shell[data-theme="dark"] .cloud-frame {
+  --cloud-fill-top: color-mix(in srgb, var(--style-color, #397aab) 24%, #344b62);
+  --cloud-fill-bottom: color-mix(in srgb, var(--style-color, #397aab) 12%, #23394d);
+  --cloud-rim-top: color-mix(in srgb, var(--style-color, #397aab) 15%, #dfedff);
+  --cloud-rim-bottom: color-mix(in srgb, var(--style-color, #397aab) 55%, #89a7c5);
+}
+.board-shell[data-theme="dark"] .cloud-frame[data-cloud-kind="cluster"] { --cloud-fill-top: #809cc324; --cloud-fill-bottom: color-mix(in srgb, var(--style-color) 6%, #20374d30); }
+.board-shell[data-theme="dark"] .cloud-wisp > path:first-child { fill: color-mix(in srgb, var(--style-color, #397aab) 25%, #91a5bd); }
+.board-shell[data-theme="dark"] .cloud-frame-highlight { stroke-opacity: .16; }
+.board-shell[data-theme="dark"] .cloud-twinkle { text-shadow: none; }
+.board-shell[data-theme="dark"] .personalization-preview[data-border="clouds"] { color: #e3efff; }
+.board-shell[data-theme="dark"] .board-bubble[data-border="clouds"] h3 { color: #eff5ff; }
+.board-shell[data-theme="dark"] .board-bubble[data-border="clouds"] :is(.board-bubble-markdown, .board-bubble-author) { color: #d2e0ed; }
+.board-shell[data-theme="dark"] .cluster-decoration[data-border="clouds"][data-boundary="true"] .cluster-heading { background: #344b62; color: #e3efff; }

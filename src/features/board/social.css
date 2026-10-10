@@ -66,8 +66,6 @@
 .activity-anchor[data-effect="merge"] { animation: none; }
 @keyframes merge-core { 0% { scale: .1; rotate: -30deg; } 65% { scale: 1.5; } 100% { scale: 1; } }
 @keyframes merge-spark { 0% { transform: rotate(var(--spark-angle)) translateX(0) scale(0); opacity: 1; } 100% { transform: rotate(var(--spark-angle)) translateX(115px) scale(.5); opacity: 0; } }
-.board-shell :is(.cluster-decoration, .personalization-preview)[data-border="clouds"] { border-radius: 45px; }
-.cluster-decoration[data-border="clouds"][data-boundary="true"] { border: 7px double color-mix(in srgb, var(--style-color) 65%, white); background: color-mix(in srgb, var(--style-color) 6%, transparent); }
 .cluster-decoration[data-border="stars"][data-boundary="true"] { border-style: dashed; background: radial-gradient(circle, var(--style-color) 1px, transparent 2px) 15px 15px / 55px 55px; }
 .cluster-decoration[data-border="flowers"][data-boundary="true"] { border-style: dotted; border-width: 4px; background: color-mix(in srgb, var(--style-color) 5%, transparent); }
 .cluster-decoration[data-border="paper"][data-boundary="true"] { border-radius: 4px; border: 1px solid var(--style-color); background: repeating-linear-gradient(transparent 0 27px, color-mix(in srgb, var(--style-color) 12%, transparent) 28px 29px); box-shadow: 4px 4px 0 color-mix(in srgb, var(--style-color) 15%, transparent); }

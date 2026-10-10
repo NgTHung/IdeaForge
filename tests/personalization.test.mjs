@@ -23,14 +23,15 @@ test("defaults preserve earlier boards and themes; invalid stored preferences fa
 });
 test("note styles preserve content, provenance, votes, and clustering state", () => {
   const board = boardFixture(); const before = structuredClone(board);
-  const styled = setObjectAppearance(board, "idea", "merged", { color: "rose", border: "cat" });
+  const styled = setObjectAppearance(board, "idea", "merged", { color: "rose", border: "clouds" });
   assert.deepEqual(board, before);
   assert.equal(styled.ideas[2].merge, board.ideas[2].merge);
   assert.equal(styled.ideas[2].content, "Kept concept");
   assert.equal(styled.ideas[2].parentIds, board.ideas[2].parentIds);
   assert.equal(styled.clusterSnapshot, board.clusterSnapshot);
   assert.equal(styled.votes, board.votes);
-  assert.deepEqual(styled.ideas[2].appearance, { color: "rose", border: "cat" });
+  assert.deepEqual(styled.ideas[2].appearance, { color: "rose", border: "clouds" });
+  assert.deepEqual(JSON.parse(JSON.stringify(styled)).ideas[2].appearance, styled.ideas[2].appearance);
 });
 test("relationship and cluster styles preserve their meaning, names, scores, positions, and revision", () => {
   const board = boardFixture();

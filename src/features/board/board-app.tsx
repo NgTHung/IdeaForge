@@ -43,6 +43,7 @@ import { canDragIdea, displayIdeas, type CanvasPoint } from "./canvas-interactio
 import "./board.css";
 import "./personalization.css";
 import "./social.css";
+import "./cloud-frame.css";
 
 type Tool = "select" | "hand" | "add" | "connect" | "merge";
 type Selection = { kind: "idea" | "relationship"; id: string } | null;

@@ -3,7 +3,7 @@ import type { Board } from "./model";
 
 export const palette = { mint: "#32856a", lavender: "#8066b3", peach: "#b35d46", blue: "#397aab", rose: "#af537e" } as const;
 export const colorSchema = z.enum(["default", "mint", "lavender", "peach", "blue", "rose"]);
-export const borderSchema = z.enum(["plain", "cat", "rainbow"]);
+export const borderSchema = z.enum(["plain", "cat", "rainbow", "clouds"]);
 export const objectStyleSchema = z.object({ color: colorSchema, border: borderSchema });
 export const relationshipStyleSchema = z.object({ color: colorSchema, stroke: z.enum(["solid", "dashed", "dotted"]) });
 export const clusterStyleSchema = objectStyleSchema.extend({ border: z.enum(["plain", "cat", "rainbow", "clouds", "stars", "flowers", "paper"]), boundary: z.boolean() });
