@@ -1,0 +1,20 @@
+.board-ai-tools { position: relative; z-index: 12; display: grid; place-items: center; margin: 0; }
+.board-ai-tools-trigger { display: grid; width: 56px; height: 56px; place-items: center; padding: 0; border: 1px solid #9fd4b9; border-radius: 50%; color: #16785f; background: radial-gradient(circle at 35% 28%, #fff 0 20%, #e9f8ee 68%, #d6f0e0 100%); box-shadow: 0 0 0 3px #9bd7b833, 0 0 22px #45a97048, 0 7px 18px #2458422b; }
+.board-ai-tools-trigger:hover, .board-ai-tools-trigger[aria-expanded="true"] { box-shadow: 0 0 0 4px #8bd4ab66, 0 0 28px #45a97066, 0 8px 22px #24584238; }
+.board-ai-tools-trigger .board-icon { width: 28px; height: 28px; stroke-width: 1.9; }
+.board-ai-tools-trigger:focus-visible, .board-ai-tools-menu button:focus-visible { outline: 3px solid #258565; outline-offset: 3px; }
+.board-ai-tools-menu { position: absolute; top: 0; left: calc(100% + 13px); display: grid; gap: 4px; width: 210px; padding: 8px; border: 1px solid #d7e6db; border-radius: 14px; background: #fff; box-shadow: 0 15px 38px #203b3033; }
+.board-ai-tools-menu button { display: flex; min-height: 44px; align-items: center; gap: 10px; padding: 8px 10px; border: 0; border-radius: 9px; color: #365b4d; background: transparent; font: inherit; font-size: 13px; font-weight: 700; text-align: left; }
+.board-ai-tools-menu button:hover { background: #edf7f0; }
+.board-ai-tools-menu .board-icon { width: 19px; height: 19px; color: #24815f; }
+.board-ai-tools-menu button > span:nth-of-type(1) { flex: 1; }
+.board-ai-tools-saved { color: #568371; font-size: 10px; font-weight: 600; }
+.board-shell[data-theme="dark"] .board-ai-tools-trigger { border-color: #568f72; color: #a9e2c0; background: radial-gradient(circle at 35% 28%, #314c3f 0 20%, #203d32 68%, #1a332a 100%); box-shadow: 0 0 0 3px #6dbb8d33, 0 0 22px #45a97048, 0 7px 18px #07110f70; }
+.board-shell[data-theme="dark"] .board-ai-tools-menu { border-color: #405b4e; color: #dce8e3; background: #1c2a29; }
+.board-shell[data-theme="dark"] .board-ai-tools-menu button { color: #dce8e3; }
+.board-shell[data-theme="dark"] .board-ai-tools-menu button:hover { background: #294338; }
+.board-shell[data-theme="dark"] .board-ai-tools-menu .board-icon { color: #9bd7b2; }
+@media (max-width: 760px) {
+  .board-ai-tools-trigger { width: 50px; height: 50px; }
+  .board-ai-tools-menu { width: min(210px, calc(100vw - 86px)); }
+}

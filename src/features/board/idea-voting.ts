@@ -1,5 +1,7 @@
 import type { Board, IdeaVote } from "./model";
 
+export const MAX_UPVOTES_PER_PARTICIPANT = 3;
+
 export function voteKey(ideaId: string, voterId: string) {
   return `${ideaId}:${voterId}`;
 }
@@ -21,10 +23,16 @@ export function voteByUser(votes: IdeaVote[] = [], ideaId: string, voterId: stri
   return upvotersForIdea(votes, ideaId).some((vote) => vote.voterId === voterId);
 }
 
+export function votesByUser(votes: IdeaVote[] = [], voterId: string) {
+  return new Map(votes.filter((vote) => vote.voterId === voterId && vote.value === 1)
+    .map((vote) => [vote.ideaId, vote])).size;
+}
+
 export function toggleIdeaUpvote(board: Board, ideaId: string, voterId: string, voterName: string): Board {
   if (!voterId.trim() || !board.ideas.some((idea) => idea.id === ideaId)) return board;
   const votes = board.votes ?? [];
   const current = voteByUser(votes, ideaId, voterId);
+  if (!current && votesByUser(votes, voterId) >= MAX_UPVOTES_PER_PARTICIPANT) return board;
   const nextVotes = votes.filter((vote) => vote.ideaId !== ideaId || vote.voterId !== voterId);
   if (!current) nextVotes.push({ ideaId, voterId, voterName: voterName.trim().slice(0, 60) || `Guest ${voterId.slice(0, 4)}`, value: 1 });
   return { ...board, votes: nextVotes };
