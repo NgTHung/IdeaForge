@@ -44,6 +44,7 @@ import { AnimationContext, BoardActivity, ThinkingAnimation, useBoardActivity, t
 import { CursorSignals, SocialControls, useSignalQueue, type SocialControlsHandle } from "./board-social";
 import { StickerDecorations } from "./sticker-decorations";
 import { DecorateMenu } from "./decorate-menu";
+import { StarterIdeasLoading } from "./starter-ideas-loading";
 import { BoardIcon } from "./board-icons";
 import { addDecoration, moveDecoration, removeDecoration, canOpenCursorChat, signalLifetime, stickerCatalog, type NamedSignal, type SocialSignal, type StickerKind } from "./board-social-contract";
 import { canDragIdea, displayIdeas, type CanvasPoint } from "./canvas-interaction";
@@ -138,6 +139,7 @@ type BoardAppProps = {
   sharedBoard?: Board;
   sharedTitle?: string;
   boardDescription?: string;
+  starterIdeasNotice?: { kind: "pending" | "error"; message?: string; onRetry?: () => void } | null;
   onBoardChange?: (update: (board: Board) => Board) => boolean;
   onBackgroundBoardChange?: (update: (board: Board) => Board) => boolean;
   onMetadataChange?: (metadata: { title: string; description: string }) => void | Promise<void>;
@@ -174,7 +176,8 @@ function ToolButton({ label, active, disabled, title, onClick, children, rewindi
 
 const pencilColors = ["#176c52", "#377dcc", "#8655b5", "#d34876", "#d87532", "#374151"];
 
-export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onMetadataChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove, onCursorStyleChange, signalCursorPositions, socialSignals, onSocialSignal, boardScope = "local", connectedMembers = emptyMembers, sandbox = false }: BoardAppProps) {
+export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", starterIdeasNotice, onBoardChange, onBackgroundBoardChange, onMetadataChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove, onCursorStyleChange, signalCursorPositions, socialSignals, onSocialSignal, boardScope = "local", connectedMembers = emptyMembers, sandbox = false }: BoardAppProps) {
+  const starterIdeasPending = starterIdeasNotice?.kind === "pending";
   const [cursorChatOpen, setCursorChatOpen] = useState(false);
   const [localCursorPosition, setLocalCursorPosition] = useState<CanvasPoint | null>(null);
   const [chatAnchor, setChatAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -1757,6 +1760,10 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         onSend={onSocialSignal ?? ((signal) => { setLocalCursorPosition(signal.position); localSignals.append({ ...signal, connectionId: 0, name: authorName || "You", expiresAt: Date.now() + signalLifetime(signal) }); })}
         onClose={() => canvas.current?.focus()} />
       {placingSticker && <div className="sticker-placement-notice" role="status">{stickerCatalog[placingSticker].glyph} Click empty canvas to place {stickerCatalog[placingSticker].label}<button type="button" onClick={() => setPlacingSticker(null)}>Cancel</button></div>}
+      {starterIdeasNotice && !(starterIdeasPending && board.ideas.length === 0) && <div className="board-starter-ideas-notice" role={starterIdeasNotice.kind === "error" ? "alert" : "status"}>
+        {starterIdeasPending && <ThinkingAnimation />}<span>{starterIdeasPending ? "Generating five starting ideas…" : starterIdeasNotice.message}</span>
+        {starterIdeasNotice.kind === "error" && starterIdeasNotice.onRetry && <button type="button" onClick={starterIdeasNotice.onRetry}>Retry ideas</button>}
+      </div>}
       {(mergeBusy || clusterBusy || assignmentBusy || clusterNamesState === "pending" || suggestions.loading) && <div className="board-ai-activity" role="status"><ThinkingAnimation /><span>{mergeBusy ? "Merging ideas…" : clusterBusy ? "Organizing…" : assignmentBusy ? "Finding a group…" : clusterNamesState === "pending" ? "Naming groups…" : "Finding links…"}</span></div>}
       <div ref={canvas} tabIndex={-1} data-background={preferences.background} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""} ${drawTool ? `drawing-${drawTool}` : ""}`}
         onPointerMoveCapture={(event) => {
@@ -1913,7 +1920,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           }}>Retry placement</button>}
           {!onBoardChange && undoPlacementAvailable && <button type="button" onClick={undoAutomaticPlacement}>Undo placement</button>}
         </aside>}
-        {board.ideas.length === 0 && <div className="board-empty"><span>✳</span><h2>Your board is ready</h2><p>Start with one thought. You can connect it to others as your map grows.</p><button onClick={addAtCenter}>＋ Add your first idea</button></div>}
+        {board.ideas.length === 0 && starterIdeasPending && <StarterIdeasLoading />}
+        {board.ideas.length === 0 && !starterIdeasPending && <div className="board-empty"><span>✳</span><h2>Your board is ready</h2><p>Start with one thought. You can connect it to others as your map grows.</p><button onClick={addAtCenter}>＋ Add your first idea</button></div>}
         {(mergeIds.length > 0 || tool === "merge") && mergeIds.every((id) => board.ideas.some((idea) => idea.id === id)) && !mergePreview && <div className="board-merge-tray" role="region" aria-label="Merge selected ideas">
           <div className="board-merge-tray-copy"><strong>{mergeIds.length < 2 ? mergeIds.length === 0 ? "Choose ideas to merge" : "Choose one more idea" : `${mergeIds.length} ideas selected`}</strong>
             <span>Choose 2–{MAX_MERGE_SOURCES} ideas</span>
