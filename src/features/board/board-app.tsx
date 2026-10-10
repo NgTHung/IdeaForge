@@ -153,6 +153,8 @@ type BoardAppProps = {
   onSocialSignal?: (signal: SocialSignal) => void;
   boardScope?: string;
   connectedMembers?: ConnectedMember[];
+  // A local board embedded on the landing page; it hides features that need a shared room or an account.
+  sandbox?: boolean;
 };
 
 function ZoomReadout({ zoom }: { zoom: number }) {
@@ -166,7 +168,7 @@ function ToolButton({ label, active, disabled, title, onClick, children, rewindi
     title={title || label} disabled={disabled} onClick={onClick}><span className="board-tool-icon" aria-hidden="true">{children}</span></button>;
 }
 
-export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onMetadataChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove, onCursorStyleChange, signalCursorPositions, socialSignals, onSocialSignal, boardScope = "local", connectedMembers = emptyMembers }: BoardAppProps) {
+export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onMetadataChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove, onCursorStyleChange, signalCursorPositions, socialSignals, onSocialSignal, boardScope = "local", connectedMembers = emptyMembers, sandbox = false }: BoardAppProps) {
   const [cursorChatOpen, setCursorChatOpen] = useState(false);
   const [localCursorPosition, setLocalCursorPosition] = useState<CanvasPoint | null>(null);
   const [chatAnchor, setChatAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -1666,7 +1668,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   }
   return <AnimationContext.Provider value={{ preferences, motion }}><main className="board-shell" data-theme={theme} data-motion={motion ? "on" : "off"} style={{ "--personal-accent": styleColor(preferences.accent) ?? "#168264" } as React.CSSProperties}>
     <header className="board-topbar" aria-label="Board controls"><div className="board-brand">
-      <Link href="/" className="board-brand-home" aria-label="IdeaForge home" title="IdeaForge home"><span className="board-brand-symbol" aria-hidden="true">✳</span></Link>
+      <Link href="/" target={sandbox ? "_top" : undefined} className="board-brand-home" aria-label="IdeaForge home" title="IdeaForge home"><span className="board-brand-symbol" aria-hidden="true">✳</span></Link>
       <div className="board-title-group"><button ref={metadataTrigger} type="button" className="board-title-trigger" aria-label="Edit board name and description" title="Edit board name and description" onClick={openMetadataEditor}>
           <span>{title}</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m3.5 14.5-.8 3 3-.8L16.5 5.9a2.1 2.1 0 0 0-3-3L3.5 14.5Z"/><path d="m12.5 4 3 3"/></svg>
         </button>{displayedBoardDescription.trim() && <p className="board-description" title={displayedBoardDescription.trim()}>{displayedBoardDescription.trim()}</p>}</div></div>
@@ -1687,9 +1689,10 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
         </section>}
         </div></>}
+        {sandbox && <a className="board-sandbox-create" href="/boards/new" target="_top">Create board</a>}
         <PersonalizationPanel preferences={preferences} update={updatePreferences} reducedMotion={reducedMotion} board={board} selectedIdeaId={chosenIdea?.id} selectedLinkId={chosenLink?.id} canWrite={canWriteBoard}
           onStyle={(kind, id, style) => { if (canWriteBoard) commitBoardChange((current) => setObjectAppearance(current, kind, id, style)); }} />
-        <AccountMenu />
+        {!sandbox && <AccountMenu />}
       </div>
     </header>
     {metadataDraft && <div className="board-metadata-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeMetadataEditor(); }}>
@@ -1797,10 +1800,10 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           <circle cx={connectDrag.preview.x2} cy={connectDrag.preview.y2} r="6" />
         </svg>}
         <div className="board-tool-dock">
-          <AiToolsMenu hasConclusion={Boolean(board.conclusion)}
+          {!sandbox && <AiToolsMenu hasConclusion={Boolean(board.conclusion)}
             onAssistant={() => { setSuggestedLinksOpen(false); setChatOpen(true); }}
             onSuggestedLinks={() => { setChatOpen(false); setSuggestedLinksOpen((value) => !value); }}
-            onConclusion={() => { setChatOpen(false); setSuggestedLinksOpen(false); setConclusionOpen(true); }} />
+            onConclusion={() => { setChatOpen(false); setSuggestedLinksOpen(false); setConclusionOpen(true); }} />}
           <nav className="board-toolbar" aria-label="Board tools">
           <ToolButton label="Select" title={drawTool ? "Stop drawing and select ideas" : "Select ideas"}
             active={tool === "select" && !drawTool} onClick={() => selectTool("select")}><BoardIcon name="select" /></ToolButton>
@@ -1889,7 +1892,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           <span className="board-zoom-rule" /></>}
           <button aria-label="Zoom out" title="Zoom out" onClick={() => flow.current?.zoomOut({ duration: motionRef.current ? 180 : 0 })}><BoardIcon name="zoomOut" /></button><button aria-label="Fit ideas" title="Fit ideas" onClick={() => { void fitBoard(); }}><BoardIcon name="fit" /></button><ZoomReadout zoom={zoom} /><button aria-label="Zoom in" title="Zoom in" onClick={() => flow.current?.zoomIn({ duration: motionRef.current ? 180 : 0 })}><BoardIcon name="zoomIn" /></button></div>
       </div>
-      <ConnectionSuggestionsPanel board={board} suggestions={suggestions} onBoardChange={setBoard} minimized={chatOpen} authorName={authorName}
+      {!sandbox && <><ConnectionSuggestionsPanel board={board} suggestions={suggestions} onBoardChange={setBoard} minimized={chatOpen} authorName={authorName}
         expanded={suggestedLinksOpen} onExpandedChange={setSuggestedLinksOpen} showTrigger={false} />
       <ChatSidebar open={chatOpen} onToggle={() => setChatOpen((value) => {
         const next = !value;
@@ -1898,7 +1901,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       })} board={board} boardTitle={title}
         selectedCardId={selectedCardId} onFocusCard={focusCard} activeActionKey={assistantPreview?.key ?? null}
         onPreviewAction={previewAssistantAction} onUpdatePreviewAction={updateAssistantPreview}
-        onAcceptAction={acceptAssistantAction} onDiscardAction={discardAssistantPreview} />
+        onAcceptAction={acceptAssistantAction} onDiscardAction={discardAssistantPreview} /></>}
     </div>
     {mergePreview && <div className="board-merge-panel" role="dialog" aria-modal="false" aria-label="Merged idea preview">
       <div className="board-merge-panel-head"><div><span className="board-eyebrow">{mergePreview.result.excluded?.length ? `${mergePreview.result.contributions.length} OF ${mergePreview.ids.length} IDEAS USED` : `${mergePreview.ids.length} SOURCE IDEAS`}</span><h2>Merge preview</h2></div><button type="button" aria-label="Discard merge preview" onClick={discardMerge}>×</button></div>
@@ -1971,8 +1974,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         <button type="button" className="primary" disabled={mergeSaving || mergeBusy || previewStale || mergePreview.result.status !== "useful" || !mergePreview.title.trim() || !mergePreview.concept.trim()} onClick={keepMerge}>Create merged idea</button>
       </div>
     </div>}
-    <ConclusionPanel open={conclusionOpen} board={board} boardTitle={title} canWrite={canWriteBoard} authorName={authorName || "Unknown contributor"}
-      onCommit={commitBoardChange} onClose={closeConclusion} />
+    {!sandbox && <ConclusionPanel open={conclusionOpen} board={board} boardTitle={title} canWrite={canWriteBoard} authorName={authorName || "Unknown contributor"}
+      onCommit={commitBoardChange} onClose={closeConclusion} />}
     {selectedMergeIdea?.merge && <div className="board-merge-details" role="dialog" aria-modal="false" aria-label="How this idea was made"><div className="board-merge-panel-head"><h2>How this idea was made</h2><button type="button" aria-label="Close merge details" onClick={() => setMergeDetailsId(null)}>×</button></div>
       <button type="button" className="board-merge-show-sources" onClick={() => {
         const sourceIds = mergeDisplayData(selectedMergeIdea.merge!).sources.map((source) => source.id).filter((id) => board.ideas.some((idea) => idea.id === id));
