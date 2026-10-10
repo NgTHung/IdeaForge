@@ -38,6 +38,7 @@ A link records how two ideas relate. Each link has a type, an explanation, and a
 ### Merge rules
 
 - Each board has a goal that constrains generation.
+- The merge prompt requires English in every generated text field, regardless of the source notes' language.
 - Merge 2 to 8 distinct, nonempty notes at a time. A merge request has a 16,000-character total source-text limit and the existing 4,000-character per-note limit. Merged notes can be merged again.
 - When selected cards have typed links between them, the merge request includes those links, their direction, explanations, and conflict conditions. A "conflicts with" link requires a concept that addresses its stated condition or a result that says the set needs clarification.
 - The AI returns a title, a concept, one distinct contribution for each source it uses, a shared mechanism, a tension, the assumptions the concept introduces, and a next experiment. It can leave out a selected note that would weaken the concept, and it gives a short reason for each one. Every selected note is either used or left out with a reason, and at least two must be used. The preview lists left-out notes, and keeping the merge makes only the used notes its parents and source snapshots.
@@ -162,6 +163,8 @@ For Organize, the browser sends eligible note text and the selected group count 
 - The merge route exports `maxDuration = 95` to cover three 30-second AI attempts and the retry delay. Keep Fluid compute enabled when deploying; its duration limits support this budget. See [Vercel function duration](https://vercel.com/docs/functions/configuring-functions/duration).
 
 ## Log
+
+- 2026-10-10: at the user's request, merge prompts require English for titles, concepts, reasons, contributions, bridges, tensions, assumptions, and experiments, regardless of the source language. This replaces language matching after a saved GLM merge returned Vietnamese from English source snapshots. The change applies to future generation and preserves existing notes and source snapshots.
 
 - 2026-10-10: at the user's request, automatic Suggested Links starts enabled; each participant can still pause it. Extends links use purple by default. Link labels appear only while hovering a link and render above the canvas edges with an opaque background.
 

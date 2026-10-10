@@ -4,6 +4,8 @@ What's built, what's verified, and the five-day plan to the Forgehack submission
 
 ## Current status
 
+On 2026-10-10, the merge prompt changed to require English in every generated text field, regardless of source language. Live GLM calls returned English for the affected travel board's preserved inputs and for Vietnamese notes with a Vietnamese goal. Nine focused merge checks, lint, typecheck, and the production build passed. Lint reported one existing unused-function warning. The verification requests did not change shared board content.
+
 Board QR sharing (`work:WORK-050`) passed lint, typecheck, the production build, and all 195 tests on 2026-10-10. Chromium checks on a live guest board verified real clipboard copying, decoding both QR sizes to the exact copied URL including query and fragment, clipboard failure feedback, keyboard activation, focus containment, dismissal, and focus restoration. Light and dark layouts fit 320px and 390px viewports. Physical phone scanning, other browser engines, signed-in sessions, and deployment were not checked. This change makes no AI calls.
 
 The first design cleanup pass (`work:WORK-044`) removes redundant copy, standardizes idea and link labels, simplifies entry screens and the account menu, and reduces idea-card controls. Top ideas ranks the existing upvotes. Remaining work is in [Design cleanup](design-cleanup.md).
