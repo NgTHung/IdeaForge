@@ -12,11 +12,11 @@ export type ObjectStyle = z.infer<typeof objectStyleSchema>;
 export type RelationshipStyle = z.infer<typeof relationshipStyleSchema>;
 export type ClusterStyle = z.infer<typeof clusterStyleSchema>;
 export type CursorStyle = z.infer<typeof cursorStyleSchema>;
-export const effectLabels = { merge: "Merge celebrations", vote: "Upvote reactions", entrance: "Contributor entrances", thinking: "AI thinking", undo: "Undo time travel", milestone: "Team milestones", achievement: "Achievement stickers", share: "Share-link delivery", mood: "Board mood" } as const;
+export const effectLabels = { merge: "Merge celebrations", vote: "Upvote reactions", entrance: "Contributor entrances", thinking: "AI thinking", undo: "Undo time travel", milestone: "Team milestones", achievement: "Achievement stickers", share: "Share-link delivery" } as const;
 export type EffectKind = keyof typeof effectLabels;
-const effectsSchema = z.object({ merge: z.boolean(), vote: z.boolean(), entrance: z.boolean(), thinking: z.boolean(), undo: z.boolean(), milestone: z.boolean(), achievement: z.boolean(), share: z.boolean(), mood: z.boolean() });
+const effectsSchema = z.object({ merge: z.boolean(), vote: z.boolean(), entrance: z.boolean(), thinking: z.boolean(), undo: z.boolean(), milestone: z.boolean(), achievement: z.boolean(), share: z.boolean() });
 export const preferencesSchema = z.object({
-  theme: z.enum(["light", "dark"]), accent: colorSchema, background: z.enum(["plain", "dots", "grid"]),
+  theme: z.enum(["light", "dark"]), accent: colorSchema, background: z.enum(["plain", "dots", "grid", "clouds"]),
   animations: z.boolean(), cursor: cursorStyleSchema, effects: effectsSchema,
   reaction: z.enum(["heart", "cat", "frog"]), thinking: z.enum(["hamster", "cat", "cauldron"]), milestone: z.enum(["confetti", "ducks"]),
 });
@@ -24,7 +24,7 @@ export type Personalization = z.infer<typeof preferencesSchema>;
 export const defaultPreferences: Personalization = {
   theme: "light", accent: "default", background: "dots", animations: true,
   cursor: { color: "default", shape: "dot" },
-  effects: { merge: true, vote: true, entrance: true, thinking: true, undo: true, milestone: true, achievement: true, share: true, mood: true },
+  effects: { merge: true, vote: true, entrance: true, thinking: true, undo: true, milestone: true, achievement: true, share: true },
   reaction: "heart", thinking: "cauldron", milestone: "confetti",
 };
 export const defaultObjectStyle: ObjectStyle = { color: "default", border: "plain" };
@@ -67,7 +67,6 @@ export function recordContribution(ledger: AchievementLedger, ideaId: string, bo
   return { ideas: sources || ledger.ideas.includes(ideaId) ? ledger.ideas : [...ledger.ideas, ideaId].slice(-1000),
     crossClusterMerge: ledger.crossClusterMerge || Boolean(sources && groups.size > 1) };
 }
-export function boardMood(board: Board) { return board.ideas.some((idea) => idea.merge) ? "bloom" : board.ideas.length >= 10 ? "grown" : board.ideas.length ? "sprout" : "seed"; }
 export type Milestone = "ten" | "merge";
 export function reachedMilestones(board: Board): Milestone[] {
   return [...(board.ideas.length >= 10 ? ["ten" as const] : []), ...(board.ideas.some((idea) => idea.merge) ? ["merge" as const] : [])];

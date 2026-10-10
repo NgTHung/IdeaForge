@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { ViewportPortal } from "@xyflow/react";
-import { achievementLabels, achievementLedgerSchema, advanceMilestones, boardMood, defaultPreferences, earnedAchievements, emptyLedger, reachedMilestones, recordContribution, type AchievementLedger, type EffectKind, type Personalization } from "./personalization";
+import { achievementLabels, achievementLedgerSchema, advanceMilestones, defaultPreferences, earnedAchievements, emptyLedger, reachedMilestones, recordContribution, type AchievementLedger, type EffectKind, type Personalization } from "./personalization";
 import type { Board } from "./model";
 
 export const AnimationContext = createContext({ preferences: defaultPreferences, motion: false });
@@ -63,7 +63,7 @@ function ActivityGlyph({ kind, preferences }: { kind: EffectKind; preferences: P
   const glyphs: Record<EffectKind, string> = {
     merge: "", vote: preferences.reaction === "cat" ? "😻" : preferences.reaction === "frog" ? "🐸" : "♥",
     entrance: "🪂", thinking: "", undo: "⏪", milestone: preferences.milestone === "ducks" ? "🦆 🦆 🦆" : "🎉 ✨ 🎊",
-    achievement: "🏅", share: "🕊️ ✉️", mood: "🌱",
+    achievement: "🏅", share: "🕊️ ✉️",
   };
   return <span>{glyphs[kind]}</span>;
 }
@@ -83,11 +83,9 @@ export function BoardActivity({ activity, board, positions }: { activity: Return
     })}</div></ViewportPortal>
   </>;
 }
-export function BoardMood({ board, achievements }: { board: Board; achievements: ReturnType<typeof earnedAchievements> }) {
+export function AchievementCollection({ achievements }: { achievements: ReturnType<typeof earnedAchievements> }) {
   const { preferences } = useContext(AnimationContext);
-  const mood = boardMood(board);
-  return <aside className="board-mood" aria-label="Board activity and stickers">
-    {preferences.effects.mood && <span className="board-mood-plant" title={mood === "bloom" ? "A kept merge made your board bloom" : `${board.ideas.length} saved ideas growing your board`}><span aria-hidden="true">{mood === "bloom" ? "🌸" : mood === "grown" ? "🪴" : mood === "sprout" ? "🌱" : "🫘"}</span><small>{mood === "bloom" ? "In bloom" : "Growing ideas"}</small></span>}
+  return <aside className="board-achievements" aria-label="Achievement stickers">
     {preferences.effects.achievement && <details className="achievement-collection"><summary>Stickers · {achievements.length}/3</summary><ul>
       {Object.entries(achievementLabels).map(([key, label]) => <li key={key} data-earned={achievements.includes(key as keyof typeof achievementLabels)}><span aria-hidden="true">{achievements.includes(key as keyof typeof achievementLabels) ? "★" : "☆"}</span><span>{label}<small>{key === "spark" ? "Save your first idea" : key === "combo" ? "Keep a merge across clusters" : "Save five ideas"}</small></span></li>)}
     </ul><p>Saved for you and this board in this browser.</p></details>}

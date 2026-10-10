@@ -35,7 +35,7 @@ import { PersonalizationPanel } from "./personalization-panel";
 import { ClusterDecorations } from "./cluster-decorations";
 import { usePersonalization } from "./use-personalization";
 import { setObjectAppearance, styleColor, type CursorStyle } from "./personalization";
-import { AnimationContext, BoardActivity, BoardMood, ThinkingAnimation, useBoardActivity, type ConnectedMember } from "./board-activity";
+import { AnimationContext, BoardActivity, AchievementCollection, ThinkingAnimation, useBoardActivity, type ConnectedMember } from "./board-activity";
 import "./board.css";
 import "./personalization.css";
 
@@ -1348,9 +1348,9 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
     </header>
     <div className="board-workspace">
-      <BoardMood board={board} achievements={activity.achievements} />
+      <AchievementCollection achievements={activity.achievements} />
       {(mergeBusy || clusterBusy || assignmentBusy || clusterNamesState === "pending" || suggestions.loading) && <div className="board-ai-activity" role="status"><ThinkingAnimation /><span>{mergeBusy ? "Merging ideas…" : clusterBusy ? "Organizing…" : assignmentBusy ? "Finding a group…" : clusterNamesState === "pending" ? "Naming groups…" : "Finding connections…"}</span></div>}
-      <div ref={canvas} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""} ${drawTool ? `drawing-${drawTool}` : ""}`}
+      <div ref={canvas} data-background={preferences.background} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""} ${drawTool ? `drawing-${drawTool}` : ""}`}
         onPointerMove={(event) => {
           if (!(event.target instanceof Element) || !event.target.closest(".react-flow") || !flow.current) { onCursorMove?.(null); return; }
           onCursorMove?.(flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }));
@@ -1381,7 +1381,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           onNodeDragStop={(_, node) => finishDrag(node.id, node.position)}
           panOnDrag={!drawTool && (tool === "hand" || spaceDown)} nodesDraggable={!drawTool && tool !== "hand" && !spaceDown && tool !== "connect"}
           nodesConnectable={false} elementsSelectable={!drawTool} elevateEdgesOnSelect={false} zoomOnDoubleClick={false} minZoom={0.15} maxZoom={1.8} defaultViewport={{ x: 185, y: 180, zoom: 0.72 }}>
-          {preferences.background !== "plain" && <Background variant={preferences.background === "grid" ? BackgroundVariant.Lines : BackgroundVariant.Dots} gap={23} size={1.5} color={theme === "dark" ? "#405b52" : "#b6c9bf"} />}
+          {(preferences.background === "dots" || preferences.background === "grid") && <Background variant={preferences.background === "grid" ? BackgroundVariant.Lines : BackgroundVariant.Dots} gap={23} size={1.5} color={theme === "dark" ? "#405b52" : "#b6c9bf"} />}
           <ClusterDecorations board={board} positions={dragPositions} sizes={measuredSizes} />
           <BoardActivity activity={activity} board={board} positions={dragPositions} />
           <LiveCursors cursors={liveCursors} />

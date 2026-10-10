@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { advanceMilestones, boardMood, cursorStyleSchema, defaultPreferences, earnedAchievements, emptyLedger, parsePreferences, reachedMilestones, recordContribution, setObjectAppearance } from "../src/features/board/personalization.ts";
+import { advanceMilestones, cursorStyleSchema, defaultPreferences, earnedAchievements, emptyLedger, parsePreferences, reachedMilestones, recordContribution, setObjectAppearance } from "../src/features/board/personalization.ts";
 import { renameClusterGroup } from "../src/features/board/cluster-state.ts";
 
 function boardFixture() {
@@ -77,11 +77,17 @@ test("achievement rules count distinct new notes, and only a cross-cluster merge
   assert.deepEqual(earnedAchievements(JSON.parse(JSON.stringify(ledger))), ["spark", "combo", "gardener"]);
   assert.deepEqual(emptyLedger, { ideas: [], crossClusterMerge: false });
 });
-test("mood comes from saved notes and merges rather than local effects", () => {
-  assert.equal(boardMood({ ideas: [] }), "seed");
-  assert.equal(boardMood({ ideas: [{ id: "a" }] }), "sprout");
-  assert.equal(boardMood({ ideas: Array.from({ length: 10 }, (_, id) => ({ id })) }), "grown");
-  assert.equal(boardMood(boardFixture()), "bloom");
+test("cloud preferences retain earlier settings while dropping the retired mood toggle", () => {
+  const previous = { ...defaultPreferences, theme: "dark", background: "clouds", animations: false,
+    cursor: { color: "lavender", shape: "cat" }, effects: { ...defaultPreferences.effects, share: false, mood: true } };
+  const parsed = parsePreferences(JSON.stringify(previous));
+  assert.equal(parsed.background, "clouds");
+  assert.equal(parsed.theme, "dark");
+  assert.equal(parsed.animations, false);
+  assert.deepEqual(parsed.cursor, previous.cursor);
+  assert.equal(parsed.effects.share, false);
+  assert.equal("mood" in parsed.effects, false);
+  assert.deepEqual(parsePreferences(JSON.stringify(parsed)), parsed);
 });
 test("team milestones celebrate only once across repeated saves, undo, redo, and initial loading", () => {
   const ten = { ideas: Array.from({ length: 10 }, (_, id) => ({ id })) };
