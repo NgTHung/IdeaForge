@@ -52,7 +52,6 @@ Whether Decorate stays a main toolbar button depends on whether stickers, achiev
 
 - Combine the main tools and drawing tools into one bar and drop the "DRAW" label (`board-app.tsx:1479`).
 - Icons still mix Unicode glyphs (↖ ✋ ＋ ⌁ ⧉ ▦ ◐), emoji (🏅), and SVG (pencil, eraser, undo, pin). Replace them with one SVG icon set.
-- The Assistant button and the brand mark both use ✳. Give the Assistant its own icon.
 
 ### Idea cards
 
@@ -131,7 +130,7 @@ The stylesheets define every value inline, so screens drift apart and dark mode 
 - Radius: three values (6, 10, 16 px) plus `999px` for pills.
 - Shadow: two or three elevation levels.
 
-The brand header is built four times with separate CSS: `landing-header`, `board-page-header`, `guest-entry-header`, and `auth-brand`. Extract one `BrandLink` component and one header layout.
+The brand header is built four times with separate CSS: `landing-header`, `board-page-header`, `guest-entry-header`, and `auth-brand`. They already share the logo through `BrandMark` in `src/features/brand/brand-mark.tsx`. Extract one `BrandLink` component and one header layout around it.
 
 ## Code structure
 

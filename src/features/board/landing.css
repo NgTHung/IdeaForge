@@ -2,7 +2,7 @@
 .landing-shell, .landing-shell * { box-sizing: border-box; }
 .landing-header { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 1180px; min-height: 52px; margin: 0 auto; }
 .landing-brand { display: inline-flex; align-items: center; gap: 10px; color: #24413a; font-family: var(--font-display), var(--font-sans), sans-serif; font-size: 19px; font-weight: 800; letter-spacing: -.03em; text-decoration: none; }
-.landing-brand-mark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: #16785f; color: #fff; font-size: 25px; }
+.landing-brand-mark { flex: 0 0 auto; width: 36px; height: 36px; }
 
 .landing-hero { display: grid; width: 100%; max-width: 1180px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: clamp(32px, 5vw, 72px); margin: clamp(28px, 7vh, 80px) auto 0; }
 .landing-intro { min-width: 0; }

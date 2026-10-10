@@ -7,6 +7,7 @@ import type { FormEvent } from "react";
 import { authClient } from "@/lib/auth-client";
 import { safeReturnPath } from "@/lib/board-directory";
 import { signupPasswordError, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
+import { BrandMark } from "@/features/brand/brand-mark";
 
 type Mode = "signin" | "signup";
 
@@ -85,7 +86,7 @@ export function LoginForm() {
 
   return <main className="auth-page">
     <section className="auth-card" aria-labelledby="auth-title">
-      <Link className="auth-brand" href="/" aria-label="IdeaForge home"><span aria-hidden="true">✳</span> IdeaForge</Link>
+      <Link className="auth-brand" href="/" aria-label="IdeaForge home"><BrandMark className="auth-brand-mark" /> IdeaForge</Link>
       <h1 id="auth-title">{mode === "signin" ? "Welcome back" : "Create your account"}</h1>
       <p className="auth-intro">{mode === "signin" ? "Sign in to continue to your workspace." : "Create an account to start a board. We’ll email you a verification link."}</p>
 
