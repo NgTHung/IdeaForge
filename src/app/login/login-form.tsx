@@ -11,7 +11,7 @@ import { signupPasswordError, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@
 type Mode = "signin" | "signup";
 
 function getReturnPath() {
-  return safeReturnPath(new URLSearchParams(window.location.search).get("returnTo"));
+  return safeReturnPath(new URLSearchParams(window.location.search).get("returnTo"), "/dashboard");
 }
 
 export function LoginForm() {
