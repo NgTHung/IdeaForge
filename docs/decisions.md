@@ -159,6 +159,8 @@ For Organize, the browser sends eligible note text and the selected group count 
 
 ## Log
 
+- 2026-10-10: the user found the moving RGB border distracting. `work:WORK-040` now uses a static multicolor outline on notes, clusters, and Style previews. The alternating colors stay in place even when other animations are enabled.
+
 - 2026-10-10: the user clarified the RGB appearance in `work:WORK-040`. A single border shows several alternating colors at once, and those colors travel around its fixed outline. This replaces whole-border color cycling. Notes, clusters, and Style previews share the same masked gradient, and motion-off keeps the multicolor outline static.
 
 - 2026-10-10: at the user's request, `work:WORK-040` adds a Clouds canvas background, replaces rainbow borders with a glowing RGB border that cycles colors, and removes the Growing ideas plant. The stored rainbow preset keeps its identifier and renders as RGB; existing browser preferences keep their other settings. RGB motion follows the animation switch and reduced-motion preference. Achievement stickers remain available. Remote cursors continue to show other active connections on the same board.
