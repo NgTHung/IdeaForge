@@ -4,7 +4,7 @@ What IdeaForge is, how it's built, and why. The initial decisions were accepted 
 
 ## Product
 
-On 2026-10-10, `work:WORK-042` extends Clouds from cluster boundaries to note styles at the user's request. Notes, clusters, and Style previews share a puffy cloud treatment with soft shading, small cloud wisps, and static accents. Decorations remain outside readable content and ignore pointer input. Existing note bounds, link routing, cluster membership, saved colors, and merge provenance stay authoritative.
+On 2026-10-10, `work:WORK-042` extends Clouds from cluster boundaries to note styles at the user's request. Notes, clusters, and Style previews share a puffy cloud treatment with soft shading, small cloud wisps, and static accents. The user then requested stronger treatments for the other borders. Cat, RGB, stars, flowers, and paper gain distinct cosmetic details and become available on both notes and clusters. RGB retains its single static alternating multicolor outline. Decorations remain outside readable content and ignore pointer input. Existing note bounds, link routing, cluster membership, saved colors, and merge provenance stay authoritative.
 
 Pitch: a shared canvas where a team finds which of its ideas are worth combining, combines them into new concepts, and can trace who contributed what.
 

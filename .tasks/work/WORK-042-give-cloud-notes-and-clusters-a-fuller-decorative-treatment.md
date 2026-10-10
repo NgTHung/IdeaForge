@@ -1,6 +1,6 @@
 ---
 id: "WORK-042"
-title: "Give cloud notes and clusters a fuller decorative treatment"
+title: "Give note and cluster borders fuller decorative treatments"
 status: In Progress
 priority: "Medium"
 type: "Feature"
@@ -10,9 +10,11 @@ last_updated: 2026-10-10
 
 ## Summary
 
-Replace the simple Clouds cluster outline with a puffy cloud silhouette, soft shading, small cloud accents, and static decorative details. Add the same cloud treatment to notes and Style previews. Preserve readable content, shared appearance persistence, accessible controls, and merge provenance.
+Replace the simple Clouds cluster outline with a puffy cloud silhouette, soft shading, small cloud accents, and static decorative details. Add the same cloud treatment to notes and Style previews. At the user's follow-up request, give cat, RGB, stars, flowers, and paper bolder outlines and distinctive cosmetic details too. Offer all decorative presets on notes and clusters, with matching previews. Preserve readable content, shared appearance persistence, accessible controls, and merge provenance.
 
 ## Acceptance Criteria
+
+- [ ] Cat, RGB, stars, flowers, and paper have stronger distinct treatments on notes, clusters, and previews; plain borders remain readable, and RGB keeps one static alternating multicolor line.
 
 - [ ] Cloud clusters have a visibly puffy silhouette and layered cosmetic details that follow member bounds; hiding the boundary hides the cloud decoration while retaining the name.
 - [ ] Notes offer Clouds in Style and use the same cloud rendering as clusters and previews without covering text, votes, pinning, selection, or editing controls.
