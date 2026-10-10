@@ -8,7 +8,6 @@
 .account-avatar-name { max-width: 190px; overflow: hidden; color: #29473c; font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .account-popover { position: absolute; z-index: 20; top: calc(100% + 12px); right: 0; display: flex; width: min(272px, calc(100vw - 28px)); flex-direction: column; gap: 8px; padding: 16px; border: 1px solid #dce7e0; border-radius: 14px; background: #fff; color: #243e40; box-shadow: 0 14px 38px #203b3026; }
 .account-popover[hidden] { display: none; }
-.account-popover-label { color: #52685f; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
 .account-popover strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
 .account-email { overflow: hidden; color: #52685f; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .account-popover > button { min-height: 44px; margin-top: 8px; padding: 10px 12px; border: 1px solid #dce7e0; border-radius: 9px; background: #f7faf8; color: #34564b; font-size: 13px; font-weight: 700; text-align: left; cursor: pointer; }
@@ -16,7 +15,6 @@
 .account-popover > button:hover { background: #edf5f0; }
 .account-dashboard-link { display: flex; min-height: 44px; align-items: center; margin-top: 4px; padding: 0 12px; border-radius: 9px; color: #16785f; background: #f0f8f3; font-size: 13px; font-weight: 700; text-decoration: none; }
 .account-dashboard-link:hover { background: #e5f3ea; }
-.account-menu-back { margin-bottom: 4px !important; color: #28634d !important; }
 .account-popover [role="menuitem"]:focus-visible { outline: 3px solid #16785f; outline-offset: 2px; }
 .account-menu-summary { display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px; border-bottom: 1px solid #e3ece6; }
 .account-popover > button:disabled { cursor: wait; }
@@ -27,7 +25,6 @@
 .board-shell[data-theme="dark"] .account-avatar:hover,
 .board-shell[data-theme="dark"] .account-avatar[aria-expanded="true"] { background: #355b49; }
 .board-shell[data-theme="dark"] .account-popover { border-color: #344744; background: #1c2a29; color: #dce8e3; }
-.board-shell[data-theme="dark"] .account-popover-label,
 .board-shell[data-theme="dark"] .account-email { color: #9eb5aa; }
 .board-shell[data-theme="dark"] .account-popover > button { border-color: #405650; background: #263633; color: #cedbd5; }
 .board-shell[data-theme="dark"] .account-popover > button:hover { background: #2a403a; }

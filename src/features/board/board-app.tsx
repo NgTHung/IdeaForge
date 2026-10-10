@@ -32,9 +32,24 @@ import { appendClusterAssignment, memberFingerprint, renameClusterGroup } from "
 import { addMergedIdea, mergeContext, mergeText, relatedIdeaPosition, mergeDisplayData, mergeRecordFor } from "./merge-board";
 import { initialGoal, MAX_MERGE_SOURCES, MAX_MERGE_TOTAL_CHARACTERS, mergeCoverageProblem, mergeProposalSchema, type MergeProposal } from "@/lib/ideas";
 import { historyShortcut } from "./history-shortcut";
+import { PersonalizationPanel } from "./personalization-panel";
+import { ClusterDecorations } from "./cluster-decorations";
+import { usePersonalization } from "./use-personalization";
+import { setObjectAppearance, styleColor, type CursorStyle } from "./personalization";
+import { AnimationContext, BoardActivity, ThinkingAnimation, useBoardActivity, type ConnectedMember } from "./board-activity";
+import { CursorSignals, SocialControls, useSignalQueue, type SocialControlsHandle } from "./board-social";
+import { StickerDecorations } from "./sticker-decorations";
+import { DecorateMenu } from "./decorate-menu";
+import { BoardIcon } from "./board-icons";
+import { addDecoration, moveDecoration, removeDecoration, canOpenCursorChat, signalLifetime, stickerCatalog, type NamedSignal, type SocialSignal, type StickerKind } from "./board-social-contract";
+import { canDragIdea, displayIdeas, type CanvasPoint } from "./canvas-interaction";
 import { canFillEditorDescription, canRequestIdeaDescription, fitIdeaDescriptionContext, ideaDescriptionGoal, type IdeaDescriptionContext, type IdeaDescriptionRequestState } from "./description-generation";
 import { ideaDescriptionResponseSchema } from "@/lib/idea-description-contract";
 import "./board.css";
+import "./personalization.css";
+import "./social.css";
+import "./cloud-frame.css";
+import "./border-decorations.css";
 
 type Tool = "select" | "hand" | "add" | "connect" | "merge";
 type Selection = { kind: "idea" | "relationship"; id: string } | null;
@@ -43,6 +58,7 @@ type EditorDraft = { id: string; title: string; content: string };
 type DescriptionStatus = { kind: "pending" | "error" | "question"; message?: string } | null;
 const nodeTypes = { idea: Bubble, assistantPreview: Bubble };
 const edgeTypes = { orthogonal: OrthogonalEdge };
+const emptyMembers: ConnectedMember[] = [];
 const AUTO_PLACE_KEY = "ideaforge-auto-place-new-notes";
 const AUTO_PLACE_EVENT = "ideaforge-auto-place-preference-change";
 
@@ -129,22 +145,42 @@ type BoardAppProps = {
   voteUserId?: string;
   liveCursors?: LiveCursor[];
   onCursorMove?: (position: { x: number; y: number } | null) => void;
+  onCursorStyleChange?: (style: CursorStyle) => void;
+  signalCursorPositions?: Record<number, CanvasPoint>;
+  socialSignals?: NamedSignal[];
+  onSocialSignal?: (signal: SocialSignal) => void;
+  boardScope?: string;
+  connectedMembers?: ConnectedMember[];
 };
 
 function ZoomReadout({ zoom }: { zoom: number }) {
   return <span className="board-zoom-level" aria-live="off">{Math.round(zoom * 100)}%</span>;
 }
 
-function ToolButton({ label, active, disabled, title, onClick, children }: {
-  label: string; active?: boolean; disabled?: boolean; title?: string; onClick?: () => void; children: React.ReactNode;
+function ToolButton({ label, active, disabled, title, onClick, children, rewinding }: {
+  label: string; active?: boolean; disabled?: boolean; title?: string; onClick?: () => void; children: React.ReactNode; rewinding?: boolean;
 }) {
-  return <button type="button" className={`board-tool ${active ? "active" : ""}`} aria-label={label} aria-pressed={disabled ? undefined : active}
+  return <button type="button" className={`board-tool ${active ? "active" : ""} ${rewinding ? "is-rewinding" : ""}`} aria-label={label} aria-pressed={disabled ? undefined : active}
     title={title || label} disabled={disabled} onClick={onClick}><span className="board-tool-icon" aria-hidden="true">{children}</span></button>;
 }
 
-export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove }: BoardAppProps) {
+export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onTitleChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove, onCursorStyleChange, signalCursorPositions, socialSignals, onSocialSignal, boardScope = "local", connectedMembers = emptyMembers }: BoardAppProps) {
+  const [cursorChatOpen, setCursorChatOpen] = useState(false);
+  const [localCursorPosition, setLocalCursorPosition] = useState<CanvasPoint | null>(null);
+  const [chatAnchor, setChatAnchor] = useState<{ x: number; y: number } | null>(null);
+  const [placingSticker, setPlacingSticker] = useState<StickerKind | null>(null);
+  const cursorPoint = useRef<{ x: number; y: number } | null>(null);
+  const cursorScreen = useRef<{ x: number; y: number } | null>(null);
+  const cursorActive = useRef(false);
+  const localSignals = useSignalQueue();
   const [localBoard, setLocalBoard] = useState<Board>(() => normalizeBoardLayout(initialBoard, {}));
   const board = sharedBoard ?? localBoard;
+  const { preferences, update: updatePreferences, motion, reducedMotion } = usePersonalization();
+  const theme = preferences.theme;
+  const motionRef = useRef(motion);
+  useEffect(() => { motionRef.current = motion; }, [motion]);
+  const activity = useBoardActivity(board, connectedMembers, boardScope, voteUserId ?? "local", preferences);
+  useEffect(() => { onCursorStyleChange?.(preferences.cursor); }, [onCursorStyleChange, preferences.cursor]);
   const setBoard = useCallback<Dispatch<SetStateAction<Board>>>((update) => {
     if (onBoardChange) onBoardChange((current) => typeof update === "function" ? update(current) : update);
     else setLocalBoard(update);
@@ -194,7 +230,6 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const [assistantPreview, setAssistantPreview] = useState<AssistantActionDraft | null>(null);
   const [assistantDetailsId, setAssistantDetailsId] = useState<string | null>(null);
   const [draftIdeaId, setDraftIdeaId] = useState<string | null>(null);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [zoom, setZoom] = useState(0.72);
   const [squashes, setSquashes] = useState<Record<string, { axis: "x" | "y"; token: number }>>({});
   const [spaceDown, setSpaceDown] = useState(false);
@@ -218,6 +253,9 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const [assignmentUndo, setAssignmentUndo] = useState<{ id: string; position: Idea["position"]; after: Idea["position"]; snapshot: Board["clusterSnapshot"]; appliedRevision: string } | null>(null);
   const flow = useRef<ReactFlowInstance<IdeaNode, OrthogonalCanvasEdge> | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
+  const workspace = useRef<HTMLDivElement>(null);
+  const workspaceElement = useCallback(() => workspace.current, []);
+  const socialControls = useRef<SocialControlsHandle>(null);
   const shareControl = useRef<HTMLDivElement>(null);
   const exportingPngRef = useRef(false);
   const titleInput = useRef<HTMLInputElement>(null);
@@ -283,13 +321,6 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     descriptionRequest.current = null;
   }, []);
   useEffect(() => {
-    const savedTheme = window.localStorage.getItem("ideaforge-theme");
-    if (savedTheme !== "light" && savedTheme !== "dark") return;
-    const frame = window.requestAnimationFrame(() => setTheme(savedTheme));
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-  useEffect(() => { window.localStorage.setItem("ideaforge-theme", theme); }, [theme]);
-  useEffect(() => {
     if (!clusterNotice) return;
     const timer = window.setTimeout(() => setClusterNotice(""), 5000);
     return () => window.clearTimeout(timer);
@@ -328,7 +359,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       }
     }
   }, []);
-  const physics = usePhysics(board, physicsEnabled, frozenId, applyPositions, applyContacts);
+  const physics = usePhysics(board, physicsEnabled && motion, frozenId, applyPositions, applyContacts);
   const currentBoardFingerprint = useMemo(() => boardFingerprint(board.ideas), [board.ideas]);
   const clusterSnapshot = board.clusterSnapshot ?? null;
   const clusterResult = clusterSnapshot?.result ?? null;
@@ -369,6 +400,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     setDescriptionStatus(null);
   }, [board, title, boardDescription, clusterLabels, clusterStale, canWriteBoard, getIdeaDescriptionContext]);
   const clusterColors = useMemo(() => new Map(clusterResult?.groups.flatMap((group, index) => group.noteIds.map((id) => [id, index % 5] as const))), [clusterResult]);
+  const clusterAccents = useMemo(() => new Map(clusterResult?.groups.flatMap((group) => group.noteIds.map((id) => [id, group.appearance && styleColor(group.appearance.color)] as const))), [clusterResult]);
   const chosenIdea = selection?.kind === "idea" ? board.ideas.find((idea) => idea.id === selection.id) : undefined;
   const chosenLink = selection?.kind === "relationship" ? board.relationships.find((link) => link.id === selection.id) : undefined;
   const selectedCardId = selection?.kind === "idea" && board.ideas.some((idea) => idea.id === selection.id) ? selection.id : null;
@@ -423,13 +455,14 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     setSelection({ kind: "idea", id: cardId });
     setMergeIds([]);
     window.requestAnimationFrame(() => {
-      void flow.current?.fitView({ nodes: [{ id: cardId }], padding: 0.45, duration: 350, maxZoom: 0.95 });
+      void flow.current?.fitView({ nodes: [{ id: cardId }], padding: 0.45, duration: motionRef.current ? 350 : 0, maxZoom: 0.95 });
     });
   }, []);
   async function copyBoardLink() {
     try {
       await navigator.clipboard.writeText(window.location.href);
       setShareNotice("Link copied");
+      activity.notify("share", "Your board link is ready to fly.");
     } catch {
       setShareNotice("Copy the board URL from your browser address bar");
     }
@@ -501,7 +534,14 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     onEditingIdeaChange(editingId ?? null);
     return () => onEditingIdeaChange(null);
   }, [editingId, onEditingIdeaChange]);
-  function cancelInteraction() { connectDrag.cancel(); closeEditor(); setDraftIdeaId(null); draftIdeaRef.current = null; setLinkDraft(null); setRelationshipEditor(null); setSourceId(null); setLinkError(""); setCondition(""); setOrganizeOpen(false); setMergePreview(null); setMergeDetailsId(null); setMergeIds([]); setMergeError(""); mergeRequestSequence.current += 1; mergeController.current?.abort(); setMergeBusy(false); setDrawTool(null); setTool("select"); }
+  function openCursorChat(open: boolean) {
+    if (open && cursorScreen.current && canvas.current) {
+      const bounds = canvas.current.getBoundingClientRect();
+      setChatAnchor({ x: Math.max(90, Math.min(bounds.width - 320, cursorScreen.current.x - bounds.left + 18)), y: Math.max(20, Math.min(bounds.height - 120, cursorScreen.current.y - bounds.top - 70)) });
+    }
+    setCursorChatOpen(open);
+  }
+  function cancelInteraction() { setPlacingSticker(null); setCursorChatOpen(false); connectDrag.cancel(); closeEditor(); setDraftIdeaId(null); draftIdeaRef.current = null; setLinkDraft(null); setRelationshipEditor(null); setSourceId(null); setLinkError(""); setCondition(""); setOrganizeOpen(false); setMergePreview(null); setMergeDetailsId(null); setMergeIds([]); setMergeError(""); mergeRequestSequence.current += 1; mergeController.current?.abort(); setMergeBusy(false); setDrawTool(null); setTool("select"); }
   function removeSelection() {
     if (!selection) return;
     if (selection.kind === "idea") { setUndoPositions(null); setAssignmentUndo(null); }
@@ -510,6 +550,11 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     }
     else setBoard((current) => deleteRelationship(current, selection.id));
     setSelection(null); closeEditor(); setLinkDraft(null); setSourceId(null);
+  }
+  function undoWithEffect() {
+    if (!historyActions?.canWrite || !historyActions.canUndo) return;
+    historyActions.undo();
+    activity.notify("undo", "Rewound your last action");
   }
   useEffect(() => {
     function keyDown(event: KeyboardEvent) {
@@ -520,11 +565,15 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       if (historyAction && historyActions) {
         event.preventDefault();
         if (!historyActions.canWrite) return;
-        if (historyAction === "undo" && historyActions.canUndo) historyActions.undo();
+        if (historyAction === "undo" && historyActions.canUndo) undoWithEffect();
         if (historyAction === "redo" && historyActions.canRedo) historyActions.redo();
         return;
       }
       if (event.key === "Escape") { cancelInteraction(); setSelection(null); return; }
+      if (event.key === "Enter" && !event.defaultPrevented && !event.repeat && !event.isComposing && !event.ctrlKey && !event.metaKey && !event.altKey &&
+        canOpenCursorChat(target, Boolean(editor || linkDraft || relationshipEditor || mergePreview || mergeDetailsId || assistantDetailsId || organizeOpen))) {
+        event.preventDefault(); openCursorChat(true); return;
+      }
       if (typing) return;
       if (event.code === "Space") { event.preventDefault(); setSpaceDown(true); }
       if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); removeSelection(); }
@@ -549,6 +598,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 });
   }
   function selectTool(next: Tool) {
+    setPlacingSticker(null);
     connectDrag.cancel(); setDrawTool(null); setTool(next); setSourceId(null); setLinkDraft(null);
     const seed = next === "merge" && selection?.kind === "idea" ? [selection.id] : [];
     setSelection(null); setMergeIds(seed); setMergeError("");
@@ -568,7 +618,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     const zoom = Math.max(0.15, Math.min(0.95, availableWidth / width, availableHeight / height));
     const x = 205 + (availableWidth - width * zoom) / 2 - minX * zoom;
     const y = 190 + (availableHeight - height * zoom) / 2 - minY * zoom;
-    await flow.current.setViewport({ x, y, zoom }, { duration: 250 });
+    await flow.current.setViewport({ x, y, zoom }, { duration: motionRef.current ? 250 : 0 });
   }
   async function exportCanvasPng(includeDrawings: boolean) {
     if (exportingPngRef.current || !flow.current || !canvas.current) return;
@@ -670,14 +720,14 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   function confirmLink(event: FormEvent) {
     event.preventDefault();
     if (!linkDraft && !relationshipEditor) return;
-    if (!explanation.trim()) { setLinkError("Add a short explanation for this relationship."); return; }
+    if (!explanation.trim()) { setLinkError("Add a short explanation for this link."); return; }
     if (relationshipType === "conflict" && !condition.trim()) { setLinkError("State the condition under which these ideas conflict."); return; }
     const endpoints = relationshipEditor ?? linkDraft!;
     const candidate: Relationship = { id: relationshipEditor?.id ?? createIdeaId(), source: endpoints.source, target: endpoints.target,
       type: relationshipType, explanation: explanation.trim(), ...(relationshipType === "conflict" ? { condition: condition.trim() } : {}),
       author: relationshipEditor?.author ?? authorName ?? "Unknown contributor" };
     const apply = relationshipEditor ? (current: Board) => updateRelationship(current, candidate.id, candidate) : (current: Board) => createRelationship(current, candidate);
-    if (!commitBoardChange(apply)) { setLinkError("That relationship already exists, or the ideas are no longer available."); return; }
+    if (!commitBoardChange(apply)) { setLinkError("That link already exists, or the ideas are no longer available."); return; }
     setSelection({ kind: "relationship", id: candidate.id }); setLinkDraft(null); setRelationshipEditor(null); setSourceId(null); setCondition(""); setDrawTool(null); setTool("select"); physics.reheat();
   }
   function saveEdit(event: FormEvent) {
@@ -709,6 +759,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     const updatedBoard = boardRef.current;
     closeEditor();
     if (isNewIdea) {
+      activity.record(updatedIdea.id, updatedBoard);
       setDraftIdeaId(null);
       draftIdeaRef.current = null;
       if (autoPlaceNewNotes && clusterText(updatedIdea)) void assignNewNote(updatedBoard, updatedIdea);
@@ -793,7 +844,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       }
       const first = selected.length === 0 && selection?.kind === "idea" && selection.id !== id ? [selection.id] : selected;
       if (first.length >= MAX_MERGE_SOURCES) {
-        setMergeError(`You can merge up to ${MAX_MERGE_SOURCES} notes at a time.`);
+        setMergeError(`You can merge up to ${MAX_MERGE_SOURCES} ideas at a time.`);
         return;
       }
       discardMerge();
@@ -829,7 +880,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     const context = mergeContext(boardRef.current, ids);
     const totalCharacters = context?.sources.reduce((total, idea) => total + mergeText(idea).length, 0) ?? 0;
     if (!context?.goal || context.sources.some((idea) => !mergeText(idea) || mergeText(idea).length > 4000) || totalCharacters > MAX_MERGE_TOTAL_CHARACTERS) {
-      setMergeError(`Set a board goal and choose notes with text under 4,000 characters each and ${MAX_MERGE_TOTAL_CHARACTERS.toLocaleString()} total.`); return;
+      setMergeError(`Set a board goal and choose ideas with text under 4,000 characters each and ${MAX_MERGE_TOTAL_CHARACTERS.toLocaleString()} total.`); return;
     }
     mergeController.current?.abort();
     const controller = new AbortController();
@@ -850,9 +901,9 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       if (!payload || typeof payload !== "object" || !("result" in payload) || !("model" in payload) || !("generatedAt" in payload)) throw new Error("The AI returned an incomplete proposal.");
       const parsed = mergeProposalSchema.safeParse(payload.result);
       if (!parsed.success || typeof payload.model !== "string" || typeof payload.generatedAt !== "string") throw new Error("The AI returned an incomplete proposal.");
-      if (mergeCoverageProblem(parsed.data, ids)) throw new Error("The AI did not account for every selected note.");
+      if (mergeCoverageProblem(parsed.data, ids)) throw new Error("The AI did not account for every selected idea.");
       if (mergeContext(boardRef.current, ids)?.fingerprint !== context.fingerprint) {
-        setMergeError("The source notes or goal changed. Merge again to use the latest text."); return;
+        setMergeError("The source ideas or goal changed. Merge again to use the latest text."); return;
       }
       setMergeEditMode(false);
       setMergePreview({ ids, fingerprint: context.fingerprint, result: parsed.data, model: payload.model, generatedAt: payload.generatedAt,
@@ -869,7 +920,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   function keepMerge() {
     if (!mergePreview || mergeSaveLock.current || mergePreview.result.status !== "useful") return;
     const context = mergeContext(boardRef.current, mergePreview.ids);
-    if (!context || context.fingerprint !== mergePreview.fingerprint) { setMergeError("The source notes or goal changed. Regenerate before creating the idea."); return; }
+    if (!context || context.fingerprint !== mergePreview.fingerprint) { setMergeError("The source ideas or goal changed. Regenerate before creating the idea."); return; }
     const title = mergePreview.title.trim();
     const concept = mergePreview.concept.trim();
     if (!title || !concept) { setMergeError("Give the merged idea a title and description."); return; }
@@ -881,17 +932,19 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       const merged = addMergedIdea(current, id, title, concept, record, authorName || "Unknown contributor");
       return normalizeBoardLayout(merged, measuredSizes, current.ideas.map((idea) => idea.id));
     };
-    const committed = onBoardChange ? onBoardChange(apply) : (setLocalBoard(apply), true);
+    const committed = commitBoardChange(apply);
     if (!committed) {
       mergeSaveLock.current = false; setMergeSaving(false);
-      setMergeError("The source notes or goal changed. Regenerate before creating the idea.");
+      setMergeError("The source ideas or goal changed. Regenerate before creating the idea.");
       return;
     }
+    activity.record(id, boardRef.current, record.sources.map((source) => source.id));
+    activity.notify("merge", `Merged into ${title}`, id);
     setPhysicsEnabled(false); physics.stop();
     setMergePreview(null); setMergeIds([]); setSelection({ kind: "idea", id }); setMergeError("");
     setUndoPositions(null); setAssignmentUndo(null);
     mergeSaveLock.current = false; setMergeSaving(false);
-    window.requestAnimationFrame(() => { void flow.current?.fitView({ nodes: [{ id }], padding: 0.32, duration: 350, maxZoom: 0.9 }); });
+    window.requestAnimationFrame(() => { void flow.current?.fitView({ nodes: [{ id }], padding: 0.32, duration: motionRef.current ? 350 : 0, maxZoom: 0.9 }); });
   }
 
   function previewAssistantAction(draft: AssistantActionDraft) {
@@ -903,7 +956,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     window.requestAnimationFrame(() => {
       const nodes = focusIds.filter((id) => id.startsWith("assistant-preview-") || boardRef.current.ideas.some((idea) => idea.id === id))
         .map((id) => ({ id }));
-      if (nodes.length) void flow.current?.fitView({ nodes, padding: 0.32, duration: 350, maxZoom: 0.9 });
+      if (nodes.length) void flow.current?.fitView({ nodes, padding: 0.32, duration: motionRef.current ? 350 : 0, maxZoom: 0.9 });
     });
   }
 
@@ -917,11 +970,11 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
 
   function acceptAssistantAction(draft: AssistantActionDraft): { ok: boolean; error?: string } {
     if (!assistantActionIsCurrent(boardRef.current, draft)) {
-      return { ok: false, error: "A source card changed or was deleted. Ask the assistant again." };
+      return { ok: false, error: "A source idea changed or was deleted. Ask the assistant again." };
     }
     if (draft.action.kind === "merge") {
       const ids: [string, string] = [draft.action.a, draft.action.b];
-      if (!mergeContext(boardRef.current, ids)) return { ok: false, error: "Those cards are no longer available for merging." };
+      if (!mergeContext(boardRef.current, ids)) return { ok: false, error: "Those ideas are no longer available for merging." };
       setAssistantPreview(null);
       setSelection(null);
       setMergeError("");
@@ -979,7 +1032,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         return { ok: false, error: "Give the idea a title up to 120 characters and keep its title and content under 4,000 characters." };
       }
       if (draft.action.kind === "link" && (!draft.explanation.trim() || draft.type === "conflict" && !draft.condition.trim())) {
-        return { ok: false, error: draft.type === "conflict" ? "Add an explanation and the condition for this conflict." : "Add an explanation for this relationship." };
+        return { ok: false, error: draft.type === "conflict" ? "Add an explanation and the condition for this conflict." : "Add an explanation for this link." };
       }
       return { ok: false, error: "The action is stale or a matching link already exists." };
     }
@@ -987,12 +1040,13 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     setAssistantPreview(null);
     setSelection({ kind: selectedKind, id: selectedId });
     if (draft.action.kind === "create") {
+      activity.record(selectedId, boardRef.current);
       setPhysicsEnabled(false);
       physics.stop();
       setUndoPositions(null);
       setAssignmentUndo(null);
     }
-    window.requestAnimationFrame(() => { void flow.current?.fitView({ nodes: [{ id: selectedId! }], padding: 0.4, duration: 350, maxZoom: 0.9 }); });
+    window.requestAnimationFrame(() => { void flow.current?.fitView({ nodes: [{ id: selectedId! }], padding: 0.4, duration: motionRef.current ? 350 : 0, maxZoom: 0.9 }); });
     return { ok: true };
   }
 
@@ -1035,7 +1089,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     const payload = clusterNamingPayload(ideas, snapshot);
     if (!payload) {
       setClusterNamesState("error");
-      setClusterNamesError("Names are unavailable because one or more group notes have changed. Organize the canvas again.");
+      setClusterNamesError("Names are unavailable because one or more group ideas have changed. Organize the canvas again.");
       return;
     }
     clusterNamesController.current?.abort();
@@ -1110,10 +1164,10 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       const text = clusterText(idea);
       return text && text.length <= 4000 ? [{ id: idea.id, text }] : [];
     });
-    if (input.length < 2) { setClusterError("Add at least two notes with text before organizing."); return; }
-    if (input.length > 50) { setClusterError("Organize supports up to 50 notes at a time."); return; }
+    if (input.length < 2) { setClusterError("Add at least two ideas with text before organizing."); return; }
+    if (input.length > 50) { setClusterError("Organize supports up to 50 ideas at a time."); return; }
     if (current.ideas.some((idea) => (clusterText(idea)?.length ?? 0) > 4000)) {
-      setClusterError("Shorten note text to 4,000 characters or fewer before organizing."); return;
+      setClusterError("Shorten idea text to 4,000 characters or fewer before organizing."); return;
     }
     const count = Math.min(Math.max(2, clusterCount), 10, input.length);
     const submittedFingerprint = boardFingerprint(current.ideas);
@@ -1179,7 +1233,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         return { ...bubble, x: left, y: top, width: right - left, height: bottom - top,
           centerX: (left + right) / 2, centerY: (top + bottom) / 2 };
       });
-      const nextSnapshot = { revision: crypto.randomUUID(), stale: false, result: parsed.data, bubbles };
+      const nextSnapshot = { revision: createIdeaId(), stale: false, result: parsed.data, bubbles };
       const previousPositions = new Map(latestBoard.ideas.map((idea) => [idea.id, { ...idea.position }]));
       const updatePositions = (currentBoard: Board): Board => {
         if (boardFingerprint(currentBoard.ideas) !== submittedFingerprint) return currentBoard;
@@ -1214,7 +1268,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       setClusterNotice(`${parsed.data.noteCount} notes organized into ${parsed.data.clusterCount} groups.`);
       void suggestNamesForSnapshot(nextSnapshot, committedBoard.ideas);
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-        void flow.current?.fitView({ padding: 0.2, duration: 300 });
+        void flow.current?.fitView({ padding: 0.2, duration: motionRef.current ? 300 : 0 });
       }));
     } catch (error) {
       if (requestId === clusterRequestSequence.current) setClusterError(error instanceof Error ? error.message : "Clustering failed. Try again.");
@@ -1234,11 +1288,11 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       return;
     }
     if (snapshot.result.noteCount >= 50) {
-      setClusterNotice("Auto placement supports up to 50 grouped notes. Use Organize canvas to rebuild.");
+      setClusterNotice("Auto placement supports up to 50 grouped ideas. Use Organize canvas to rebuild.");
       return;
     }
     if (noteText.length > 4000) {
-      setClusterError("Shorten this note to 4,000 characters before automatic placement.");
+      setClusterError("Shorten this idea to 4,000 characters before automatic placement.");
       setAssignmentRetryId(savedIdea.id);
       return;
     }
@@ -1252,7 +1306,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       }),
     }));
     if (requestGroups.some((group) => group.cards.length === 0) || requestGroups.flatMap((group) => group.cards).length !== snapshot.result.noteCount) {
-      setClusterNotice("A grouped note changed. Use Organize canvas to refresh the groups.");
+      setClusterNotice("A grouped idea changed. Use Organize canvas to refresh the groups.");
       return;
     }
     const sourceFingerprint = memberFingerprint(savedBoard.ideas, snapshot);
@@ -1277,7 +1331,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       if (requestId !== assignmentRequestSequence.current) return;
       if (!response.ok) {
         const message = typeof payload === "object" && payload !== null && "error" in payload && typeof payload.error === "string"
-          ? payload.error : "Could not place this note. Try again.";
+          ? payload.error : "Could not place this idea. Try again.";
         throw new Error(message);
       }
       const parsed = clusterAssignmentResponseSchema.safeParse(payload);
@@ -1292,7 +1346,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         memberFingerprint(latest.ideas, latest.clusterSnapshot) !== sourceFingerprint || !latestIdea || clusterText(latestIdea) !== noteText ||
         (dragRevisions.current.get(savedIdea.id) ?? 0) !== dragRevision || !autoPlacePreference.current) {
         setAssignmentRetryId(savedIdea.id);
-        setClusterNotice("The board changed before placement finished. Try placing this note again.");
+        setClusterNotice("The board changed before placement finished. Try placing this idea again.");
         return;
       }
       const chosenGroup = latest.clusterSnapshot.result.groups.find((group) => group.id === parsed.data.chosenGroupId);
@@ -1300,7 +1354,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       if (!chosenGroup || !chosenBubble) throw new Error("The current group could not be found. Use Organize canvas and try again.");
       const measured = measuredSizes;
       const placement = latestIdea.pinned ? null : placeNewNote(latestIdea, parsed.data.chosenGroupId, chosenGroup.noteIds, parsed.data, chosenBubble, latest.ideas, measured, latest.clusterSnapshot.bubbles);
-      const nextSnapshot = appendClusterAssignment(latest.clusterSnapshot, latestIdea, parsed.data, placement?.bubble ?? null, crypto.randomUUID());
+      const nextSnapshot = appendClusterAssignment(latest.clusterSnapshot, latestIdea, parsed.data, placement?.bubble ?? null, createIdeaId());
       const nextPosition = placement?.position ?? latestIdea.position;
       let committed = false;
       const commit = (current: Board): Board => {
@@ -1319,7 +1373,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       else setLocalBoard(commit);
       if (!committed) {
         setAssignmentRetryId(savedIdea.id);
-        setClusterNotice("The board changed before placement finished. Try placing this note again.");
+        setClusterNotice("The board changed before placement finished. Try placing this idea again.");
         return;
       }
       const moved = nextPosition.x !== latestIdea.position.x || nextPosition.y !== latestIdea.position.y;
@@ -1328,12 +1382,12 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         setAssignmentUndo({ id: savedIdea.id, position: latestIdea.position, after: nextPosition, snapshot: latest.clusterSnapshot, appliedRevision: nextSnapshot.revision });
       } else setAssignmentUndo(null);
       setClusterNotice(placement ? `Placed in ${chosenGroup.label} · ${parsed.data.scoreMethod.replaceAll("_", " ")} score ${parsed.data.groups.find((group) => group.groupId === chosenGroup.id)?.meanSimilarity.toFixed(2)}.` :
-        latestIdea.pinned ? `Added to ${chosenGroup.label}. The note is pinned, so it stayed in place.` :
+        latestIdea.pinned ? `Added to ${chosenGroup.label}. The idea is pinned, so it stayed in place.` :
           `Added to ${chosenGroup.label}, but there is no free space nearby. Use Organize canvas to rebuild the layout.`);
     } catch (error) {
       if (requestId === assignmentRequestSequence.current && !controller.signal.aborted) {
         setAssignmentRetryId(savedIdea.id);
-        setClusterError(error instanceof Error ? error.message : "Could not place this note. Try again.");
+        setClusterError(error instanceof Error ? error.message : "Could not place this idea. Try again.");
       }
     } finally {
       if (requestId === assignmentRequestSequence.current) {
@@ -1394,7 +1448,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     if (onBoardChange) onBoardChange(restoreLayout);
     else setLocalBoard(restored);
     setAssignmentUndo(null);
-    setClusterNotice("The new note returned to its previous position.");
+    setClusterNotice("The new idea returned to its previous position.");
   }
 
   function finishDrag(id: string, position: Idea["position"]) {
@@ -1405,7 +1459,12 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     dragPositionsRef.current.delete(id);
     setDragPositions((current) => { const next = { ...current }; delete next[id]; return next; });
     const pinned = Boolean(boardRef.current.ideas.find((idea) => idea.id === id)?.pinned);
-    const resolved = commitBoardChange((current) => normalizeBoardLayout(moveIdea(current, id, position), measuredSizes, [id]));
+    const resolved = commitBoardChange((current) => {
+      if (!canDragIdea(current, id, canWriteBoard)) return current;
+      const moved = moveIdea(current, id, position);
+      return moved === current ? current : normalizeBoardLayout(moved, measuredSizes, [id]);
+    });
+    if (!resolved) physics.dragStop(id, boardRef.current.ideas.find((idea) => idea.id === id)?.position ?? position, pinned);
     if (resolved) {
       const latest = boardRef.current;
       physics.syncPositions(new Map(latest.ideas.map((idea) => [idea.id, idea.position])));
@@ -1451,22 +1510,22 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       },
     } satisfies Idea;
   }, [assistantPreview, board, authorName]);
-  const nodes: IdeaNode[] = board.ideas.map((idea) => ({
+  const visibleIdeas = useMemo(() => displayIdeas(board.ideas, dragPositions), [board.ideas, dragPositions]);
+  const nodes: IdeaNode[] = visibleIdeas.map((idea) => ({
     ...nodeLayouts[idea.id],
-    id: idea.id, type: "idea", position: dragPositions[idea.id] ?? idea.position, selected: selection?.kind === "idea" && selection.id === idea.id || mergeIds.includes(idea.id) || previewMergeIds.includes(idea.id),
+    id: idea.id, type: "idea", position: idea.position, selected: selection?.kind === "idea" && selection.id === idea.id || mergeIds.includes(idea.id) || previewMergeIds.includes(idea.id),
     className: chosenLink && (chosenLink.source === idea.id || chosenLink.target === idea.id) ? "is-related" : previewMergeIds.includes(idea.id) ? "is-merge-source" : editingLocks[idea.id] ? "is-locked-for-editing" : undefined,
-    draggable: tool !== "connect" && editor?.id !== idea.id,
+    draggable: canDragIdea(board, idea.id, canWriteBoard) && tool !== "hand" && !spaceDown && !drawTool && tool !== "connect" && editor?.id !== idea.id,
     data: { idea, editingBy: editingLocks[idea.id], connecting: tool === "connect", source: sourceId === idea.id, editing: editor?.id === idea.id, squash: squashes[idea.id] ?? null,
       voting: onBoardChange && voteUserId ? { upvoters: upvotersForIdea(board.votes, idea.id), voterId: voteUserId, canWrite: canWriteBoard,
-        onUpvote: () => onBoardChange((current) => toggleIdeaUpvote(current, idea.id, voteUserId, authorName || "Unknown contributor")) } : undefined,
+        onUpvote: () => upvoteWithEffect(idea.id) } : undefined,
       mergeIndex: mergeIds.includes(idea.id) ? mergeIds.indexOf(idea.id) + 1 : previewMergeIds.indexOf(idea.id) + 1,
-      onMergeDetails: idea.merge ? () => setMergeDetailsId(idea.id) : undefined,
       onAssistantDetails: idea.assistant ? () => setAssistantDetailsId(idea.id) : undefined,
       onSelect: (additive) => {
         if (tool === "merge") selectMergeNote(idea.id, true);
         else selectMergeNote(idea.id, additive || mergeIds.length === 1);
       },
-      clusterLabel: clusterLabels.get(idea.id), clusterColor: clusterColors.get(idea.id),
+      clusterLabel: clusterLabels.get(idea.id), clusterColor: clusterColors.get(idea.id), clusterAccent: clusterAccents.get(idea.id),
       onEdit: () => openEditor(idea), onStartConnection: (event) => startConnectDrag(idea.id, event) },
   }));
   if (assistantPreviewIdea) {
@@ -1515,13 +1574,13 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         provisional: true, ancestry: true, assistant: true,
       })));
     }
-    const routingIdeas = assistantPreviewIdea ? [...board.ideas, assistantPreviewIdea] : board.ideas;
+    const routingIdeas = assistantPreviewIdea ? [...visibleIdeas, assistantPreviewIdea] : visibleIdeas;
     const routes = routeCanvasEdges(routingIdeas, links, measuredSizes, clusterLabels);
     return links.flatMap((link) => {
       const route = routes.get(link.id);
       return route ? [{ ...link, route }] : [];
     });
-  }, [board, measuredSizes, clusterLabels, suggestions.previews, suggestions.enabled, assistantPreview, assistantPreviewIdea]);
+  }, [board, visibleIdeas, measuredSizes, clusterLabels, suggestions.previews, suggestions.enabled, assistantPreview, assistantPreviewIdea]);
   const edgeFocus = useMemo(() => {
     const nodes = new Set<string>();
     if (hoveredIdeaId) nodes.add(hoveredIdeaId);
@@ -1542,10 +1601,11 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       const related = edgeFocus.nodes.has(link.source) || edgeFocus.nodes.has(link.target);
       const selectedNodeEdge = selectedNodeId === link.source || selectedNodeId === link.target;
       if (onlySelectedNodeEdges && selectedNodeId && !selectedNodeEdge && !link.assistant) return [];
-      const stroke = link.assistant ? (theme === "dark" ? "#c09bdd" : "#8c62a8") :
+      const appearance = board.relationships.find((relationship) => relationship.id === link.id)?.appearance;
+      const stroke = appearance && styleColor(appearance.color) || (link.assistant ? (theme === "dark" ? "#c09bdd" : "#8c62a8") :
         link.ancestry ? (theme === "dark" ? "#83c7ac" : "#5b9c82") :
           link.type === "conflict" ? (theme === "dark" ? "#e08b7e" : "#b6665b") :
-            link.type === "extends" ? (theme === "dark" ? "#86bdd0" : "#46758c") : (theme === "dark" ? "#79c5a6" : "#4b8a79");
+            link.type === "extends" ? (theme === "dark" ? "#86bdd0" : "#46758c") : (theme === "dark" ? "#79c5a6" : "#4b8a79"));
       return {
         id: link.id, source: link.source, target: link.target,
         sourceHandle: `source-${route.sourceSide}`, targetHandle: `target-${route.targetSide}`,
@@ -1553,26 +1613,30 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         selectable: !link.ancestry && !link.provisional, focusable: !link.ancestry && !link.provisional,
         selected, interactionWidth: 24, zIndex: index + 1,
         style: { stroke, strokeWidth: edgeFocus.active && related ? 2.5 : link.ancestry ? 2.4 : selected ? 3 : 2,
-          strokeDasharray: link.provisional ? "7 5" : undefined,
+          strokeDasharray: link.provisional ? "7 5" : appearance?.stroke === "dashed" ? "8 5" : appearance?.stroke === "dotted" ? "1 6" : undefined,
           opacity: link.assistant ? 1 : edgeFocus.active && !related ? 0.2 : 1 },
       };
-    }), [routedLinks, selection, hoveredIdeaId, edgeFocus, onlySelectedNodeEdges, theme]);
+    }), [routedLinks, selection, hoveredIdeaId, edgeFocus, onlySelectedNodeEdges, theme, board.relationships]);
 
-  return <main className="board-shell" data-theme={theme}>
+  function upvoteWithEffect(ideaId: string) {
+    if (!voteUserId || !canWriteBoard) return;
+    let added = false;
+    const committed = commitBoardChange((current) => {
+      added = !upvotersForIdea(current.votes, ideaId).some((vote) => vote.voterId === voteUserId);
+      return toggleIdeaUpvote(current, ideaId, voteUserId, authorName || "Unknown contributor");
+    });
+    if (committed && added) activity.notify("vote", "A little love for this idea", ideaId);
+  }
+  return <AnimationContext.Provider value={{ preferences, motion }}><main className="board-shell" data-theme={theme} data-motion={motion ? "on" : "off"} style={{ "--personal-accent": styleColor(preferences.accent) ?? "#168264" } as React.CSSProperties}>
     <header className="board-topbar" aria-label="Board controls"><div className="board-brand">
       <Link href="/" className="board-brand-home" aria-label="IdeaForge home" title="IdeaForge home"><span className="board-brand-symbol" aria-hidden="true">✳</span></Link>
-      <input aria-label="Board title" value={titleDraft ?? title} maxLength={80} onChange={(event) => setTitleDraft(event.target.value)}
-        onBlur={commitTitleDraft} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); if (event.key === "Escape") { suppressTitleCommit.current = true; setTitleDraft(null); event.currentTarget.blur(); } }} /></div>
+      <div className="board-title-group"><input aria-label="Board title" value={titleDraft ?? title} maxLength={80} onChange={(event) => setTitleDraft(event.target.value)}
+        onBlur={commitTitleDraft} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); if (event.key === "Escape") { suppressTitleCommit.current = true; setTitleDraft(null); event.currentTarget.blur(); } }} />
+        {boardDescription.trim() && <p className="board-description" title={boardDescription.trim()}>{boardDescription.trim()}</p>}</div></div>
       {titleError && <span className="board-title-save-error" role="alert">{titleError}</span>}
-      <details className="board-description-control"><summary aria-label="Board description" title="Board description">
-        <svg aria-hidden="true" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.25" /><path d="M10 9v4M10 6.6v.1" /></svg>
-      </summary>
-        <div className="board-description-popup"><strong>Board description</strong>
-          <p>{boardDescription.trim() || "No description was added for this board."}</p></div>
-      </details>
       <div className="board-top-actions"><ConclusionTrigger open={conclusionOpen} hasConclusion={Boolean(board.conclusion)} onToggle={() => setConclusionOpen((value) => !value)} />
         {onBoardChange && <>{voteUserId && <IdeaVotes ideas={board.ideas} votes={board.votes} voterId={voteUserId} voterName={authorName || "Unknown contributor"}
-        canWrite={canWriteBoard} onBoardChange={onBoardChange} />}<ActiveMembers /><div className="board-share-control" ref={shareControl}>
+        canWrite={canWriteBoard} onBoardChange={onBoardChange} onUpvote={upvoteWithEffect} />}<ActiveMembers /><div className="board-share-control" ref={shareControl}>
         <button className="board-share-button" type="button" aria-label="Share board" aria-expanded={shareOpen} aria-haspopup="dialog" onClick={() => { setShareOpen((open) => !open); setShareNotice(""); }}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11.5 3.5h5v5M16.2 3.8 9.5 10.5" /><path d="M14.5 10.5v4.8a1.2 1.2 0 0 1-1.2 1.2H4.7a1.2 1.2 0 0 1-1.2-1.2V6.7a1.2 1.2 0 0 1 1.2-1.2h4.8" /></svg>
           <span className="board-share-label">Share</span></button>
@@ -1588,17 +1652,41 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
         </section>}
         </div></>}
+        <button className={`board-assistant-launch ${chatOpen ? "is-open" : ""}`} type="button" aria-expanded={chatOpen} onClick={() => setChatOpen((value) => !value)}>
+          <BoardIcon name="assistant" /><span>Assistant</span></button>
         <AccountMenu />
-        <button className="board-theme-toggle" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} aria-pressed={theme === "dark"} onClick={() => setTheme((value) => value === "dark" ? "light" : "dark")}>{theme === "dark" ? "☼" : "◐"}</button></div>
+        <PersonalizationPanel preferences={preferences} update={updatePreferences} reducedMotion={reducedMotion} board={board} selectedIdeaId={chosenIdea?.id} selectedLinkId={chosenLink?.id} canWrite={canWriteBoard}
+          onStyle={(kind, id, style) => { if (canWriteBoard) commitBoardChange((current) => setObjectAppearance(current, kind, id, style)); }} /></div>
     </header>
-    <div className="board-workspace">
-      <div ref={canvas} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""} ${drawTool ? `drawing-${drawTool}` : ""}`}
-        onPointerMove={(event) => {
-          if (!(event.target instanceof Element) || !event.target.closest(".react-flow") || !flow.current) { onCursorMove?.(null); return; }
-          onCursorMove?.(flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }));
-        }} onPointerLeave={() => onCursorMove?.(null)}>
-        <ReactFlow<IdeaNode, OrthogonalCanvasEdge> nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodesChange={onNodesChange} onInit={(instance) => { flow.current = instance; setZoom(instance.getZoom()); }} onMove={(_, viewport) => setZoom(viewport.zoom)}
-          onPaneClick={(event) => { if (tool === "add" && flow.current) { const point = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }); makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 }); }
+    <div ref={workspace} className="board-workspace" onPointerMoveCapture={(event) => { cursorScreen.current = { x: event.clientX, y: event.clientY }; }}>
+      <SocialControls ref={socialControls} container={workspaceElement} shortcutsBlocked={Boolean(editor || linkDraft || relationshipEditor || mergePreview || mergeDetailsId || assistantDetailsId || organizeOpen)} chatOpen={cursorChatOpen} setChatOpen={openCursorChat}
+        screenPosition={chatAnchor}
+        pointerPosition={() => cursorScreen.current}
+        position={() => cursorPoint.current ?? flow.current?.screenToFlowPosition({ x: (canvas.current?.getBoundingClientRect().left ?? 0) + 350, y: (canvas.current?.getBoundingClientRect().top ?? 0) + 220 }) ?? { x: 0, y: 0 }}
+        onSend={onSocialSignal ?? ((signal) => { setLocalCursorPosition(signal.position); localSignals.append({ ...signal, connectionId: 0, name: authorName || "You", expiresAt: Date.now() + signalLifetime(signal) }); })}
+        onClose={() => canvas.current?.focus()} />
+      {placingSticker && <div className="sticker-placement-notice" role="status">{stickerCatalog[placingSticker].glyph} Click empty canvas to place {stickerCatalog[placingSticker].label}<button type="button" onClick={() => setPlacingSticker(null)}>Cancel</button></div>}
+      {(mergeBusy || clusterBusy || assignmentBusy || clusterNamesState === "pending" || suggestions.loading) && <div className="board-ai-activity" role="status"><ThinkingAnimation /><span>{mergeBusy ? "Merging ideas…" : clusterBusy ? "Organizing…" : assignmentBusy ? "Finding a group…" : clusterNamesState === "pending" ? "Naming groups…" : "Finding links…"}</span></div>}
+      <div ref={canvas} tabIndex={-1} data-background={preferences.background} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""} ${drawTool ? `drawing-${drawTool}` : ""}`}
+        onPointerMoveCapture={(event) => {
+          if (!(event.target instanceof Element) || !event.target.closest(".react-flow") || !flow.current) { cursorActive.current = false; onCursorMove?.(null); return; }
+          cursorActive.current = true;
+          cursorPoint.current = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+          onCursorMove?.(cursorPoint.current);
+          if (!onSocialSignal && localSignals.signals.some((signal) => signal.kind === "chat")) setLocalCursorPosition(cursorPoint.current);
+        }} onPointerLeave={() => { cursorActive.current = false; onCursorMove?.(null); }}>
+        <ReactFlow<IdeaNode, OrthogonalCanvasEdge> nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodesChange={onNodesChange} onInit={(instance) => { flow.current = instance; setZoom(instance.getZoom()); }} onMove={(_, viewport) => {
+          setZoom(viewport.zoom);
+          if (cursorActive.current && cursorScreen.current && flow.current) {
+            cursorPoint.current = flow.current.screenToFlowPosition(cursorScreen.current);
+            onCursorMove?.(cursorPoint.current);
+            if (!onSocialSignal && localSignals.signals.some((signal) => signal.kind === "chat")) setLocalCursorPosition(cursorPoint.current);
+          }
+        }}
+          onPaneClick={(event) => { canvas.current?.focus(); if (placingSticker && canWriteBoard && flow.current) {
+              const position = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+              if (commitBoardChange((current) => addDecoration(current, { id: createIdeaId(), kind: placingSticker, position, author: (authorName || "You").slice(0, 100) }))) setPlacingSticker(null);
+            } else if (tool === "add" && flow.current) { const point = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }); makeIdea({ x: point.x - IDEA_CARD_SIZE.width / 2, y: point.y - IDEA_CARD_SIZE.height / 2 }); }
             else { setSelection(null); setMergeIds([]); if (tool === "connect") { setSourceId(null); setLinkDraft(null); setTool("select"); } } }}
           onNodeClick={(event, node) => {
             if (tool === "merge") selectMergeNote(node.id, true);
@@ -1610,6 +1698,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
           onEdgeMouseLeave={() => setHoveredEdgeId(null)}
           onNodeDragStart={(_, node) => {
+            if (!canDragIdea(boardRef.current, node.id, canWriteBoard)) return;
             dragRevisions.current.set(node.id, (dragRevisions.current.get(node.id) ?? 0) + 1);
             if (node.id === activeAssignmentId.current) assignmentController.current?.abort();
             const startPosition = boardRef.current.ideas.find((idea) => idea.id === node.id)?.position ?? node.position;
@@ -1619,12 +1708,16 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
             setDragPositions((current) => ({ ...current, [node.id]: startPosition }));
             physics.dragStart(node.id);
           }}
-          onNodeDrag={(_, node) => { physics.drag(node.id, node.position); activeDragRef.current = { id: node.id, position: node.position }; setActiveDragId(node.id); dragPositionsRef.current.set(node.id, node.position); setDragPositions((current) => ({ ...current, [node.id]: node.position })); }}
+          onNodeDrag={(_, node) => { if (!canDragIdea(boardRef.current, node.id, canWriteBoard)) return; physics.drag(node.id, node.position); activeDragRef.current = { id: node.id, position: node.position }; setActiveDragId(node.id); dragPositionsRef.current.set(node.id, node.position); setDragPositions((current) => ({ ...current, [node.id]: node.position })); }}
           onNodeDragStop={(_, node) => finishDrag(node.id, node.position)}
           panOnDrag={!drawTool && (tool === "hand" || spaceDown)} nodesDraggable={!drawTool && tool !== "hand" && !spaceDown && tool !== "connect"}
           nodesConnectable={false} elementsSelectable={!drawTool} elevateEdgesOnSelect={false} zoomOnDoubleClick={false} minZoom={0.15} maxZoom={1.8} defaultViewport={{ x: 185, y: 180, zoom: 0.72 }}>
-          <Background variant={BackgroundVariant.Dots} gap={23} size={1.5} color={theme === "dark" ? "#405b52" : "#b6c9bf"} />
+          {(preferences.background === "dots" || preferences.background === "grid") && <Background variant={preferences.background === "grid" ? BackgroundVariant.Lines : BackgroundVariant.Dots} gap={23} size={1.5} color={theme === "dark" ? "#405b52" : "#b6c9bf"} />}
+          <ClusterDecorations board={board} positions={Object.fromEntries(visibleIdeas.map((idea) => [idea.id, idea.position]))} sizes={measuredSizes} />
+          <BoardActivity activity={activity} board={board} positions={dragPositions} />
           <LiveCursors cursors={liveCursors} />
+          <CursorSignals signals={socialSignals ?? localSignals.signals} positions={signalCursorPositions ?? (localCursorPosition ? { 0: localCursorPosition } : {})} />
+          <StickerDecorations decorations={board.decorations ?? []} canWrite={canWriteBoard} onMove={(id, position) => { if (canWriteBoard) commitBoardChange((current) => moveDecoration(current, id, position)); }} onRemove={(id) => { if (canWriteBoard) commitBoardChange((current) => removeDecoration(current, id)); }} />
           <FreeDrawLayer
             key={`${drawTool ?? "off"}-${canWriteBoard ? "write" : "read"}`}
             strokes={board.drawings ?? []}
@@ -1646,49 +1739,33 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           <path d={orthogonalPreviewPath({ x: connectDrag.preview.x1, y: connectDrag.preview.y1 }, { x: connectDrag.preview.x2, y: connectDrag.preview.y2 })} />
           <circle cx={connectDrag.preview.x2} cy={connectDrag.preview.y2} r="6" />
         </svg>}
-        <div className="board-tool-dock">
-        <button className={`board-assistant-launch ${chatOpen ? "is-open" : ""}`} aria-label={chatOpen ? "Close AI helper" : "Open AI helper"} title={chatOpen ? "Close AI helper" : "Open AI helper"} aria-expanded={chatOpen} onClick={() => setChatOpen((value) => !value)}>✳</button>
         <nav className="board-toolbar" aria-label="Board tools">
           <ToolButton label="Select" title={drawTool ? "Stop drawing and select ideas" : "Select ideas"}
-            active={tool === "select" && !drawTool} onClick={() => selectTool("select")}>↖</ToolButton>
-          <ToolButton label="Hand / Pan" active={tool === "hand"} onClick={() => selectTool("hand")}>✋</ToolButton>
+            active={tool === "select" && !drawTool} onClick={() => selectTool("select")}><BoardIcon name="select" /></ToolButton>
+          <ToolButton label="Pan" active={tool === "hand"} title="Pan (hold Space)" onClick={() => selectTool("hand")}><BoardIcon name="pan" /></ToolButton>
           <div className="board-tool-rule" />
-          <ToolButton label="Add idea" active={tool === "add"} onClick={() => selectTool("add")}>＋</ToolButton>
-          <ToolButton label="Connect" active={tool === "connect"} title={tool === "connect" ? "Connect is active. Drag from one idea into another." : "Connect ideas by dragging from one bubble into another"} onClick={() => selectTool("connect")}>⌁</ToolButton>
-          <ToolButton label="Merge" active={tool === "merge"} title={`Choose 2 to ${MAX_MERGE_SOURCES} ideas to merge`} onClick={() => selectTool("merge")}>⧉</ToolButton>
+          <ToolButton label="Add idea" active={tool === "add"} onClick={() => selectTool("add")}><BoardIcon name="add" /></ToolButton>
+          <ToolButton label="Connect" active={tool === "connect"} title={tool === "connect" ? "Connect is active. Drag from one idea into another." : "Connect ideas by dragging from one idea into another"} onClick={() => selectTool("connect")}><BoardIcon name="connect" /></ToolButton>
+          <ToolButton label="Merge" active={tool === "merge"} title={`Choose 2 to ${MAX_MERGE_SOURCES} ideas to merge`} onClick={() => selectTool("merge")}><BoardIcon name="merge" /></ToolButton>
+          <ToolButton label={clusterResult ? "Organize again" : "Organize"} active={organizeOpen} disabled={clusterBusy || assignmentBusy || clusterInput.cards.length < 2 || clusterInput.cards.length > 50 || clusterInput.tooLongCount > 0} title={clusterInput.tooLongCount ? "Shorten idea text to 4,000 characters before organizing" : "Group related ideas and arrange the canvas"} onClick={openOrganize}><BoardIcon name="organize" /></ToolButton>
           <div className="board-tool-rule" />
-          <ToolButton label={clusterResult ? "Organize again" : "Organize"} active={organizeOpen} disabled={clusterBusy || assignmentBusy || clusterInput.cards.length < 2 || clusterInput.cards.length > 50 || clusterInput.tooLongCount > 0} title={clusterInput.tooLongCount ? "Shorten note text to 4,000 characters before organizing" : "Group related notes and arrange the canvas"} onClick={openOrganize}>▦</ToolButton>
+          <ToolButton label="Pencil" active={drawTool === "pencil"} disabled={!canWriteBoard} onClick={() => selectDrawTool("pencil")}><BoardIcon name="pencil" /></ToolButton>
+          <ToolButton label="Eraser" active={drawTool === "eraser"} disabled={!canWriteBoard} onClick={() => selectDrawTool("eraser")}><BoardIcon name="eraser" /></ToolButton>
+          <DecorateMenu achievements={activity.achievements} canWrite={canWriteBoard} onPlace={(kind) => { selectTool("select"); setPlacingSticker(kind); }}
+            onReact={(point) => socialControls.current?.toggleReactions(point)} onMessage={() => openCursorChat(true)} />
         </nav>
-        <nav className="board-draw-toolbar" aria-label="Free drawing tools" data-active={Boolean(drawTool)}>
-          <span className="board-draw-toolbar-label" aria-hidden="true">DRAW</span>
-          <ToolButton label="Pencil" active={drawTool === "pencil"} disabled={!canWriteBoard} onClick={() => selectDrawTool("pencil")}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16.5-.9 4.4 4.4-.9L19.8 7.7a2.1 2.1 0 0 0-3-3L4 16.5Z" /><path d="m14.8 6.7 3 3" /></svg>
-          </ToolButton>
-          <ToolButton label="Eraser" active={drawTool === "eraser"} disabled={!canWriteBoard} onClick={() => selectDrawTool("eraser")}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3.5 14.3 8.8-9.1a2 2 0 0 1 2.9 0l5.2 5.2a2 2 0 0 1 0 2.9l-6.4 6.4H8.7l-5.2-5.2a1.5 1.5 0 0 1 0-2.2Z" /><path d="m8.4 9.2 6.5 6.5M14 19.7h6.5" /></svg>
-          </ToolButton>
-        </nav>
-        {historyActions && <nav className="board-history-toolbar" aria-label="Board history">
-          <ToolButton label="Undo" title="Undo (Ctrl/Cmd+Z)" disabled={!historyActions.canUndo || !historyActions.canWrite} onClick={historyActions.undo}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7-5 5 5 5" /><path d="M4.5 12h8a7 7 0 0 1 7 7" /></svg>
-          </ToolButton>
-          <ToolButton label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" disabled={!historyActions.canRedo || !historyActions.canWrite} onClick={historyActions.redo}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5" /><path d="M19.5 12h-8a7 7 0 0 0-7 7" /></svg>
-          </ToolButton>
-        </nav>}
-        </div>
-        {organizeOpen && <section className="board-organize-panel" aria-label="Organize notes">
-          <div className="board-organize-head"><h2>Organize notes</h2><button type="button" className="board-icon-button" aria-label="Close organize panel" onClick={() => setOrganizeOpen(false)}>×</button></div>
+        {organizeOpen && <section className="board-organize-panel" aria-label="Organize ideas">
+          <div className="board-organize-head"><h2>Organize ideas</h2><button type="button" className="board-icon-button" aria-label="Close organize panel" onClick={() => setOrganizeOpen(false)}>×</button></div>
           <label className="board-organize-count">Groups<select value={Math.min(clusterCount, Math.max(2, Math.min(10, clusterInput.cards.length)))} onChange={(event) => setClusterCount(Number(event.target.value))} disabled={clusterBusy || clusterInput.cards.length < 2}>
             {Array.from({ length: Math.max(0, Math.min(10, clusterInput.cards.length) - 1) }, (_, index) => index + 2).map((count) => <option key={count} value={count}>{count} groups</option>)}
           </select></label>
-          <div className="board-organize-count-note"><span>{clusterInput.cards.length} notes</span>{clusterInput.emptyCount > 0 && <span>{clusterInput.emptyCount} empty skipped</span>}</div>
-          {clusterInput.cards.length > 50 && <p className="board-error" role="alert">Organize supports up to 50 notes at a time.</p>}
-          {clusterInput.tooLongCount > 0 && <p className="board-error" role="alert">{clusterInput.tooLongCount} note(s) exceed the 4,000 character limit. Shorten them before organizing.</p>}
+          <div className="board-organize-count-note"><span>{clusterInput.cards.length} ideas</span>{clusterInput.emptyCount > 0 && <span>{clusterInput.emptyCount} empty skipped</span>}</div>
+          {clusterInput.cards.length > 50 && <p className="board-error" role="alert">Organize supports up to 50 ideas at a time.</p>}
+          {clusterInput.tooLongCount > 0 && <p className="board-error" role="alert">{clusterInput.tooLongCount} idea(s) exceed the 4,000 character limit. Shorten them before organizing.</p>}
           {clusterError && <p className="board-error" role="alert">{clusterError}</p>}
-          {clusterStale && <p className="board-organize-stale" role="status">Notes changed. Organize again to update groups.</p>}
+          {clusterStale && <p className="board-organize-stale" role="status">Ideas changed. Organize again to update groups.</p>}
           {clusterBusy && <p className="board-organize-progress" role="status">Organizing…</p>}
-          {assignmentBusy && <p className="board-organize-progress" role="status">Finding a group for the new note…</p>}
+          {assignmentBusy && <p className="board-organize-progress" role="status">Finding a group for the new idea…</p>}
           {clusterNamesState === "pending" && <p className="board-organize-progress" role="status">Naming groups…</p>}
           {clusterNamesState === "error" && <div className="board-cluster-names-error" role="status"><span>Names unavailable. {clusterNamesError}</span><button type="button" onClick={retryClusterNames} disabled={clusterStale || assignmentBusy}>Retry names</button></div>}
           {clusterResult && <div className="board-organize-results" aria-label="Group results">
@@ -1699,7 +1776,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
                   <button type="submit" disabled={clusterBusy || assignmentBusy}>Save</button>
                   <button type="button" onClick={() => setEditingGroupName(null)}>Cancel</button>
                 </form> : <>
-                  <span>{group.label}<small>{group.size} notes</small></span>
+                  <span>{group.label}<small>{group.size} ideas</small></span>
                   <button type="button" className="board-cluster-rename" aria-label={`Rename ${group.label}`} onClick={() => { setClusterError(""); setEditingGroupName({ id: group.id, value: group.label }); }} disabled={clusterBusy || assignmentBusy}>Rename</button>
                 </>}
               </div>
@@ -1710,7 +1787,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         </section>}
         {lockNotice && <aside className="board-layout-status" role="status"><span>{lockNotice}</span><button type="button" onClick={() => setLockNotice("")}>Dismiss</button></aside>}
         {!organizeOpen && (clusterNotice || clusterError || assignmentBusy || clusterNamesState === "pending" || clusterNamesState === "error") && <aside className="board-layout-status" role={clusterError ? "alert" : "status"}>
-          <span>{assignmentBusy ? "Finding a group for the new note…" : clusterNamesState === "pending" ? "Naming groups with AI…" : clusterNamesState === "error" ? `Group names unavailable. ${clusterNamesError}` : clusterError || clusterNotice}</span>
+          <span>{assignmentBusy ? "Finding a group for the new idea…" : clusterNamesState === "pending" ? "Naming groups with AI…" : clusterNamesState === "error" ? `Group names unavailable. ${clusterNamesError}` : clusterError || clusterNotice}</span>
           {clusterNamesState === "error" && <button type="button" onClick={() => setOrganizeOpen(true)}>Review names</button>}
           {assignmentRetryId && !assignmentBusy && <button type="button" onClick={() => {
             const current = boardRef.current;
@@ -1729,21 +1806,23 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
               <button type="button" aria-label={`Move ${board.ideas.find((idea) => idea.id === id)?.title || "idea"} later`} disabled={index === mergeIds.length - 1} onClick={() => moveMergeSource(id, 1)}>↓</button>
               <button type="button" aria-label={`Remove ${board.ideas.find((idea) => idea.id === id)?.title || "idea"} from merge`} onClick={() => selectMergeNote(id, true)}>×</button>
             </span>)}</div>
-            {selectedMergeContext?.relationships.length ? <span>Using {selectedMergeContext.relationships.length} relationship{selectedMergeContext.relationships.length === 1 ? "" : "s"} between selected notes.</span> : null}
-            {selectedMergeContext?.sources.some((idea) => mergeText(idea).length > 4000) && <span className="board-error">Each note must be at most 4,000 characters.</span>}
+            {selectedMergeContext?.relationships.length ? <span>Using {selectedMergeContext.relationships.length} link{selectedMergeContext.relationships.length === 1 ? "" : "s"} between selected ideas.</span> : null}
+            {selectedMergeContext?.sources.some((idea) => mergeText(idea).length > 4000) && <span className="board-error">Each idea must be at most 4,000 characters.</span>}
             {selectedMergeContext && selectedMergeContext.sources.reduce((total, idea) => total + mergeText(idea).length, 0) > MAX_MERGE_TOTAL_CHARACTERS && <span className="board-error">Combined text exceeds {MAX_MERGE_TOTAL_CHARACTERS.toLocaleString()} characters.</span>}</div>
           {!onBoardChange && mergeIds.length === 1 && undoPlacementAvailable && <button type="button" onClick={undoAutomaticPlacement}>Undo placement</button>}
           {mergeError && <span className="board-error" role="alert">{mergeError}</span>}
           {mergeIds.length === 0 ? <button type="button" onClick={() => selectTool("select")}>Cancel</button> : <button type="button" onClick={() => { discardMerge(); setMergeIds([]); }}>Clear</button>}
           {mergeIds.length >= 2 && <button type="button" className="primary" disabled={mergeBusy || !selectedMergeContext?.goal || selectedMergeContext.sources.some((idea) => !mergeText(idea) || mergeText(idea).length > 4000) || Boolean(selectedMergeContext && selectedMergeContext.sources.reduce((total, idea) => total + mergeText(idea).length, 0) > MAX_MERGE_TOTAL_CHARACTERS)} onClick={() => void generateMerge()}>{mergeBusy ? "Generating…" : `Merge ${mergeIds.length} ideas`}</button>}
         </div>}
-        {chosenIdea && <button type="button" className={`board-focus-toggle${onlySelectedNodeEdges ? " is-active" : ""}`} aria-pressed={onlySelectedNodeEdges}
-          onClick={() => setOnlySelectedNodeEdges((value) => !value)}>Only this node’s edges</button>}
         {(chosenIdea || chosenLink) && <div className="board-selection-bar">
-          {chosenIdea ? <><strong>{chosenIdea.title}</strong><button onClick={() => openEditor(chosenIdea)}>Edit</button><button onClick={() => { setMergeIds((current) => current.includes(chosenIdea.id) ? current : [...current, chosenIdea.id]); setSelection(null); setDrawTool(null); setTool("merge"); }}>Add to merge</button><button onClick={() => { setUndoPositions(null); setBoard((current) => setIdeaPinned(current, chosenIdea.id, !chosenIdea.pinned)); if (chosenIdea.pinned) physics.reheat(); }}>{chosenIdea.pinned ? "Unpin" : "Pin"}</button>{chosenIdea.merge && <button onClick={() => setMergeDetailsId(chosenIdea.id)}>How this idea was made</button>}</>
+          {chosenIdea ? <><strong>{chosenIdea.title}</strong><button onClick={() => openEditor(chosenIdea)}>Edit</button><button onClick={() => { setMergeIds((current) => current.includes(chosenIdea.id) ? current : [...current, chosenIdea.id]); setSelection(null); setDrawTool(null); setTool("merge"); }}>Add to merge</button><button onClick={() => { setUndoPositions(null); setBoard((current) => setIdeaPinned(current, chosenIdea.id, !chosenIdea.pinned)); if (chosenIdea.pinned) physics.reheat(); }}>{chosenIdea.pinned ? "Unpin" : "Pin"}</button><button className={onlySelectedNodeEdges ? "is-active" : ""} aria-pressed={onlySelectedNodeEdges} onClick={() => setOnlySelectedNodeEdges((value) => !value)}>Only its links</button>{chosenIdea.merge && <button onClick={() => setMergeDetailsId(chosenIdea.id)}>How this idea was made</button>}</>
             : <><strong>{chosenLink && relationshipLabels[chosenLink.type]}</strong>{chosenLink?.explanation && <span title={[chosenLink.explanation, chosenLink.condition].filter(Boolean).join(" When: ")}>{chosenLink.explanation}{chosenLink.condition ? ` When: ${chosenLink.condition}` : ""}</span>}{chosenLink?.author && <small>By {chosenLink.author}</small>}<button onClick={() => chosenLink && openRelationshipEditor(chosenLink)}>Edit link</button></>}
           <button className="danger" onClick={removeSelection}>Delete</button></div>}
-        <div className="board-zoom"><button aria-label="Zoom out" title="Zoom out" onClick={() => flow.current?.zoomOut({ duration: 180 })}>−</button><button aria-label="Fit ideas" title="Fit ideas" onClick={() => { void fitBoard(); }}>⤢</button><ZoomReadout zoom={zoom} /><button aria-label="Zoom in" title="Zoom in" onClick={() => flow.current?.zoomIn({ duration: 180 })}>＋</button></div>
+        <div className="board-zoom">{historyActions && <>
+          <ToolButton label="Undo" title="Undo (Ctrl/Cmd+Z)" disabled={!historyActions.canUndo || !historyActions.canWrite} onClick={undoWithEffect} rewinding={motion && activity.events.some((event) => event.kind === "undo")}><BoardIcon name="undo" /></ToolButton>
+          <ToolButton label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" disabled={!historyActions.canRedo || !historyActions.canWrite} onClick={historyActions.redo}><BoardIcon name="redo" /></ToolButton>
+          <span className="board-zoom-rule" /></>}
+          <button aria-label="Zoom out" title="Zoom out" onClick={() => flow.current?.zoomOut({ duration: motionRef.current ? 180 : 0 })}><BoardIcon name="zoomOut" /></button><button aria-label="Fit ideas" title="Fit ideas" onClick={() => { void fitBoard(); }}><BoardIcon name="fit" /></button><ZoomReadout zoom={zoom} /><button aria-label="Zoom in" title="Zoom in" onClick={() => flow.current?.zoomIn({ duration: motionRef.current ? 180 : 0 })}><BoardIcon name="zoomIn" /></button></div>
       </div>
       <ConnectionSuggestionsPanel board={board} suggestions={suggestions} onBoardChange={setBoard} minimized={chatOpen} authorName={authorName} />
       <ChatSidebar open={chatOpen} onToggle={() => setChatOpen((value) => !value)} board={board} boardTitle={title}
@@ -1754,9 +1833,9 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     {mergePreview && <div className="board-merge-panel" role="dialog" aria-modal="false" aria-label="Merged idea preview">
       <div className="board-merge-panel-head"><div><span className="board-eyebrow">{mergePreview.result.excluded?.length ? `${mergePreview.result.contributions.length} OF ${mergePreview.ids.length} IDEAS USED` : `${mergePreview.ids.length} SOURCE IDEAS`}</span><h2>Merge preview</h2></div><button type="button" aria-label="Discard merge preview" onClick={discardMerge}>×</button></div>
       <div className="board-merge-preview-content">
-        {previewStale && <p className="board-error" role="alert">A source note, its link, or the goal changed. Regenerate before creating this idea.</p>}
+        {previewStale && <p className="board-error" role="alert">A source idea, its link, or the goal changed. Regenerate before creating this idea.</p>}
         {mergePreview.result.status !== "useful" ? <>
-          <MarkdownText className="board-merge-weak" role="status">{textExcerpt(mergePreview.result.reason || "These ideas need a clearer connection before they can be combined.", 180).text}</MarkdownText>
+          <MarkdownText className="board-merge-weak" role="status">{textExcerpt(mergePreview.result.reason || "These ideas need a clearer link before they can be combined.", 180).text}</MarkdownText>
           {mergePreview.result.reason.length > 180 && <details className="board-merge-read-full"><summary>Read the full explanation</summary><MarkdownText>{mergePreview.result.reason}</MarkdownText></details>}
           <p className="board-merge-sources">{mergePreview.ids.map((id, index) => `${index + 1}. ${board.ideas.find((idea) => idea.id === id)?.title || "Deleted idea"}`).join(" · ")}</p>
           {previewContext?.relationships.length ? <details className="board-merge-disclosure"><summary>Review selected links ({previewContext.relationships.length})</summary><div className="board-merge-reasoning">
@@ -1766,7 +1845,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           {mergeEditMode ? <div className="board-merge-edit-fields">
             <label>Title<input value={mergePreview.title} maxLength={120} onChange={(event) => setMergePreview({ ...mergePreview, title: event.target.value })} /></label>
             <label>Concept<textarea value={mergePreview.concept} maxLength={2000} rows={5} onChange={(event) => setMergePreview({ ...mergePreview, concept: event.target.value })} /><span className="board-merge-character-hint">Short concepts are easier to scan. {mergePreview.concept.length}/2,000 characters.</span></label>
-          </div> : <section className="board-merge-compact-concept" aria-label="Combined idea">
+          </div> : <section className="board-merge-compact-concept" aria-label="Merged idea">
             <h3>{mergePreview.title}</h3>
             {(() => { const excerpt = textExcerpt(mergePreview.concept); return <>
               <MarkdownText className="board-merge-concept-text">{excerpt.text}</MarkdownText>
@@ -1778,10 +1857,10 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
             </>; })()}
             {previewContext?.relationships.some((relationship) => relationship.type === "conflict") && <p className="board-merge-conflict-notice" role="note">This set includes a conflict. Review its condition under “Why these ideas fit”.</p>}
           </section>}
-          {mergePreview.result.excluded?.length ? <section className="board-merge-excluded" aria-label="Notes left out">
+          {mergePreview.result.excluded?.length ? <section className="board-merge-excluded" aria-label="Ideas left out">
             <h3>Left out ({mergePreview.result.excluded.length})</h3>
             {mergePreview.result.excluded.map((item) => <div className="board-merge-reasoning-item" key={item.sourceId}><strong>{board.ideas.find((idea) => idea.id === item.sourceId)?.title || "Deleted idea"}</strong><MarkdownText>{item.reason}</MarkdownText></div>)}
-            <p>The new idea links only to the notes it uses.</p>
+            <p>The new idea links only to the ideas it uses.</p>
           </section> : null}
           <details className="board-merge-disclosure">
             <summary>Why these ideas fit</summary>
@@ -1794,22 +1873,16 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
                 </li>)}</ol>
               </section>
               <section className="board-merge-bridge">
-                <span className="board-merge-section-kicker">THE CONNECTION</span>
                 <h3>Why the combination works</h3>
                 <MarkdownText>{mergePreview.result.bridge}</MarkdownText>
               </section>
               <section className="board-merge-checks">
                 <h3>What needs checking</h3>
-                <div className="board-merge-tension"><span className="board-merge-section-kicker">TENSION</span><MarkdownText>{mergePreview.result.tension}</MarkdownText></div>
+                <div className="board-merge-tension"><MarkdownText>{mergePreview.result.tension}</MarkdownText></div>
                 {mergePreview.result.assumptions.length > 0 && <div className="board-merge-assumptions">
                   <h4>Assumptions</h4>
                   <ul>{mergePreview.result.assumptions.map((assumption, index) => <li key={`${index}-${assumption}`}><MarkdownText>{assumption}</MarkdownText></li>)}</ul>
                 </div>}
-              </section>
-              <section className="board-merge-experiment">
-                <span className="board-merge-section-kicker">TRY THIS FIRST</span>
-                <h3>First experiment</h3>
-                <MarkdownText>{mergePreview.result.nextExperiment}</MarkdownText>
               </section>
               {previewContext?.relationships.length ? <details className="board-merge-existing-links">
                 <summary>Review existing links ({previewContext.relationships.length})</summary>
@@ -1834,15 +1907,14 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       <button type="button" className="board-merge-show-sources" onClick={() => {
         const sourceIds = mergeDisplayData(selectedMergeIdea.merge!).sources.map((source) => source.id).filter((id) => board.ideas.some((idea) => idea.id === id));
         setSelection({ kind: "idea", id: selectedMergeIdea.id });
-        window.requestAnimationFrame(() => { void flow.current?.fitView({ nodes: [...sourceIds, selectedMergeIdea.id].map((id) => ({ id })), padding: 0.28, duration: 350, maxZoom: 0.9 }); });
-      }}>Show source notes on canvas</button>
-      <p className="board-merge-source-count">Combined from {selectedMergeDetails?.sources.length ?? 0} ideas</p>
+        window.requestAnimationFrame(() => { void flow.current?.fitView({ nodes: [...sourceIds, selectedMergeIdea.id].map((id) => ({ id })), padding: 0.28, duration: motionRef.current ? 350 : 0, maxZoom: 0.9 }); });
+      }}>Show source ideas on canvas</button>
       <h3 className="board-merge-saved-title">{selectedMergeIdea.title}</h3>
       {(() => { const excerpt = textExcerpt(selectedMergeIdea.content); return <>
         <MarkdownText className="board-merge-saved-concept">{excerpt.text}</MarkdownText>
         {excerpt.shortened && <details className="board-merge-read-full"><summary>Read full concept</summary><MarkdownText>{selectedMergeIdea.content}</MarkdownText></details>}
       </>; })()}
-      <details className="board-merge-disclosure"><summary>Original source notes ({selectedMergeDetails?.sources.length ?? 0})</summary>
+      <details className="board-merge-disclosure"><summary>Original source ideas ({selectedMergeDetails?.sources.length ?? 0})</summary>
         {selectedMergeDetails?.sources.map((source, index) => <div className="board-merge-source" key={`${source.id}-${index}`}><strong>Idea {index + 1}: {source.title || "Untitled idea"}</strong><span>By {source.author}</span><MarkdownText>{source.content || "No description"}</MarkdownText></div>)}
       </details>
       <details className="board-merge-disclosure"><summary>Why this idea works</summary><div className="board-merge-reasoning">
@@ -1863,11 +1935,11 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       <small>Created by {selectedAssistantIdea.author || "Unknown contributor"} with {selectedAssistantIdea.assistant.model} on {new Date(selectedAssistantIdea.assistant.generatedAt).toLocaleString()}.</small>
     </div>}
     {editor && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) { closeEditor(); setDraftIdeaId(null); draftIdeaRef.current = null; } }}><form className="board-dialog" onSubmit={saveEdit} aria-label="Edit idea">
-      <span className="board-eyebrow">IDEA DETAILS</span><h2>Edit idea</h2><label>Title<input ref={titleInput} value={editor.title} maxLength={120} onChange={(event) => { setEditorDraft({ ...editor, title: event.target.value }); setEditError(""); }} /></label>
-      <label>Content<textarea value={editor.content} maxLength={4000} rows={6} onChange={(event) => setEditorDraft({ ...editor, content: event.target.value })} placeholder="What makes this idea useful?" /><span className="board-markdown-hint">Markdown: **bold**, *italic*, lists, and [links](https://example.com).</span></label>
+      <h2>Edit idea</h2><label>Title<input ref={titleInput} value={editor.title} maxLength={120} onChange={(event) => { setEditorDraft({ ...editor, title: event.target.value }); setEditError(""); }} /></label>
+      <label>Content<textarea value={editor.content} maxLength={4000} rows={6} onChange={(event) => setEditorDraft({ ...editor, content: event.target.value })} placeholder="What makes this idea useful?" /></label>
       {canRequestIdeaDescription(editor.title) && <div className="board-editor-description-action"><button type="button" disabled={descriptionStatus?.kind === "pending" || !canWriteBoard} onClick={() => void requestIdeaDescription()}>
         {descriptionStatus?.kind === "pending" ? "Generating…" : descriptionStatus?.kind === "error" ? "Try again" : editor.content.trim() ? "Regenerate content" : "Generate content"}
-      </button><span>Uses the title, board goal, and notes in Content.</span></div>}
+      </button><span>Uses the title, board goal, and any text in Content.</span></div>}
       {descriptionStatus?.kind === "pending" && <p className="board-editor-description-status" role="status">Generating content from your title and board context…</p>}
       {descriptionStatus?.kind === "error" && <p className="board-editor-description-status is-error" role="alert">{descriptionStatus.message}</p>}
       {descriptionStatus?.kind === "question" && <p className="board-editor-description-status is-question" role="status">{descriptionStatus.message} Add your answer in Content, then generate again.</p>}
@@ -1883,14 +1955,13 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           activeAssignmentId.current = null;
           setAssignmentBusy(false);
         }
-      }} /><span><strong>Place new notes in an existing group</strong><small>{clusterStale ? "Organize the canvas again before auto placement." : clusterSnapshot ? "Applies to new notes created from this browser." : "Organize the canvas first to create groups."}</small></span></label>}
+      }} /><span><strong>Place new ideas in an existing group</strong><small>{clusterStale ? "Organize the canvas again before auto placement." : clusterSnapshot ? "Applies to new ideas created from this browser." : "Organize the canvas first to create groups."}</small></span></label>}
       {editError && <p className="board-error" role="alert">{editError}</p>}<div className="board-dialog-actions"><button type="button" onClick={() => { closeEditor(); setDraftIdeaId(null); draftIdeaRef.current = null; }}>Cancel</button><button className="primary" type="submit">Save idea</button></div></form></div>}
-    {(linkDraft || relationshipEditor) && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) cancelInteraction(); }}><form className="board-dialog" onSubmit={confirmLink} aria-label={relationshipEditor ? "Edit relationship" : "Choose relationship"}>
-      <span className="board-eyebrow">{relationshipEditor ? "EDIT RELATIONSHIP" : "CONNECT IDEAS"}</span><h2>{relationshipEditor ? "Edit relationship" : "How are they related?"}</h2><p className="board-link-direction">{board.ideas.find((idea) => idea.id === (relationshipEditor ?? linkDraft)?.source)?.title} → {board.ideas.find((idea) => idea.id === (relationshipEditor ?? linkDraft)?.target)?.title}</p>
-      <label>Relationship<select value={relationshipType} onChange={(event) => setRelationshipType(event.target.value as RelationshipType)}>{Object.entries(relationshipLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-      {relationshipType === "extends" && <p className="board-direction-note">The first idea extends the second idea. The arrow will point to the second idea.</p>}
+    {(linkDraft || relationshipEditor) && <div className="board-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) cancelInteraction(); }}><form className="board-dialog" onSubmit={confirmLink} aria-label={relationshipEditor ? "Edit link" : "Create link"}>
+      <h2>{relationshipEditor ? "Edit link" : "How are they related?"}</h2><p className="board-link-direction">{board.ideas.find((idea) => idea.id === (relationshipEditor ?? linkDraft)?.source)?.title} → {board.ideas.find((idea) => idea.id === (relationshipEditor ?? linkDraft)?.target)?.title}</p>
+      <label>Link type<select value={relationshipType} onChange={(event) => setRelationshipType(event.target.value as RelationshipType)}>{Object.entries(relationshipLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       {relationshipType === "conflict" && <label>Conflict condition<textarea rows={2} maxLength={600} value={condition} onChange={(event) => setCondition(event.target.value)} placeholder="When can both ideas not hold?" />{condition.trim() && <MarkdownText className="board-link-markdown-preview">{condition}</MarkdownText>}</label>}
-      <label>Explanation<textarea rows={3} maxLength={1000} value={explanation} onChange={(event) => setExplanation(event.target.value)} placeholder="Why does this connection matter?" />{explanation.trim() && <MarkdownText className="board-link-markdown-preview">{explanation}</MarkdownText>}</label>
-      {linkError && <p className="board-error" role="alert">{linkError}</p>}<div className="board-dialog-actions"><button type="button" onClick={cancelInteraction}>Cancel</button><button className="primary" type="submit">{relationshipEditor ? "Save relationship" : "Create connection"}</button></div></form></div>}
-  </main>;
+      <label>Explanation<textarea rows={3} maxLength={1000} value={explanation} onChange={(event) => setExplanation(event.target.value)} placeholder="Why does this link matter?" />{explanation.trim() && <MarkdownText className="board-link-markdown-preview">{explanation}</MarkdownText>}</label>
+      {linkError && <p className="board-error" role="alert">{linkError}</p>}<div className="board-dialog-actions"><button type="button" onClick={cancelInteraction}>Cancel</button><button className="primary" type="submit">{relationshipEditor ? "Save link" : "Create link"}</button></div></form></div>}
+  </main></AnimationContext.Provider>;
 }

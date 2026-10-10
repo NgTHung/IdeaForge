@@ -84,39 +84,24 @@ export function SharedBoardEntry({ boardId }: { boardId: string }) {
       <Link className="guest-entry-signin" href="/login">Sign in</Link>
     </header>
     <section className="guest-entry-content" aria-label="Join shared board">
-      <div className="guest-entry-preview" aria-hidden="true">
-        <div className="guest-entry-preview-top"><span /><span /><span /></div>
-        <div className="guest-entry-preview-canvas">
-          <div className="guest-preview-note guest-preview-note-one"><i />Shared study rooms</div>
-          <div className="guest-preview-note guest-preview-note-two"><i />Idea sessions</div>
-          <div className="guest-preview-note guest-preview-note-three"><i />Team workshops</div>
-          <svg viewBox="0 0 560 260" preserveAspectRatio="none">
-            <path d="M140 116 C210 66 260 72 304 116 S405 166 444 110" />
-          </svg>
-          <div className="guest-entry-preview-message">
-            <span className="guest-entry-preview-symbol">✳</span>
-            <strong>Your team’s ideas are waiting</strong>
-            <small>Join the board to think together</small>
-          </div>
-        </div>
-        <div className="guest-entry-preview-footer"><span /> Live collaboration <span /> Saved automatically</div>
-      </div>
       <div className="guest-entry-form-panel">
+        {metadata && <div className="guest-entry-board-info">
+          <h2>{metadata.title}</h2>
+          {metadata.description?.trim() && <p>{metadata.description}</p>}
+        </div>}
         <h1>What’s your name?</h1>
         <form onSubmit={join}>
-          <label htmlFor="guest-display-name">Your name</label>
+          <label className="guest-entry-name-label" htmlFor="guest-display-name">Your name</label>
           <input id="guest-display-name" name="name" autoComplete="name" autoFocus maxLength={60}
             value={name} onChange={(event) => { setName(event.target.value); setError(""); }} />
-          <span className="guest-entry-count" aria-live="off">{name.length}/60</span>
+          {name.length >= 54 && <span className="guest-entry-count" aria-live="off">{name.length}/60</span>}
           {error && <p className="guest-entry-error" role="alert">{error}</p>}
           <button className="guest-entry-join" type="submit" disabled={!name.trim() || busy}>
             {busy ? "Joining…" : "Join board"}
           </button>
         </form>
-        <p className="guest-entry-signin-note">Have an account? <Link href="/login">Sign in</Link></p>
       </div>
     </section>
-    <footer className="guest-entry-footer">Ideas grow when people connect them.</footer>
   </main>;
 }
 

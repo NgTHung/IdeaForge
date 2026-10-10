@@ -10,7 +10,6 @@ export function AccountMenu({ showName = false }: { showName?: boolean }) {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<"menu" | "profile" | "settings">("menu");
   const [signOutBusy, setSignOutBusy] = useState(false);
   const [error, setError] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
@@ -33,7 +32,6 @@ export function AccountMenu({ showName = false }: { showName?: boolean }) {
     function onKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === "Escape") {
         setOpen(false);
-        setView("menu");
         triggerRef.current?.focus();
       }
     }
@@ -50,7 +48,7 @@ export function AccountMenu({ showName = false }: { showName?: boolean }) {
     menuRef.current
       ?.querySelector<HTMLElement>("[role='menuitem']:not(:disabled)")
       ?.focus();
-  }, [open, view]);
+  }, [open]);
 
   function moveMenuFocus(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
@@ -98,14 +96,12 @@ export function AccountMenu({ showName = false }: { showName?: boolean }) {
         aria-controls="account-menu-dropdown"
         onClick={() => {
           setOpen((value) => !value);
-          setView("menu");
           setError("");
         }}
         onKeyDown={(event) => {
           if (event.key === "ArrowDown") {
             event.preventDefault();
             setOpen(true);
-            setView("menu");
           }
         }}
       >
@@ -121,55 +117,17 @@ export function AccountMenu({ showName = false }: { showName?: boolean }) {
         hidden={!open}
         onKeyDown={moveMenuFocus}
       >
-        {view === "menu" ? (
-          <>
-            <div className="account-menu-summary" role="none">
-              <span className="account-popover-label">SIGNED IN AS</span>
-              <strong title={name}>{name}</strong>
-              {session.user.email && <span className="account-email">{session.user.email}</span>}
-            </div>
-            <button role="menuitem" type="button" onClick={() => setView("profile")}>
-              Profile
-            </button>
-            <button role="menuitem" type="button" onClick={() => setView("settings")}>
-              Settings
-            </button>
-            <Link
-              role="menuitem"
-              className="account-dashboard-link"
-              href="/dashboard"
-              onClick={() => setOpen(false)}
-            >
-              My dashboard
-            </Link>
-            {error && <p className="account-error" role="alert">{error}</p>}
-            <button role="menuitem" type="button" disabled={signOutBusy} onClick={() => void signOut()}>
-              {signOutBusy ? "Signing out…" : "Sign out"}
-            </button>
-          </>
-        ) : (
-          <>
-            <button role="menuitem" type="button" className="account-menu-back" onClick={() => setView("menu")}>
-              ← Account menu
-            </button>
-            {view === "profile" ? (
-              <div className="account-menu-summary" role="none">
-                <span className="account-popover-label">PROFILE</span>
-                <strong>{name}</strong>
-                {session.user.email && <span className="account-email">{session.user.email}</span>}
-              </div>
-            ) : (
-              <div className="account-menu-summary" role="none">
-                <span className="account-popover-label">SETTINGS</span>
-                <strong>Settings aren’t available yet.</strong>
-              </div>
-            )}
-            {error && <p className="account-error" role="alert">{error}</p>}
-            <button role="menuitem" type="button" disabled={signOutBusy} onClick={() => void signOut()}>
-              {signOutBusy ? "Signing out…" : "Sign out"}
-            </button>
-          </>
-        )}
+        <div className="account-menu-summary" role="none">
+          <strong title={name}>{name}</strong>
+          {session.user.email && <span className="account-email">{session.user.email}</span>}
+        </div>
+        <Link role="menuitem" className="account-dashboard-link" href="/dashboard" onClick={() => setOpen(false)}>
+          My dashboard
+        </Link>
+        {error && <p className="account-error" role="alert">{error}</p>}
+        <button role="menuitem" type="button" disabled={signOutBusy} onClick={() => void signOut()}>
+          {signOutBusy ? "Signing out…" : "Sign out"}
+        </button>
       </div>
     </div>
   );

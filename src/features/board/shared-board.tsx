@@ -1,39 +1,24 @@
 "use client";
 
-import { LiveMap, LiveObject, type LsonObject } from "@liveblocks/client";
+import { LiveMap, LiveObject } from "@liveblocks/client";
 import { useCallback, useEffect, useRef } from "react";
 import { initialBoard } from "./fixtures";
 import { BoardApp } from "./board-app";
 import type { Board, BoardConclusion, ConnectionPair, FreeDrawStroke, Idea, IdeaVote, Relationship } from "./model";
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
 import { connectionPairKey } from "@/lib/connections";
+import { sameValue, updateFields, syncObjectMap } from "./shared-object-map";
 import { syncIdeaVotes } from "./shared-votes";
 import { syncBoardConclusion } from "./shared-conclusion";
 import { cursorColorForMember } from "./cursor-color";
 import type { LiveCursor } from "./live-cursors";
+import { cursorStyleSchema, styleColor, type CursorStyle } from "./personalization";
 import type { BoardMetadata } from "@/lib/board-directory";
-import { createBoardStorage, RoomProvider, useCanRedo, useCanUndo, useHistory, useMutation, useOthers, useRedo, useSelf, useStorage, useUndo, useUpdateMyPresence } from "@/lib/liveblocks";
+import { useSignalQueue } from "./board-social";
+import { socialSignalSchema, signalLifetime, type BoardDecoration, type SocialSignal } from "./board-social-contract";
+import { createBoardStorage, RoomProvider, useCanRedo, useCanUndo, useHistory, useMutation, useOthers, useRedo, useSelf, useStorage, useUndo, useUpdateMyPresence, useBroadcastEvent, useEventListener } from "@/lib/liveblocks";
 
 const initialTitle = "Student collaboration ideas";
-
-function sameValue(left: unknown, right: unknown) {
-  return JSON.stringify(left) === JSON.stringify(right);
-}
-
-function updateFields<T extends LsonObject>(target: LiveObject<T>, next: T): boolean {
-  const current = target.toJSON() as Record<string, unknown>;
-  const updated = next as Record<string, unknown>;
-  let changed = false;
-  for (const key of new Set([...Object.keys(current), ...Object.keys(updated)])) {
-    const before = current[key];
-    const after = updated[key];
-    if (sameValue(before, after)) continue;
-    changed = true;
-    if (after === undefined) target.delete(key as keyof T);
-    else target.set(key as keyof T, after as T[keyof T]);
-  }
-  return changed;
-}
 
 export function SharedBoardRoom({ boardId, metadata }: { boardId: string; metadata?: BoardMetadata | null }) {
   return <RoomProvider key={`ideaforge:${boardId}`} id={`ideaforge:${boardId}`} initialStorage={createBoardStorage(
@@ -53,6 +38,20 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
   const canWrite = Boolean(self?.canWrite);
   const others = useOthers();
   const updateMyPresence = useUpdateMyPresence();
+  const broadcast = useBroadcastEvent();
+  const { signals, append } = useSignalQueue();
+  useEventListener(({ event, user, connectionId }) => {
+    const parsed = socialSignalSchema.safeParse(event);
+    if (!parsed.success) return;
+    append({ ...parsed.data, connectionId, name: user?.info?.name?.trim() || "Guest", expiresAt: Date.now() + signalLifetime(parsed.data) });
+  });
+  const sendSignal = useCallback((signal: SocialSignal) => {
+    const parsed = socialSignalSchema.safeParse(signal);
+    if (!parsed.success || !self) return;
+    broadcast(parsed.data);
+    append({ ...parsed.data, connectionId: self.connectionId, name: self.info?.name?.trim() || "You", expiresAt: Date.now() + signalLifetime(parsed.data) });
+  }, [broadcast, append, self]);
+  const updateCursorStyle = useCallback((cursorStyle: CursorStyle) => updateMyPresence({ cursorStyle }), [updateMyPresence]);
   const updateDrawingPresence = useCallback((drawing: FreeDrawStroke | null) => updateMyPresence({ drawing }), [updateMyPresence]);
   const cursorUpdateTimer = useRef<number | null>(null);
   const pendingCursor = useRef<{ x: number; y: number } | null>(null);
@@ -98,8 +97,10 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
   });
   const liveCursors: LiveCursor[] = others.flatMap((other) => {
     const cursor = other.presence.cursor;
+    const style = cursorStyleSchema.safeParse(other.presence.cursorStyle);
     return cursor ? [{ connectionId: other.connectionId, name: other.info?.name?.trim() || "Guest",
-      color: cursorColorForMember(other.id ?? String(other.connectionId)), x: cursor.x, y: cursor.y }] : [];
+      color: style.success && styleColor(style.data.color) || cursorColorForMember(other.id ?? String(other.connectionId)),
+      shape: style.success ? style.data.shape : "dot", x: cursor.x, y: cursor.y }] : [];
   });
   const editingLocks = Object.fromEntries(others.flatMap((other) => {
     const ideaId = other.presence.editingIdeaId;
@@ -113,6 +114,7 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     relationships: Object.values(root.relationships),
     votes: Object.values(root.votes ?? {}),
     drawings: Object.values(root.drawings ?? {}),
+    decorations: Object.values(root.decorations ?? {}),
     dismissedConnections: Object.values(root.dismissedConnections ?? {}),
     clusterSnapshot: root.clusterSnapshot as ClusterSnapshot | undefined,
     conclusion: (root.conclusion ?? null) as BoardConclusion | null,
@@ -122,10 +124,12 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
     const ideas = storage.get("ideas");
     const relationships = storage.get("relationships");
     const drawings = storage.get("drawings");
+    const decorations = storage.get("decorations");
     const savedClusterSnapshot = storage.get("clusterSnapshot");
     const dismissed = storage.get("dismissedConnections");
     const savedVotes = storage.get("votes");
     const current: Board = {
+      decorations: [...decorations?.entries() ?? []].map(([, item]) => item.toJSON() as BoardDecoration),
       goal: storage.get("goal"),
       ideas: [...ideas.entries()].map(([, idea]) => idea.toJSON() as Idea),
       relationships: [...relationships.entries()].map(([, link]) => link.toJSON() as Relationship),
@@ -143,47 +147,22 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
       else storage.set("goal", next.goal);
       changed = true;
     }
-    const nextIdeas = new Map(next.ideas.map((idea) => [idea.id, idea]));
-    const nextRelationships = new Map(next.relationships.map((link) => [link.id, link]));
-    const nextDrawings = new Map((next.drawings ?? []).map((stroke) => [stroke.id, stroke]));
-
-    for (const [id, idea] of ideas.entries()) {
-      const updated = nextIdeas.get(id);
-      if (!updated) { ideas.delete(id); changed = true; }
-      else {
-        changed = updateFields(idea, updated) || changed;
-        nextIdeas.delete(id);
-      }
-    }
-    for (const idea of nextIdeas.values()) { ideas.set(idea.id, new LiveObject(idea)); changed = true; }
-
-    for (const [id, link] of relationships.entries()) {
-      const updated = nextRelationships.get(id);
-      if (!updated) { relationships.delete(id); changed = true; }
-      else {
-        changed = updateFields(link, updated) || changed;
-        nextRelationships.delete(id);
-      }
-    }
-    for (const link of nextRelationships.values()) { relationships.set(link.id, new LiveObject(link)); changed = true; }
-
+    changed = syncObjectMap(ideas, next.ideas) || changed;
+    changed = syncObjectMap(relationships, next.relationships) || changed;
     let savedDrawings = drawings;
-    if (!savedDrawings && nextDrawings.size) {
+    if (!savedDrawings && next.drawings?.length) {
       savedDrawings = new LiveMap<string, LiveObject<FreeDrawStroke>>();
       storage.set("drawings", savedDrawings);
       changed = true;
     }
-    if (savedDrawings) {
-      for (const [id, stroke] of savedDrawings.entries()) {
-        const updated = nextDrawings.get(id);
-        if (!updated) { savedDrawings.delete(id); changed = true; }
-        else {
-          changed = updateFields(stroke, updated) || changed;
-          nextDrawings.delete(id);
-        }
-      }
-      for (const stroke of nextDrawings.values()) { savedDrawings.set(stroke.id, new LiveObject(stroke)); changed = true; }
+    if (savedDrawings) changed = syncObjectMap(savedDrawings, next.drawings ?? []) || changed;
+    let savedDecorations = decorations;
+    if (!savedDecorations && next.decorations?.length) {
+      savedDecorations = new LiveMap<string, LiveObject<BoardDecoration>>();
+      storage.set("decorations", savedDecorations);
+      changed = true;
     }
+    if (savedDecorations) changed = syncObjectMap(savedDecorations, next.decorations ?? []) || changed;
 
     const nextDismissals = new Map((next.dismissedConnections ?? []).map((pair) => [connectionPairKey(pair.sourceId, pair.targetId), pair]));
     if (dismissed) {
@@ -229,10 +208,16 @@ function SharedBoardContent({ boardId, metadata }: { boardId: string; metadata?:
   if (!snapshot) return <main className="board-connection-state" aria-live="polite">Connecting to shared board…</main>;
 
   return <BoardApp
-    sharedBoard={{ goal: snapshot.goal, ideas: snapshot.ideas as Idea[], relationships: snapshot.relationships as Relationship[], votes: snapshot.votes as IdeaVote[], drawings: snapshot.drawings as FreeDrawStroke[], dismissedConnections: snapshot.dismissedConnections as ConnectionPair[], clusterSnapshot: snapshot.clusterSnapshot ?? null, conclusion: snapshot.conclusion }}
+    sharedBoard={{ decorations: snapshot.decorations as BoardDecoration[], goal: snapshot.goal, ideas: snapshot.ideas as Idea[], relationships: snapshot.relationships as Relationship[], votes: snapshot.votes as IdeaVote[], drawings: snapshot.drawings as FreeDrawStroke[], dismissedConnections: snapshot.dismissedConnections as ConnectionPair[], clusterSnapshot: snapshot.clusterSnapshot ?? null, conclusion: snapshot.conclusion }}
     sharedTitle={snapshot.title}
     authorName={self?.info?.name?.trim() || "Unknown contributor"}
     voteUserId={self?.id}
+    boardScope={boardId}
+    connectedMembers={others.map((other) => ({ id: other.id ?? String(other.connectionId), name: other.info?.name?.trim() || "Guest" }))}
+    onCursorStyleChange={updateCursorStyle}
+    signalCursorPositions={Object.fromEntries([...(self ? [self] : []), ...others].flatMap((member) => member.presence.cursor ? [[member.connectionId, member.presence.cursor]] : []))}
+    socialSignals={signals}
+    onSocialSignal={sendSignal}
     liveCursors={liveCursors}
     onCursorMove={updateCursorPresence}
     boardDescription={metadata?.description ?? ""}

@@ -86,7 +86,6 @@ export function LoginForm() {
   return <main className="auth-page">
     <section className="auth-card" aria-labelledby="auth-title">
       <Link className="auth-brand" href="/" aria-label="IdeaForge home"><span aria-hidden="true">✳</span> IdeaForge</Link>
-      <p className="auth-eyebrow">A SHARED SPACE FOR IDEAS</p>
       <h1 id="auth-title">{mode === "signin" ? "Welcome back" : "Create your account"}</h1>
       <p className="auth-intro">{mode === "signin" ? "Sign in to continue to your workspace." : "Create an account to start a board. We’ll email you a verification link."}</p>
 
@@ -104,11 +103,11 @@ export function LoginForm() {
         <label htmlFor="auth-password">Password<input id="auth-password" name="password" type="password" autoComplete={mode === "signin" ? "current-password" : "new-password"} minLength={mode === "signup" ? PASSWORD_MIN_LENGTH : undefined} maxLength={PASSWORD_MAX_LENGTH} required value={password} onChange={(event) => { setPassword(event.target.value); setError(""); }} aria-describedby={mode === "signup" ? "auth-password-help" : undefined} /></label>
         {mode === "signup" && <small id="auth-password-help" className="auth-field-help">At least 8 characters, with a letter and a number.</small>}
         {mode === "signup" && <label htmlFor="auth-confirm-password">Confirm password<input id="auth-confirm-password" name="confirmPassword" type="password" autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} maxLength={PASSWORD_MAX_LENGTH} required value={confirmPassword} onChange={(event) => { setConfirmPassword(event.target.value); setError(""); }} /></label>}
-        <button className="auth-submit" type="submit" disabled={busy}>{busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}</button>
+        <button className="auth-submit" type="submit" disabled={busy}>{busy ? mode === "signin" ? "Signing in…" : "Creating account…" : mode === "signin" ? "Sign in" : "Create account"}</button>
       </form>
 
       <p className="auth-switch">{mode === "signin" ? "New to IdeaForge?" : "Already have an account?"} <button type="button" disabled={busy} onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setConfirmPassword(""); setError(""); setMessage(""); }}>{mode === "signin" ? "Create account" : "Sign in"}</button></p>
-      <Link className="auth-back" href="/">Back to the demo board</Link>
+      <Link className="auth-back" href="/">Back to home</Link>
     </section>
   </main>;
 }

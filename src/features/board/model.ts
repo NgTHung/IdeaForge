@@ -1,5 +1,7 @@
 import type { ClusterSnapshot } from "@/lib/cluster-contract";
 import type { MergeProposal, MergeResult } from "@/lib/ideas";
+import type { BoardDecoration } from "./board-social-contract";
+import type { ObjectStyle, RelationshipStyle } from "./personalization";
 import type { ConclusionDraft, ConclusionRequest } from "@/lib/conclusion";
 
 export type MergeSourceSnapshot = { id: string; title: string; content: string; author: string };
@@ -57,6 +59,7 @@ export type Idea = {
   position: { x: number; y: number };
   pinned: boolean;
   color?: string;
+  appearance?: ObjectStyle;
   parentIds: string[];
   author?: string;
   merge?: MergeRecord;
@@ -66,6 +69,7 @@ export type Idea = {
 
 export type RelationshipType = "synergy" | "conflict" | "extends";
 export type Relationship = {
+  appearance?: RelationshipStyle;
   id: string;
   source: string;
   target: string;
@@ -90,7 +94,7 @@ export type BoardConclusion = {
   keptBy: string;
   keptAt: string;
 };
-export type Board = { goal?: string; ideas: Idea[]; relationships: Relationship[]; votes?: IdeaVote[]; drawings?: FreeDrawStroke[]; dismissedConnections?: ConnectionPair[]; clusterSnapshot?: ClusterSnapshot | null; conclusion?: BoardConclusion | null };
+export type Board = { decorations?: BoardDecoration[]; goal?: string; ideas: Idea[]; relationships: Relationship[]; votes?: IdeaVote[]; drawings?: FreeDrawStroke[]; dismissedConnections?: ConnectionPair[]; clusterSnapshot?: ClusterSnapshot | null; conclusion?: BoardConclusion | null };
 
 export const IDEA_CARD_SIZE = { width: 272, height: 148 } as const;
 export const MERGED_IDEA_CARD_SIZE = { width: 320, height: 184 } as const;
@@ -150,6 +154,8 @@ export function deleteIdea(board: Board, id: string): Board {
   };
 }
 export function moveIdea(board: Board, id: string, position: Idea["position"]): Board {
+  const idea = board.ideas.find((item) => item.id === id);
+  if (!idea || idea.pinned || idea.position.x === position.x && idea.position.y === position.y) return board;
   return updateIdea(board, id, { position });
 }
 export function setIdeaPinned(board: Board, id: string, pinned: boolean): Board {

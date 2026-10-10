@@ -276,8 +276,9 @@ function BoardSection({
                 value={search ?? ""}
                 onChange={(event) => onSearch?.(event.target.value)}
                 placeholder="Search all boards…"
+                title="Search boards (/)"
+                aria-keyshortcuts="/"
               />
-              <span className="board-dashboard-shortcut" aria-hidden="true">/</span>
             </div>
             <label className="board-dashboard-visually-hidden" htmlFor="dashboard-sort">Sort boards</label>
             <div className="board-dashboard-sort">
@@ -356,7 +357,6 @@ function BoardCard({ board, isDeleting, onDelete }: {
           <footer className="board-dashboard-card-footer">
             <time className="board-dashboard-date" dateTime={board.updatedAt}>Edited {edited}</time>
             <span className="board-dashboard-card-open">
-              <span>Open board</span>
               <svg className="board-dashboard-open-arrow" aria-hidden="true" viewBox="0 0 24 24" fill="none">
                 <path d="M4 12h15m-6-7 7 7-7 7" />
               </svg>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent } from "react";
+import { ThinkingAnimation } from "./board-activity";
 import { assistantRequestSchema, assistantResponseSchema, type AssistantRequest } from "@/lib/assistant";
 import { initialGoal } from "@/lib/ideas";
 import type { Board, AssistantSourceSnapshot } from "./model";
@@ -82,7 +83,7 @@ function AssistantActionCard({
   const sourceTitle = (id: string) => current.sources.find((source) => source.id === id)?.title || "Deleted idea";
   const title = current.action.kind === "create" ? "Create an idea"
     : current.action.kind === "edit" ? "Edit an idea"
-      : current.action.kind === "link" ? "Add a relationship" : "Open a merge";
+      : current.action.kind === "link" ? "Add a link" : "Open a merge";
   const editCardId = current.action.kind === "edit" ? current.action.card : "";
 
   return <section className="board-assistant-action" aria-label={title}>
@@ -94,21 +95,21 @@ function AssistantActionCard({
     </>}
     {current.action.kind === "edit" && <>
       <div className="board-assistant-edit-compare"><div><small>Current</small><span>{sourceTitle(editCardId)}</span><MarkdownText>{current.sources.find((source) => source.id === editCardId)?.content || "No description"}</MarkdownText></div>
-        <div><small>Proposed</small><span>{current.title || "Untitled card"}</span><MarkdownText>{current.content || "No description"}</MarkdownText></div></div>
+        <div><small>Proposed</small><span>{current.title || "Untitled idea"}</span><MarkdownText>{current.content || "No description"}</MarkdownText></div></div>
       <label>New title<input maxLength={120} value={current.title} onChange={(event) => change({ title: event.target.value })} /></label>
       <label>New content<textarea maxLength={4000} rows={3} value={current.content} onChange={(event) => change({ content: event.target.value })} /></label>
     </>}
     {current.action.kind === "link" && <>
       <p className="board-assistant-action-sources">{sourceTitle(current.source)} {current.type === "extends" ? "extends" : "↔"} {sourceTitle(current.target)}</p>
       {current.type === "extends" && <button type="button" className="board-assistant-direction" onClick={() => change({ source: current.target, target: current.source })}>Reverse extends direction</button>}
-      <label>Relationship type<select value={current.type} onChange={(event) => change({ type: event.target.value as AssistantActionDraft["type"] })}>
+      <label>Link type<select value={current.type} onChange={(event) => change({ type: event.target.value as AssistantActionDraft["type"] })}>
         <option value="synergy">Works well together</option><option value="conflict">Conflicts with</option><option value="extends">Extends</option>
       </select></label>
       <label>Explanation<textarea rows={2} maxLength={1000} value={current.explanation} onChange={(event) => change({ explanation: event.target.value })} /></label>
       {current.type === "conflict" && <label>Conflict condition<textarea rows={2} maxLength={600} value={current.condition} onChange={(event) => change({ condition: event.target.value })} /></label>}
     </>}
     {current.action.kind === "merge" && <p className="board-assistant-action-sources">{sourceTitle(current.action.a)} + {sourceTitle(current.action.b)}</p>}
-    {stale && <div className="board-chat-error" role="status"><p>A source card changed or was deleted. Ask again before accepting.</p>
+    {stale && <div className="board-chat-error" role="status"><p>A source idea changed or was deleted. Ask again before accepting.</p>
       <button type="button" onClick={onAskAgain} disabled={busy}>Ask again with the current board</button></div>}
     {accepted && <p className="board-assistant-action-status" role="status">Accepted</p>}
     {active && !accepted && <p className="board-assistant-action-status" role="status">Preview shown on the canvas</p>}
@@ -154,7 +155,7 @@ export function ChatSidebar({
   const [error, setError] = useState("");
   const busyRef = useRef(false);
   const requestRef = useRef<AbortController | null>(null);
-  const prompts = ["Find connections between these ideas.", "Suggest a new direction.", "Help refine the selected idea."];
+  const prompts = ["Find links between these ideas.", "Suggest a new direction.", "Help refine the selected idea."];
 
   useEffect(() => () => requestRef.current?.abort(), []);
 
@@ -236,7 +237,7 @@ export function ChatSidebar({
     };
     const parsedRequest = assistantRequestSchema.safeParse(request);
     if (!parsedRequest.success) {
-      setError(parsedRequest.error.issues[0]?.message ?? "The board is too large to send. Shorten some card text and try again.");
+      setError(parsedRequest.error.issues[0]?.message ?? "The board is too large to send. Shorten some idea text and try again.");
       return;
     }
 
@@ -290,13 +291,12 @@ export function ChatSidebar({
     await requestAssistant(draft, true);
   }
 
-  return <aside ref={panelRef} hidden={!open} className={`board-chat ${open ? "open" : "closed"}`} aria-label="IdeaForge Assistant">
-      <div className="board-chat-head"><div className="board-chat-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 2 1.5 6.5L20 10l-6.5 1.5L12 18l-1.5-6.5L4 10l6.5-1.5L12 2Z" /><path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16Z" /></svg></div><div><strong>IdeaForge Assistant</strong><small><span className="board-chat-status-dot" /> Grounded in this board</small></div>
-        <button className="board-icon-button" aria-label="Close AI helper" title="Close AI helper" onClick={onToggle}>×</button></div>
+  return <aside ref={panelRef} hidden={!open} className={`board-chat ${open ? "open" : "closed"}`} aria-label="Assistant">
+      <div className="board-chat-head"><div className="board-chat-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 2 1.5 6.5L20 10l-6.5 1.5L12 18l-1.5-6.5L4 10l6.5-1.5L12 2Z" /><path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16Z" /></svg></div><div><strong>Assistant</strong></div>
+        <button className="board-icon-button" aria-label="Close Assistant" title="Close Assistant" onClick={onToggle}>×</button></div>
       <div className="board-chat-messages" aria-live="polite">
         {messages.length === 0 && <>
-          <div className="board-assistant-message"><strong>Welcome to your idea space</strong><p>Ask about the board. The assistant will cite the cards behind each answer.</p></div>
-          <p className="board-chat-caption">TRY A PROMPT</p>
+          <p className="board-chat-privacy">Your chat stays in this browser.</p>
           <div className="board-prompts">{prompts.map((prompt) => <button key={prompt} type="button" onClick={() => setDraft(prompt)}>{prompt}</button>)}</div>
         </>}
         {messages.map((message) => message.role === "user"
@@ -304,18 +304,18 @@ export function ChatSidebar({
           : <article key={message.id} className="board-message assistant">
             {message.response.result.reply.map((paragraph, index) => <div className="board-assistant-paragraph" key={`${message.id}-${index}`}>
               <MarkdownText>{paragraph.text}</MarkdownText>
-              {paragraph.cites.length > 0 && <div className="board-citations" aria-label="Cited cards">
+              {paragraph.cites.length > 0 && <div className="board-citations" aria-label="Cited ideas">
                 {paragraph.cites.map((cardId) => {
                   const source = message.snapshot.find((card) => card.id === cardId);
                   const current = board.ideas.some((idea) => idea.id === cardId);
-                  const label = source?.title.trim() || "Untitled card";
+                  const label = source?.title.trim() || "Untitled idea";
                   return <button
                     type="button"
                     key={cardId}
                     className={`board-citation ${current ? "" : "is-gone"}`}
                     disabled={!current}
-                    aria-label={current ? `Focus cited card: ${label}` : `Cited card deleted: ${label}`}
-                    title={current ? "Focus this card on the board" : "This card was deleted"}
+                    aria-label={current ? `Focus cited idea: ${label}` : `Cited idea deleted: ${label}`}
+                    title={current ? "Focus this idea on the board" : "This idea was deleted"}
                     onClick={() => onFocusCard(cardId)}
                   >{current ? label : `${label} · deleted`}</button>;
                 })}
@@ -330,14 +330,14 @@ export function ChatSidebar({
             })}
             <small className="board-assistant-attribution">AI-generated · {message.response.model}</small>
           </article>)}
-        {busy && <p className="board-chat-status" role="status">Thinking about the board…</p>}
+        {busy && <p className="board-chat-status" role="status"><ThinkingAnimation />Thinking about the board…</p>}
         {error && <p className="board-chat-error" role="alert">{error}</p>}
       </div>
       <form className="board-chat-compose" onSubmit={(event) => void send(event)}>
         <textarea aria-label="Message the assistant" placeholder="Ask about your ideas…" value={draft} onChange={(event) => setDraft(event.target.value)} rows={3} />
-        <div><span>{busy ? "One request at a time" : "Your chat stays in this browser"}</span><button type="submit" disabled={!draft.trim() || busy}>{busy ? "Thinking…" : "Send ↑"}</button></div>
+        <div><button type="submit" disabled={!draft.trim() || busy}>{busy ? "Thinking…" : "Send"}</button></div>
       </form>
-      <button type="button" className="board-chat-resize" aria-label="Resize AI helper. Use arrow keys to resize; hold Shift for larger steps."
+      <button type="button" className="board-chat-resize" aria-label="Resize Assistant. Use arrow keys to resize; hold Shift for larger steps."
         title="Drag to resize · Arrow keys also work" onPointerDown={startResize} onPointerMove={moveResize}
         onPointerUp={stopResize} onPointerCancel={stopResize} onKeyDown={resizeByKeyboard}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 17 17 7M11 17l6-6M15 17l2-2" /></svg>
