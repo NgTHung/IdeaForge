@@ -1,6 +1,6 @@
 # Starting ideas for new boards
 
-New shared boards should open with five editable AI ideas drawn from their saved title and description. This document records the generation flow, storage rules, and checks needed to keep those ideas distinct and safe to retry. `work:WORK-047` implements the flow through Featherless, MongoDB, and Liveblocks.
+New shared boards should open with five editable AI ideas drawn from their saved title and description. This document records the generation flow, storage rules, and checks needed to keep those ideas distinct and safe to retry. `work:WORK-051` implements the flow through Featherless, MongoDB, and Liveblocks.
 
 ## Goal
 

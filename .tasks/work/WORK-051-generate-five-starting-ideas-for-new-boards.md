@@ -1,5 +1,5 @@
 ---
-id: "WORK-047"
+id: "WORK-051"
 title: "Generate five starting ideas for new boards"
 status: Done
 priority: "High"
