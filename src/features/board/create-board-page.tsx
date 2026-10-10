@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { authClient } from "@/lib/auth-client";
 import { BOARD_DESCRIPTION_MAX_LENGTH, BOARD_TITLE_MAX_LENGTH, createBoardSchema } from "@/lib/board-directory";
+import { BrandMark } from "@/features/brand/brand-mark";
 import "./board-pages.css";
 
 export function CreateBoardPage() {
@@ -45,7 +46,7 @@ export function CreateBoardPage() {
 
   if (isPending || !session) return <main className="board-page-loading" aria-live="polite">Preparing board creation…</main>;
   return <main className="board-page-shell">
-    <header className="board-page-header"><Link href="/" className="board-page-brand"><span aria-hidden="true">✳</span> IdeaForge</Link></header>
+    <header className="board-page-header"><Link href="/" className="board-page-brand"><BrandMark className="board-page-brand-mark" /> IdeaForge</Link></header>
     <section className="board-form-card">
       <h1>Create a board</h1>
       <p className="board-page-intro">Name the outcome you want your team to explore. You can invite others with the board link.</p>

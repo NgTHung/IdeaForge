@@ -2,7 +2,7 @@
 .board-page-shell, .board-page-shell * { box-sizing: border-box; }
 .board-page-header { display: flex; align-items: center; justify-content: space-between; min-height: 52px; }
 .board-page-brand { display: inline-flex; align-items: center; gap: 12px; color: #24413a; font-size: 18px; font-weight: 800; letter-spacing: -.04em; text-decoration: none; }
-.board-page-brand > span { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: #16785f; color: #fff; font-size: 25px; }
+.board-page-brand-mark { flex: 0 0 auto; width: 36px; height: 36px; }
 .board-page-secondary { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 0 16px; border: 1px solid #d3e2d9; border-radius: 10px; background: #fff; color: #28634d; font: inherit; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
 .board-page-secondary:hover { background: #f0f8f3; }
 .board-page-primary { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 0 19px; border: 1px solid #16785f; border-radius: 10px; background: #16785f; color: #fff; font: inherit; font-size: 14px; font-weight: 700; text-decoration: none; cursor: pointer; }

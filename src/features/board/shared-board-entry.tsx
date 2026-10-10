@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { authClient } from "@/lib/auth-client";
 import { joinBoardByLink, loadBoardContext } from "@/lib/board-api-client";
 import type { BoardMetadata } from "@/lib/board-directory";
+import { BrandMark } from "@/features/brand/brand-mark";
 import { SharedBoardRoom } from "./shared-board";
 import "./guest-entry.css";
 
@@ -78,7 +79,7 @@ export function SharedBoardEntry({ boardId }: { boardId: string }) {
   return <main className="guest-entry-shell">
     <header className="guest-entry-header">
       <Link className="guest-entry-brand" href="/" aria-label="IdeaForge home">
-        <span className="guest-entry-brand-mark" aria-hidden="true">✳</span>
+        <BrandMark className="guest-entry-brand-mark" />
         <span>IdeaForge</span>
       </Link>
       <Link className="guest-entry-signin" href="/login">Sign in</Link>

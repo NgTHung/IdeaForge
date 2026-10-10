@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import { authClient } from "@/lib/auth-client";
 import { deleteDashboardBoard, loadDashboardBoards } from "@/lib/board-api-client";
 import type { DashboardBoard } from "@/lib/board-directory";
+import { BrandMark } from "@/features/brand/brand-mark";
 import { AccountMenu } from "./account-menu";
 import {
   dashboardBoardDescription,
@@ -144,7 +145,7 @@ export function DashboardPage() {
     <main className="board-page-shell board-dashboard-shell" aria-labelledby="dashboard-title">
       <header className="board-page-header">
         <Link href="/" className="board-page-brand">
-          <span aria-hidden="true">✳</span> IdeaForge
+          <BrandMark className="board-page-brand-mark" /> IdeaForge
         </Link>
         <AccountMenu showName />
       </header>

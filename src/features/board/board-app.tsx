@@ -51,6 +51,7 @@ import { canDragIdea, displayIdeas, type CanvasPoint } from "./canvas-interactio
 import { canFillEditorDescription, canRequestIdeaDescription, fitIdeaDescriptionContext, ideaDescriptionGoal, type IdeaDescriptionContext, type IdeaDescriptionRequestState } from "./description-generation";
 import { ideaDescriptionResponseSchema } from "@/lib/idea-description-contract";
 import { BOARD_DESCRIPTION_MAX_LENGTH, BOARD_TITLE_MAX_LENGTH } from "@/lib/board-directory";
+import { BrandMark } from "@/features/brand/brand-mark";
 import "./board.css";
 import "./personalization.css";
 import "./social.css";
@@ -1718,7 +1719,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
   }
   return <AnimationContext.Provider value={{ preferences, motion }}><main className="board-shell" data-theme={theme} data-motion={motion ? "on" : "off"} style={{ "--personal-accent": styleColor(preferences.accent) ?? "#168264" } as React.CSSProperties}>
     <header className="board-topbar" aria-label="Board controls"><div className="board-brand">
-      <Link href="/" target={sandbox ? "_top" : undefined} className="board-brand-home" aria-label="IdeaForge home" title="IdeaForge home"><span className="board-brand-symbol" aria-hidden="true">✳</span></Link>
+      <Link href="/" target={sandbox ? "_top" : undefined} className="board-brand-home" aria-label="IdeaForge home" title="IdeaForge home"><BrandMark className="board-brand-symbol" /></Link>
       <div className="board-title-group"><button ref={metadataTrigger} type="button" className="board-title-trigger" aria-label="Edit board name and description" title="Edit board name and description" onClick={openMetadataEditor}>
           <span>{title}</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m3.5 14.5-.8 3 3-.8L16.5 5.9a2.1 2.1 0 0 0-3-3L3.5 14.5Z"/><path d="m12.5 4 3 3"/></svg>
         </button>{displayedBoardDescription.trim() && <p className="board-description" title={displayedBoardDescription.trim()}>{displayedBoardDescription.trim()}</p>}</div></div>
@@ -1937,7 +1938,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", star
           {!onBoardChange && undoPlacementAvailable && <button type="button" onClick={undoAutomaticPlacement}>Undo placement</button>}
         </aside>}
         {board.ideas.length === 0 && starterIdeasPending && <StarterIdeasLoading />}
-        {board.ideas.length === 0 && !starterIdeasPending && <div className="board-empty"><span>✳</span><h2>Your board is ready</h2><p>Start with one thought. You can connect it to others as your map grows.</p><button onClick={addAtCenter}>＋ Add your first idea</button></div>}
+        {board.ideas.length === 0 && !starterIdeasPending && <div className="board-empty"><BrandMark className="board-empty-mark" variant="bare" /><h2>Your board is ready</h2><p>Start with one thought. You can connect it to others as your map grows.</p><button onClick={addAtCenter}>＋ Add your first idea</button></div>}
         {(mergeIds.length > 0 || tool === "merge") && mergeIds.every((id) => board.ideas.some((idea) => idea.id === id)) && !mergePreview && <div className="board-merge-tray" role="region" aria-label="Merge selected ideas">
           <div className="board-merge-tray-copy"><strong>{mergeIds.length < 2 ? mergeIds.length === 0 ? "Choose ideas to merge" : "Choose one more idea" : `${mergeIds.length} ideas selected`}</strong>
             <span>Choose 2–{MAX_MERGE_SOURCES} ideas</span>

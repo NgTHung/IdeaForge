@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRef, useState, type FormEvent } from "react";
 import { boardIdSchema } from "@/lib/rooms";
 import { authClient } from "@/lib/auth-client";
+import { BrandMark } from "@/features/brand/brand-mark";
 import { AccountMenu } from "./account-menu";
 import { LandingIllustration } from "./landing-illustration";
 import "./landing.css";
@@ -67,7 +68,7 @@ export function LandingPage() {
   return <main className="landing-shell">
     <header className="landing-header">
       <Link className="landing-brand" href="/" aria-label="IdeaForge home">
-        <span className="landing-brand-mark" aria-hidden="true">✳</span>
+        <BrandMark className="landing-brand-mark" />
         <span>IdeaForge</span>
       </Link>
       <AccountMenu />

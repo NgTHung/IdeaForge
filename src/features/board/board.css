@@ -6,7 +6,7 @@
 .board-brand, .board-top-actions { display: flex; align-items: center; gap: 16px; min-width: 0; }
 .board-brand-home { display: inline-flex; flex: 0 0 auto; border-radius: 10px; text-decoration: none; }
 .board-brand-home:focus-visible { outline: 3px solid #68ad91; outline-offset: 3px; }
-.board-brand-symbol { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: #16785f; color: white; font-size: 24px; line-height: 1; }
+.board-brand-symbol { display: block; width: 32px; height: 32px; }
 .board-divider { height: 25px; width: 1px; background: #dfe6e2; }
 .board-brand input { width: min(32vw, 270px); border: 1px solid transparent; border-radius: 6px; padding: 8px; color: #465c5d; font-weight: 600; background: transparent; text-overflow: ellipsis; }
 .board-brand input:hover, .board-brand input:focus { border-color: #cbdcd4; background: #fbfcfb; }
@@ -152,7 +152,7 @@
 .board-zoom button:hover { background: #eaf5ef; }
 .board-zoom-level { min-width: 46px; color: #70847c; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; }
 .board-empty { position: absolute; z-index: 2; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(310px, 80%); padding: 26px; border: 1px solid #dce8e0; border-radius: 17px; background: white; text-align: center; box-shadow: 0 16px 40px #365b481c; }
-.board-empty > span { color: #178463; font-size: 32px; }
+.board-empty-mark { display: block; width: 44px; height: 44px; margin: 0 auto; color: #16785f; }
 .board-empty h2 { margin: 9px 0; font-size: 20px; font-weight: 700; }
 .board-empty p { color: #6b8178; font-size: 14px; font-weight: 500; line-height: 1.5; }
 .board-empty button { border: 0; background: #16785f; color: white; border-radius: 8px; padding: 11px 17px; font-size: 14px; font-weight: 700; }
@@ -444,6 +444,7 @@
 .board-shell[data-theme="dark"] .board-share-qr-dialog { border-color: #405650; background: #1c2a29; color: #dce8e3; }
 .board-shell[data-theme="dark"] .board-selection-bar button { background: #29453a; color: #a4dfc1; }
 .board-shell[data-theme="dark"] .board-selection-bar button.danger { background: #4b302d; color: #efaaa0; }
+.board-shell[data-theme="dark"] .board-empty-mark { color: #a4dfc1; }
 .board-shell[data-theme="dark"] .board-empty p,
 .board-shell[data-theme="dark"] .board-dialog label,
 .board-shell[data-theme="dark"] .board-link-direction { color: #bacbc3; }
@@ -482,7 +483,7 @@
 .board-topbar { position: absolute; top: 14px; left: 18px; right: 18px; z-index: 8; height: auto; flex: none; padding: 0; border: 0; background: transparent; pointer-events: none; }
 .board-brand, .board-top-actions { min-height: 54px; gap: 9px; padding: 8px 11px; border: 1px solid #dce7e0; border-radius: 15px; background: #fff; box-shadow: 0 8px 24px #365b481c; pointer-events: auto; }
 .board-brand { max-width: min(320px, calc(100vw - 100px)); }
-.board-brand-symbol { flex: 0 0 36px; width: 36px; height: 36px; font-size: 26px; }
+.board-brand-symbol { flex: 0 0 36px; width: 36px; height: 36px; }
 .board-brand input { flex: 1; width: min(26vw, 250px); min-width: 0; padding: 9px; font-size: 15px; font-weight: 700; }
 .board-top-actions { margin-left: auto; }
 .board-workspace { width: 100%; }
