@@ -161,6 +161,8 @@ For Organize, the browser sends eligible note text and the selected group count 
 
 ## Log
 
+- 2026-10-10: `work:WORK-043` opens the reaction wheel at the pointer with R or the React button. The wheel keeps its opening position while a participant chooses and shifts inward near board edges. Keyboard activation without a pointer uses the trigger location. Temporary room events and saved board data keep their existing behavior.
+
 - 2026-10-10: `work:BUG-004` fixes the interaction problems reported after WORK-041. Cursor chat follows its sender while it is visible, and R opens the reaction wheel outside editing controls and dialogs. Social controls move above zoom. Routed links use current drag positions. Pinning now fixes a note against manual dragging as well as layout movement; unpinning restores dragging. Shared access and merge snapshots remain unchanged.
 
 - 2026-10-10: `work:WORK-041` extends personalization with visible achievements, placeable shared sticker decorations, merge sparks, tactile dragging and pinning, cursor reactions, temporary cursor chat, and clouds, stars, flowers, and paper cluster themes. Enter opens chat; a second Enter broadcasts a short message near the sender. Room events carry expiring reactions and messages without storing chat history. Decorations use Liveblocks Storage and current board write access and undo history. Achievement awards remain scoped to participant and board in the browser; earned badges can be placed as saved decorations. Effects respect motion settings, and RGB borders stay static.
