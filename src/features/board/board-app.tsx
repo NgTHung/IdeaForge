@@ -44,6 +44,7 @@ import { AnimationContext, BoardActivity, ThinkingAnimation, useBoardActivity, t
 import { CursorSignals, SocialControls, useSignalQueue, type SocialControlsHandle } from "./board-social";
 import { StickerDecorations } from "./sticker-decorations";
 import { DecorateMenu } from "./decorate-menu";
+import { StarterIdeasLoading } from "./starter-ideas-loading";
 import { BoardIcon } from "./board-icons";
 import { addDecoration, moveDecoration, removeDecoration, canOpenCursorChat, signalLifetime, stickerCatalog, type NamedSignal, type SocialSignal, type StickerKind } from "./board-social-contract";
 import { canDragIdea, displayIdeas, type CanvasPoint } from "./canvas-interaction";
@@ -56,7 +57,7 @@ import "./social.css";
 import "./cloud-frame.css";
 import "./border-decorations.css";
 
-type Tool = "select" | "hand" | "add" | "connect" | "merge";
+type Tool = "select" | "add" | "connect" | "merge";
 type Selection = { kind: "idea" | "relationship"; id: string } | null;
 type MergePreview = { ids: string[]; fingerprint: string; result: MergeProposal; model: string; generatedAt: string; title: string; concept: string };
 type EditorDraft = { id: string; title: string; content: string };
@@ -138,6 +139,7 @@ type BoardAppProps = {
   sharedBoard?: Board;
   sharedTitle?: string;
   boardDescription?: string;
+  starterIdeasNotice?: { kind: "pending" | "error"; message?: string; onRetry?: () => void } | null;
   onBoardChange?: (update: (board: Board) => Board) => boolean;
   onBackgroundBoardChange?: (update: (board: Board) => Board) => boolean;
   onMetadataChange?: (metadata: { title: string; description: string }) => void | Promise<void>;
@@ -174,7 +176,8 @@ function ToolButton({ label, active, disabled, title, onClick, children, rewindi
 
 const pencilColors = ["#176c52", "#377dcc", "#8655b5", "#d34876", "#d87532", "#374151"];
 
-export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBoardChange, onBackgroundBoardChange, onMetadataChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove, onCursorStyleChange, signalCursorPositions, socialSignals, onSocialSignal, boardScope = "local", connectedMembers = emptyMembers, sandbox = false }: BoardAppProps) {
+export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", starterIdeasNotice, onBoardChange, onBackgroundBoardChange, onMetadataChange, historyActions, liveDrawings = [], onDrawingPreviewChange, authorName, editingLocks = {}, onEditingIdeaChange, voteUserId, liveCursors = [], onCursorMove, onCursorStyleChange, signalCursorPositions, socialSignals, onSocialSignal, boardScope = "local", connectedMembers = emptyMembers, sandbox = false }: BoardAppProps) {
+  const starterIdeasPending = starterIdeasNotice?.kind === "pending";
   const [cursorChatOpen, setCursorChatOpen] = useState(false);
   const [localCursorPosition, setLocalCursorPosition] = useState<CanvasPoint | null>(null);
   const [chatAnchor, setChatAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -660,6 +663,21 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     selectTool("select");
     setDrawTool(next);
     setPencilSettingsOpen(next === "pencil");
+  }
+  function toggleToolbarTool(next: Tool) {
+    selectTool(tool === next && !drawTool ? "select" : next);
+  }
+  function toggleToolbarDrawTool(next: FreeDrawTool) {
+    if (drawTool === next) selectTool("select");
+    else selectDrawTool(next);
+  }
+  function toggleOrganizeTool() {
+    if (organizeOpen) {
+      setOrganizeOpen(false);
+      selectTool("select");
+    } else {
+      openOrganize();
+    }
   }
   async function fitBoard() {
     if (!flow.current || !canvas.current || board.ideas.length === 0) return;
@@ -1583,7 +1601,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     ...nodeLayouts[idea.id],
     id: idea.id, type: "idea", position: idea.position, selected: selection?.kind === "idea" && selection.id === idea.id || mergeIds.includes(idea.id) || previewMergeIds.includes(idea.id),
     className: chosenLink && (chosenLink.source === idea.id || chosenLink.target === idea.id) ? "is-related" : previewMergeIds.includes(idea.id) ? "is-merge-source" : editingLocks[idea.id] ? "is-locked-for-editing" : undefined,
-    draggable: canDragIdea(board, idea.id, canWriteBoard) && tool !== "hand" && !spaceDown && !drawTool && tool !== "connect" && editor?.id !== idea.id,
+    draggable: canDragIdea(board, idea.id, canWriteBoard) && !spaceDown && !drawTool && tool !== "connect" && editor?.id !== idea.id,
     data: { idea, editingBy: editingLocks[idea.id], connecting: tool === "connect", source: sourceId === idea.id, editing: editor?.id === idea.id, squash: squashes[idea.id] ?? null,
       voting: onBoardChange && voteUserId ? { upvoters: upvotersForIdea(board.votes, idea.id), voterId: voteUserId, canWrite: canWriteBoard,
         voteLimitReached: votesByUser(board.votes, voteUserId) >= MAX_UPVOTES_PER_PARTICIPANT,
@@ -1759,8 +1777,12 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
         onSend={onSocialSignal ?? ((signal) => { setLocalCursorPosition(signal.position); localSignals.append({ ...signal, connectionId: 0, name: authorName || "You", expiresAt: Date.now() + signalLifetime(signal) }); })}
         onClose={() => canvas.current?.focus()} />
       {placingSticker && <div className="sticker-placement-notice" role="status">{stickerCatalog[placingSticker].glyph} Click empty canvas to place {stickerCatalog[placingSticker].label}<button type="button" onClick={() => setPlacingSticker(null)}>Cancel</button></div>}
+      {starterIdeasNotice && !(starterIdeasPending && board.ideas.length === 0) && <div className="board-starter-ideas-notice" role={starterIdeasNotice.kind === "error" ? "alert" : "status"}>
+        {starterIdeasPending && <ThinkingAnimation />}<span>{starterIdeasPending ? "Generating five starting ideas…" : starterIdeasNotice.message}</span>
+        {starterIdeasNotice.kind === "error" && starterIdeasNotice.onRetry && <button type="button" onClick={starterIdeasNotice.onRetry}>Retry ideas</button>}
+      </div>}
       {(mergeBusy || clusterBusy || assignmentBusy || clusterNamesState === "pending" || suggestions.loading) && <div className="board-ai-activity" role="status"><ThinkingAnimation /><span>{mergeBusy ? "Merging ideas…" : clusterBusy ? "Organizing…" : assignmentBusy ? "Finding a group…" : clusterNamesState === "pending" ? "Naming groups…" : "Finding links…"}</span></div>}
-      <div ref={canvas} tabIndex={-1} data-background={preferences.background} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""} ${drawTool ? `drawing-${drawTool}` : ""}`}
+      <div ref={canvas} tabIndex={-1} data-background={preferences.background} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${(tool === "select" && !drawTool) || spaceDown ? "panning" : ""} ${drawTool ? `drawing-${drawTool}` : ""}`}
         onPointerMoveCapture={(event) => {
           if (!(event.target instanceof Element) || !event.target.closest(".react-flow") || !flow.current) { cursorActive.current = false; onCursorMove?.(null); return; }
           cursorActive.current = true;
@@ -1809,7 +1831,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           }}
           onNodeDrag={(_, node) => { if (!canDragIdea(boardRef.current, node.id, canWriteBoard)) return; physics.drag(node.id, node.position); activeDragRef.current = { id: node.id, position: node.position }; setActiveDragId(node.id); dragPositionsRef.current.set(node.id, node.position); setDragPositions((current) => ({ ...current, [node.id]: node.position })); }}
           onNodeDragStop={(_, node) => finishDrag(node.id, node.position)}
-          panOnDrag={!drawTool && (tool === "hand" || spaceDown)} nodesDraggable={!drawTool && tool !== "hand" && !spaceDown && tool !== "connect"}
+          panOnDrag={!drawTool && (tool === "select" || spaceDown)} nodesDraggable={!drawTool && !spaceDown && tool !== "connect"}
           nodesConnectable={false} elementsSelectable={!drawTool} elevateEdgesOnSelect={false} zoomOnDoubleClick={false} minZoom={0.15} maxZoom={1.8} defaultViewport={{ x: 185, y: 180, zoom: 0.72 }}>
           {(preferences.background === "dots" || preferences.background === "grid") && <Background variant={preferences.background === "grid" ? BackgroundVariant.Lines : BackgroundVariant.Dots} gap={23} size={1.5} color={theme === "dark" ? "#405b52" : "#b6c9bf"} />}
           <ClusterDecorations board={board} positions={Object.fromEntries(visibleIdeas.map((idea) => [idea.id, idea.position]))} sizes={measuredSizes} />
@@ -1847,15 +1869,14 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
             onSuggestedLinks={() => { setChatOpen(false); setSuggestedLinksOpen((value) => !value); }}
             onConclusion={() => { setChatOpen(false); setSuggestedLinksOpen(false); setConclusionOpen(true); }} />}
           <nav className="board-toolbar" aria-label="Board tools">
-          <ToolButton label="Select" title={drawTool ? "Stop drawing and select ideas" : "Select ideas"}
+          <ToolButton label="Select and pan" title={drawTool ? "Stop drawing and return to Select and pan" : "Click an idea to select it, or drag the empty board to pan."}
             active={tool === "select" && !drawTool} onClick={() => selectTool("select")}><BoardIcon name="select" /></ToolButton>
-          <ToolButton label="Pan" active={tool === "hand"} title="Pan (hold Space)" onClick={() => selectTool("hand")}><BoardIcon name="pan" /></ToolButton>
           <div className="board-tool-rule" />
-          <ToolButton label="Add idea" active={tool === "add"} title="Add idea (or double-click empty canvas)" onClick={() => selectTool("add")}><BoardIcon name="add" /></ToolButton>
-          <ToolButton label="Connect" active={tool === "connect"} title={tool === "connect" ? "Connect is active. Drag from one idea into another." : "Connect ideas by dragging from one idea into another"} onClick={() => selectTool("connect")}><BoardIcon name="connect" /></ToolButton>
+          <ToolButton label="Add idea" active={tool === "add"} title={tool === "add" ? "Add idea is active. Click again to select." : "Add idea (or double-click empty canvas)"} onClick={() => toggleToolbarTool("add")}><BoardIcon name="add" /></ToolButton>
+          <ToolButton label="Connect" active={tool === "connect"} title={tool === "connect" ? "Connect is active. Drag between ideas, or click again to select." : "Connect ideas by dragging from one idea into another"} onClick={() => toggleToolbarTool("connect")}><BoardIcon name="connect" /></ToolButton>
           <div className="board-tool-featured-frame" role="group" aria-label="Merge and group tools">
-            <ToolButton label="Merge" active={tool === "merge"} title={`Choose 2 to ${MAX_MERGE_SOURCES} ideas to merge`} onClick={() => selectTool("merge")}><BoardIcon name="merge" /></ToolButton>
-            <ToolButton label="Group" active={organizeOpen} disabled={clusterBusy || assignmentBusy || clusterInput.cards.length < 2 || clusterInput.cards.length > 50 || clusterInput.tooLongCount > 0} title={clusterInput.tooLongCount ? "Shorten idea text to 4,000 characters before grouping" : "Group related ideas and arrange the canvas"} onClick={openOrganize}><BoardIcon name="organize" /></ToolButton>
+            <ToolButton label="Merge" active={tool === "merge"} title={tool === "merge" ? "Merge is active. Click again to select." : `Choose 2 to ${MAX_MERGE_SOURCES} ideas to merge`} onClick={() => toggleToolbarTool("merge")}><BoardIcon name="merge" /></ToolButton>
+            <ToolButton label="Group" active={organizeOpen} disabled={clusterBusy || assignmentBusy || clusterInput.cards.length < 2 || clusterInput.cards.length > 50 || clusterInput.tooLongCount > 0} title={clusterInput.tooLongCount ? "Shorten idea text to 4,000 characters before grouping" : organizeOpen ? "Close Organize and select ideas" : "Group related ideas and arrange the canvas"} onClick={toggleOrganizeTool}><BoardIcon name="organize" /></ToolButton>
           </div>
           <div className="board-tool-rule" />
           <ToolButton label="Pencil" title="Pencil settings" buttonRef={pencilButton} expanded={pencilSettingsOpen} active={drawTool === "pencil"} disabled={!canWriteBoard} onClick={() => selectDrawTool("pencil")}><BoardIcon name="pencil" /></ToolButton>
@@ -1915,7 +1936,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           }}>Retry placement</button>}
           {!onBoardChange && undoPlacementAvailable && <button type="button" onClick={undoAutomaticPlacement}>Undo placement</button>}
         </aside>}
-        {board.ideas.length === 0 && <div className="board-empty"><span>✳</span><h2>Your board is ready</h2><p>Start with one thought. You can connect it to others as your map grows.</p><button onClick={addAtCenter}>＋ Add your first idea</button></div>}
+        {board.ideas.length === 0 && starterIdeasPending && <StarterIdeasLoading />}
+        {board.ideas.length === 0 && !starterIdeasPending && <div className="board-empty"><span>✳</span><h2>Your board is ready</h2><p>Start with one thought. You can connect it to others as your map grows.</p><button onClick={addAtCenter}>＋ Add your first idea</button></div>}
         {(mergeIds.length > 0 || tool === "merge") && mergeIds.every((id) => board.ideas.some((idea) => idea.id === id)) && !mergePreview && <div className="board-merge-tray" role="region" aria-label="Merge selected ideas">
           <div className="board-merge-tray-copy"><strong>{mergeIds.length < 2 ? mergeIds.length === 0 ? "Choose ideas to merge" : "Choose one more idea" : `${mergeIds.length} ideas selected`}</strong>
             <span>Choose 2–{MAX_MERGE_SOURCES} ideas</span>
