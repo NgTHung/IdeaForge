@@ -25,6 +25,8 @@ export function LandingPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [isOpeningDemo, setIsOpeningDemo] = useState(false);
+  const [sandboxActive, setSandboxActive] = useState(false);
+  const sandboxFrame = useRef<HTMLIFrameElement>(null);
   const createStarted = useRef(false);
   const joinStarted = useRef(false);
   const demoStarted = useRef(false);
@@ -42,6 +44,12 @@ export function LandingPage() {
     demoStarted.current = true;
     setIsOpeningDemo(true);
     router.push(`/board/${createIdeaId()}`);
+  }
+
+  // The overlay keeps wheel and touch scrolling on the page until the visitor chooses to use the board.
+  function startSandbox() {
+    setSandboxActive(true);
+    sandboxFrame.current?.focus();
   }
 
   function joinBoard(event: FormEvent<HTMLFormElement>) {
@@ -107,14 +115,24 @@ export function LandingPage() {
         </li>)}
       </ol>
     </section>
-    <section className="landing-demo" aria-labelledby="landing-demo-title">
-      <div>
-        <h2 id="landing-demo-title">Try a demo board</h2>
-        <p>Open a new board with five sample ideas about student study habits. You don’t need an account, and anyone you send the link to can join and edit it.</p>
+    <section className="landing-try" aria-labelledby="landing-try-title">
+      <div className="landing-try-head">
+        <div>
+          <h2 id="landing-try-title">Try it here</h2>
+          <p>This board runs in your browser with five sample ideas. Add and link ideas, then select a few and merge them with AI. You don’t need an account, and nothing is saved.</p>
+        </div>
+        <a className="landing-try-full" href="/try">Open full screen</a>
       </div>
-      <button className="landing-primary" type="button" disabled={isOpeningDemo} onClick={openDemoBoard}>
-        {isOpeningDemo ? "Opening…" : "Open demo board"}
-      </button>
+      <div className="landing-try-frame">
+        <iframe ref={sandboxFrame} src="/try" title="IdeaForge sandbox board" loading="lazy" tabIndex={sandboxActive ? 0 : -1} />
+        {!sandboxActive && <button className="landing-try-start" type="button" onClick={startSandbox}>
+          <span>Click to try the board</span>
+        </button>}
+      </div>
+      <a className="landing-primary landing-try-mobile" href="/try">Open the sandbox</a>
+      <p className="landing-try-shared">Want to try it with others?{" "}
+        <button type="button" disabled={isOpeningDemo} onClick={openDemoBoard}>{isOpeningDemo ? "Opening…" : "Open a shared demo board"}</button>
+      </p>
     </section>
   </main>;
 }
