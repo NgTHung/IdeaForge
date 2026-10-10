@@ -4,11 +4,9 @@ import { useRef, useState } from "react";
 import { useReactFlow, ViewportPortal } from "@xyflow/react";
 import { stickerCatalog, type BoardDecoration, type StickerKind } from "./board-social-contract";
 
-export function StickerPicker({ canWrite, onPlace }: { canWrite: boolean; onPlace: (kind: StickerKind) => void }) {
-  return <details className="sticker-picker"><summary>✿ Stickers</summary><div className="sticker-palette"><strong>Decorate the board</strong><p>Pick a sticker, then click the canvas. Drag it to move.</p>
-    <div>{(["star", "heart", "cat", "flower", "cloud", "rainbow"] as const).map((kind) => <button key={kind} type="button" disabled={!canWrite} aria-label={`Place ${stickerCatalog[kind].label} sticker`} onClick={(event) => { onPlace(kind); event.currentTarget.closest("details")?.removeAttribute("open"); }}><span aria-hidden="true">{stickerCatalog[kind].glyph}</span>{stickerCatalog[kind].label}</button>)}</div>
-    {!canWrite && <p>Only editors can place decorations.</p>}
-  </div></details>;
+export function StickerPalette({ canWrite, onPlace }: { canWrite: boolean; onPlace: (kind: StickerKind) => void }) {
+  return <div className="sticker-palette">{(["star", "heart", "cat", "flower", "cloud", "rainbow"] as const).map((kind) => <button key={kind} type="button" disabled={!canWrite}
+    aria-label={`Place ${stickerCatalog[kind].label} sticker`} onClick={() => onPlace(kind)}><span aria-hidden="true">{stickerCatalog[kind].glyph}</span>{stickerCatalog[kind].label}</button>)}</div>;
 }
 export function StickerDecorations({ decorations, canWrite, onMove, onRemove }: {
   decorations: BoardDecoration[]; canWrite: boolean;

@@ -35,9 +35,11 @@ import { PersonalizationPanel } from "./personalization-panel";
 import { ClusterDecorations } from "./cluster-decorations";
 import { usePersonalization } from "./use-personalization";
 import { setObjectAppearance, styleColor, type CursorStyle } from "./personalization";
-import { AnimationContext, BoardActivity, AchievementCollection, ThinkingAnimation, useBoardActivity, type ConnectedMember } from "./board-activity";
-import { CursorSignals, SocialControls, useSignalQueue } from "./board-social";
-import { StickerDecorations, StickerPicker } from "./sticker-decorations";
+import { AnimationContext, BoardActivity, ThinkingAnimation, useBoardActivity, type ConnectedMember } from "./board-activity";
+import { CursorSignals, SocialControls, useSignalQueue, type SocialControlsHandle } from "./board-social";
+import { StickerDecorations } from "./sticker-decorations";
+import { DecorateMenu } from "./decorate-menu";
+import { BoardIcon } from "./board-icons";
 import { addDecoration, moveDecoration, removeDecoration, canOpenCursorChat, signalLifetime, stickerCatalog, type NamedSignal, type SocialSignal, type StickerKind } from "./board-social-contract";
 import { canDragIdea, displayIdeas, type CanvasPoint } from "./canvas-interaction";
 import "./board.css";
@@ -229,6 +231,9 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const [assignmentUndo, setAssignmentUndo] = useState<{ id: string; position: Idea["position"]; after: Idea["position"]; snapshot: Board["clusterSnapshot"]; appliedRevision: string } | null>(null);
   const flow = useRef<ReactFlowInstance<IdeaNode, OrthogonalCanvasEdge> | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
+  const workspace = useRef<HTMLDivElement>(null);
+  const workspaceElement = useCallback(() => workspace.current, []);
+  const socialControls = useRef<SocialControlsHandle>(null);
   const titleInput = useRef<HTMLInputElement>(null);
   const draftIdeaRef = useRef<Idea | null>(null);
   const suppressTitleCommit = useRef(false);
@@ -1363,29 +1368,23 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   return <AnimationContext.Provider value={{ preferences, motion }}><main className="board-shell" data-theme={theme} data-motion={motion ? "on" : "off"} style={{ "--personal-accent": styleColor(preferences.accent) ?? "#168264" } as React.CSSProperties}>
     <header className="board-topbar" aria-label="Board controls"><div className="board-brand">
       <Link href="/" className="board-brand-home" aria-label="IdeaForge home" title="IdeaForge home"><span className="board-brand-symbol" aria-hidden="true">✳</span></Link>
-      <input aria-label="Board title" value={titleDraft ?? title} maxLength={80} onChange={(event) => setTitleDraft(event.target.value)}
-        onBlur={commitTitleDraft} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); if (event.key === "Escape") { suppressTitleCommit.current = true; setTitleDraft(null); event.currentTarget.blur(); } }} /></div>
+      <div className="board-title-group"><input aria-label="Board title" value={titleDraft ?? title} maxLength={80} onChange={(event) => setTitleDraft(event.target.value)}
+        onBlur={commitTitleDraft} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); if (event.key === "Escape") { suppressTitleCommit.current = true; setTitleDraft(null); event.currentTarget.blur(); } }} />
+        {boardDescription.trim() && <p className="board-description" title={boardDescription.trim()}>{boardDescription.trim()}</p>}</div></div>
       {titleError && <span className="board-title-save-error" role="alert">{titleError}</span>}
-      <details className="board-description-control"><summary aria-label="Board description" title="Board description">
-        <svg aria-hidden="true" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.25" /><path d="M10 9v4M10 6.6v.1" /></svg>
-      </summary>
-        <div className="board-description-popup"><strong>Board description</strong>
-          <p>{boardDescription.trim() || "No description was added for this board."}</p></div>
-      </details>
       <div className="board-top-actions">{onBoardChange && <>{voteUserId && <IdeaVotes ideas={board.ideas} votes={board.votes} voterId={voteUserId} voterName={authorName || "Unknown contributor"}
         canWrite={canWriteBoard} onBoardChange={onBoardChange} onUpvote={upvoteWithEffect} />}<ActiveMembers /><button className="board-share-button" type="button" aria-label="Share board" onClick={() => void copyBoardLink()}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11.5 3.5h5v5M16.2 3.8 9.5 10.5" /><path d="M14.5 10.5v4.8a1.2 1.2 0 0 1-1.2 1.2H4.7a1.2 1.2 0 0 1-1.2-1.2V6.7a1.2 1.2 0 0 1 1.2-1.2h4.8" /></svg>
           <span className="board-share-label">Share</span></button></>}
+        <button className={`board-assistant-launch ${chatOpen ? "is-open" : ""}`} type="button" aria-expanded={chatOpen} onClick={() => setChatOpen((value) => !value)}>
+          <BoardIcon name="assistant" /><span>Assistant</span></button>
         <AccountMenu />
         <PersonalizationPanel preferences={preferences} update={updatePreferences} reducedMotion={reducedMotion} board={board} selectedIdeaId={chosenIdea?.id} selectedLinkId={chosenLink?.id} canWrite={canWriteBoard}
-          onStyle={(kind, id, style) => { if (canWriteBoard) commitBoardChange((current) => setObjectAppearance(current, kind, id, style)); }} />
-        <button className="board-theme-toggle" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} aria-pressed={theme === "dark"} onClick={() => updatePreferences({ theme: theme === "dark" ? "light" : "dark" })}>{theme === "dark" ? "☼" : "◐"}</button></div>
+          onStyle={(kind, id, style) => { if (canWriteBoard) commitBoardChange((current) => setObjectAppearance(current, kind, id, style)); }} /></div>
       {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
     </header>
-    <div className="board-workspace" onPointerMoveCapture={(event) => { cursorScreen.current = { x: event.clientX, y: event.clientY }; }}>
-      <div className="board-decoration-controls"><AchievementCollection achievements={activity.achievements} canWrite={canWriteBoard} onPlace={(kind) => { selectTool("select"); setPlacingSticker(kind); }} />
-        <StickerPicker canWrite={canWriteBoard} onPlace={(kind) => { selectTool("select"); setPlacingSticker(kind); }} /></div>
-      <SocialControls shortcutsBlocked={Boolean(editor || linkDraft || relationshipEditor || mergePreview || mergeDetailsId || assistantDetailsId || organizeOpen)} chatOpen={cursorChatOpen} setChatOpen={openCursorChat}
+    <div ref={workspace} className="board-workspace" onPointerMoveCapture={(event) => { cursorScreen.current = { x: event.clientX, y: event.clientY }; }}>
+      <SocialControls ref={socialControls} container={workspaceElement} shortcutsBlocked={Boolean(editor || linkDraft || relationshipEditor || mergePreview || mergeDetailsId || assistantDetailsId || organizeOpen)} chatOpen={cursorChatOpen} setChatOpen={openCursorChat}
         screenPosition={chatAnchor}
         pointerPosition={() => cursorScreen.current}
         position={() => cursorPoint.current ?? flow.current?.screenToFlowPosition({ x: (canvas.current?.getBoundingClientRect().left ?? 0) + 350, y: (canvas.current?.getBoundingClientRect().top ?? 0) + 220 }) ?? { x: 0, y: 0 }}
@@ -1462,37 +1461,21 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           <path d={orthogonalPreviewPath({ x: connectDrag.preview.x1, y: connectDrag.preview.y1 }, { x: connectDrag.preview.x2, y: connectDrag.preview.y2 })} />
           <circle cx={connectDrag.preview.x2} cy={connectDrag.preview.y2} r="6" />
         </svg>}
-        <div className="board-tool-dock">
-        <button className={`board-assistant-launch ${chatOpen ? "is-open" : ""}`} aria-label={chatOpen ? "Close Assistant" : "Open Assistant"} title={chatOpen ? "Close Assistant" : "Open Assistant"} aria-expanded={chatOpen} onClick={() => setChatOpen((value) => !value)}>✳</button>
         <nav className="board-toolbar" aria-label="Board tools">
           <ToolButton label="Select" title={drawTool ? "Stop drawing and select ideas" : "Select ideas"}
-            active={tool === "select" && !drawTool} onClick={() => selectTool("select")}>↖</ToolButton>
-          <ToolButton label="Pan" active={tool === "hand"} onClick={() => selectTool("hand")}>✋</ToolButton>
+            active={tool === "select" && !drawTool} onClick={() => selectTool("select")}><BoardIcon name="select" /></ToolButton>
+          <ToolButton label="Pan" active={tool === "hand"} title="Pan (hold Space)" onClick={() => selectTool("hand")}><BoardIcon name="pan" /></ToolButton>
           <div className="board-tool-rule" />
-          <ToolButton label="Add idea" active={tool === "add"} onClick={() => selectTool("add")}>＋</ToolButton>
-          <ToolButton label="Connect" active={tool === "connect"} title={tool === "connect" ? "Connect is active. Drag from one idea into another." : "Connect ideas by dragging from one idea into another"} onClick={() => selectTool("connect")}>⌁</ToolButton>
-          <ToolButton label="Merge" active={tool === "merge"} title={`Choose 2 to ${MAX_MERGE_SOURCES} ideas to merge`} onClick={() => selectTool("merge")}>⧉</ToolButton>
+          <ToolButton label="Add idea" active={tool === "add"} onClick={() => selectTool("add")}><BoardIcon name="add" /></ToolButton>
+          <ToolButton label="Connect" active={tool === "connect"} title={tool === "connect" ? "Connect is active. Drag from one idea into another." : "Connect ideas by dragging from one idea into another"} onClick={() => selectTool("connect")}><BoardIcon name="connect" /></ToolButton>
+          <ToolButton label="Merge" active={tool === "merge"} title={`Choose 2 to ${MAX_MERGE_SOURCES} ideas to merge`} onClick={() => selectTool("merge")}><BoardIcon name="merge" /></ToolButton>
+          <ToolButton label={clusterResult ? "Organize again" : "Organize"} active={organizeOpen} disabled={clusterBusy || assignmentBusy || clusterInput.cards.length < 2 || clusterInput.cards.length > 50 || clusterInput.tooLongCount > 0} title={clusterInput.tooLongCount ? "Shorten idea text to 4,000 characters before organizing" : "Group related ideas and arrange the canvas"} onClick={openOrganize}><BoardIcon name="organize" /></ToolButton>
           <div className="board-tool-rule" />
-          <ToolButton label={clusterResult ? "Organize again" : "Organize"} active={organizeOpen} disabled={clusterBusy || assignmentBusy || clusterInput.cards.length < 2 || clusterInput.cards.length > 50 || clusterInput.tooLongCount > 0} title={clusterInput.tooLongCount ? "Shorten idea text to 4,000 characters before organizing" : "Group related ideas and arrange the canvas"} onClick={openOrganize}>▦</ToolButton>
+          <ToolButton label="Pencil" active={drawTool === "pencil"} disabled={!canWriteBoard} onClick={() => selectDrawTool("pencil")}><BoardIcon name="pencil" /></ToolButton>
+          <ToolButton label="Eraser" active={drawTool === "eraser"} disabled={!canWriteBoard} onClick={() => selectDrawTool("eraser")}><BoardIcon name="eraser" /></ToolButton>
+          <DecorateMenu achievements={activity.achievements} canWrite={canWriteBoard} onPlace={(kind) => { selectTool("select"); setPlacingSticker(kind); }}
+            onReact={(point) => socialControls.current?.toggleReactions(point)} onMessage={() => openCursorChat(true)} />
         </nav>
-        <nav className="board-draw-toolbar" aria-label="Free drawing tools" data-active={Boolean(drawTool)}>
-          <span className="board-draw-toolbar-label" aria-hidden="true">DRAW</span>
-          <ToolButton label="Pencil" active={drawTool === "pencil"} disabled={!canWriteBoard} onClick={() => selectDrawTool("pencil")}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16.5-.9 4.4 4.4-.9L19.8 7.7a2.1 2.1 0 0 0-3-3L4 16.5Z" /><path d="m14.8 6.7 3 3" /></svg>
-          </ToolButton>
-          <ToolButton label="Eraser" active={drawTool === "eraser"} disabled={!canWriteBoard} onClick={() => selectDrawTool("eraser")}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3.5 14.3 8.8-9.1a2 2 0 0 1 2.9 0l5.2 5.2a2 2 0 0 1 0 2.9l-6.4 6.4H8.7l-5.2-5.2a1.5 1.5 0 0 1 0-2.2Z" /><path d="m8.4 9.2 6.5 6.5M14 19.7h6.5" /></svg>
-          </ToolButton>
-        </nav>
-        {historyActions && <nav className="board-history-toolbar" aria-label="Board history">
-          <ToolButton label="Undo" title="Undo (Ctrl/Cmd+Z)" disabled={!historyActions.canUndo || !historyActions.canWrite} onClick={undoWithEffect} rewinding={motion && activity.events.some((event) => event.kind === "undo")}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7-5 5 5 5" /><path d="M4.5 12h8a7 7 0 0 1 7 7" /></svg>
-          </ToolButton>
-          <ToolButton label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" disabled={!historyActions.canRedo || !historyActions.canWrite} onClick={historyActions.redo}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5" /><path d="M19.5 12h-8a7 7 0 0 0-7 7" /></svg>
-          </ToolButton>
-        </nav>}
-        </div>
         {organizeOpen && <section className="board-organize-panel" aria-label="Organize ideas">
           <div className="board-organize-head"><h2>Organize ideas</h2><button type="button" className="board-icon-button" aria-label="Close organize panel" onClick={() => setOrganizeOpen(false)}>×</button></div>
           <label className="board-organize-count">Groups<select value={Math.min(clusterCount, Math.max(2, Math.min(10, clusterInput.cards.length)))} onChange={(event) => setClusterCount(Number(event.target.value))} disabled={clusterBusy || clusterInput.cards.length < 2}>
@@ -1553,13 +1536,15 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
           {mergeIds.length === 0 ? <button type="button" onClick={() => selectTool("select")}>Cancel</button> : <button type="button" onClick={() => { discardMerge(); setMergeIds([]); }}>Clear</button>}
           {mergeIds.length >= 2 && <button type="button" className="primary" disabled={mergeBusy || !selectedMergeContext?.goal || selectedMergeContext.sources.some((idea) => !mergeText(idea) || mergeText(idea).length > 4000) || Boolean(selectedMergeContext && selectedMergeContext.sources.reduce((total, idea) => total + mergeText(idea).length, 0) > MAX_MERGE_TOTAL_CHARACTERS)} onClick={() => void generateMerge()}>{mergeBusy ? "Generating…" : `Merge ${mergeIds.length} ideas`}</button>}
         </div>}
-        {chosenIdea && <button type="button" className={`board-focus-toggle${onlySelectedNodeEdges ? " is-active" : ""}`} aria-pressed={onlySelectedNodeEdges}
-          onClick={() => setOnlySelectedNodeEdges((value) => !value)}>Show only this idea’s links</button>}
         {(chosenIdea || chosenLink) && <div className="board-selection-bar">
-          {chosenIdea ? <><strong>{chosenIdea.title}</strong><button onClick={() => openEditor(chosenIdea)}>Edit</button><button onClick={() => { setMergeIds((current) => current.includes(chosenIdea.id) ? current : [...current, chosenIdea.id]); setSelection(null); setDrawTool(null); setTool("merge"); }}>Add to merge</button><button onClick={() => { setUndoPositions(null); setBoard((current) => setIdeaPinned(current, chosenIdea.id, !chosenIdea.pinned)); if (chosenIdea.pinned) physics.reheat(); }}>{chosenIdea.pinned ? "Unpin" : "Pin"}</button>{chosenIdea.merge && <button onClick={() => setMergeDetailsId(chosenIdea.id)}>How this idea was made</button>}</>
+          {chosenIdea ? <><strong>{chosenIdea.title}</strong><button onClick={() => openEditor(chosenIdea)}>Edit</button><button onClick={() => { setMergeIds((current) => current.includes(chosenIdea.id) ? current : [...current, chosenIdea.id]); setSelection(null); setDrawTool(null); setTool("merge"); }}>Add to merge</button><button onClick={() => { setUndoPositions(null); setBoard((current) => setIdeaPinned(current, chosenIdea.id, !chosenIdea.pinned)); if (chosenIdea.pinned) physics.reheat(); }}>{chosenIdea.pinned ? "Unpin" : "Pin"}</button><button className={onlySelectedNodeEdges ? "is-active" : ""} aria-pressed={onlySelectedNodeEdges} onClick={() => setOnlySelectedNodeEdges((value) => !value)}>Only its links</button>{chosenIdea.merge && <button onClick={() => setMergeDetailsId(chosenIdea.id)}>How this idea was made</button>}</>
             : <><strong>{chosenLink && relationshipLabels[chosenLink.type]}</strong>{chosenLink?.explanation && <span title={[chosenLink.explanation, chosenLink.condition].filter(Boolean).join(" When: ")}>{chosenLink.explanation}{chosenLink.condition ? ` When: ${chosenLink.condition}` : ""}</span>}{chosenLink?.author && <small>By {chosenLink.author}</small>}<button onClick={() => chosenLink && openRelationshipEditor(chosenLink)}>Edit link</button></>}
           <button className="danger" onClick={removeSelection}>Delete</button></div>}
-        <div className="board-zoom"><button aria-label="Zoom out" title="Zoom out" onClick={() => flow.current?.zoomOut({ duration: motionRef.current ? 180 : 0 })}>−</button><button aria-label="Fit ideas" title="Fit ideas" onClick={() => { void fitBoard(); }}>⤢</button><ZoomReadout zoom={zoom} /><button aria-label="Zoom in" title="Zoom in" onClick={() => flow.current?.zoomIn({ duration: motionRef.current ? 180 : 0 })}>＋</button></div>
+        <div className="board-zoom">{historyActions && <>
+          <ToolButton label="Undo" title="Undo (Ctrl/Cmd+Z)" disabled={!historyActions.canUndo || !historyActions.canWrite} onClick={undoWithEffect} rewinding={motion && activity.events.some((event) => event.kind === "undo")}><BoardIcon name="undo" /></ToolButton>
+          <ToolButton label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)" disabled={!historyActions.canRedo || !historyActions.canWrite} onClick={historyActions.redo}><BoardIcon name="redo" /></ToolButton>
+          <span className="board-zoom-rule" /></>}
+          <button aria-label="Zoom out" title="Zoom out" onClick={() => flow.current?.zoomOut({ duration: motionRef.current ? 180 : 0 })}><BoardIcon name="zoomOut" /></button><button aria-label="Fit ideas" title="Fit ideas" onClick={() => { void fitBoard(); }}><BoardIcon name="fit" /></button><ZoomReadout zoom={zoom} /><button aria-label="Zoom in" title="Zoom in" onClick={() => flow.current?.zoomIn({ duration: motionRef.current ? 180 : 0 })}><BoardIcon name="zoomIn" /></button></div>
       </div>
       <ConnectionSuggestionsPanel board={board} suggestions={suggestions} onBoardChange={setBoard} minimized={chatOpen} authorName={authorName} />
       <ChatSidebar open={chatOpen} onToggle={() => setChatOpen((value) => !value)} board={board} boardTitle={title}

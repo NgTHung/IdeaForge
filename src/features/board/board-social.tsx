@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useContext, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useContext, useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type Ref } from "react";
 import { useViewport, ViewportPortal } from "@xyflow/react";
 import { AnimationContext } from "./board-activity";
 import { appendSignal, reactions, type NamedSignal, type SocialSignal } from "./board-social-contract";
@@ -27,7 +27,9 @@ export function CursorSignals({ signals, positions }: { signals: NamedSignal[]; 
     </div>; })}
   </div></ViewportPortal>;
 }
-export function SocialControls({ chatOpen, setChatOpen, position, screenPosition, pointerPosition, onSend, onClose, shortcutsBlocked }: {
+export type SocialControlsHandle = { toggleReactions: (point?: CanvasPoint) => void };
+export function SocialControls({ ref, container, chatOpen, setChatOpen, position, screenPosition, pointerPosition, onSend, onClose, shortcutsBlocked }: {
+  ref?: Ref<SocialControlsHandle>; container: () => HTMLElement | null;
   shortcutsBlocked: boolean; chatOpen: boolean; setChatOpen: (value: boolean) => void; position: () => { x: number; y: number };
   screenPosition: CanvasPoint | null; pointerPosition: () => CanvasPoint | null; onSend: (signal: SocialSignal) => void; onClose: () => void;
 }) {
@@ -35,18 +37,16 @@ export function SocialControls({ chatOpen, setChatOpen, position, screenPosition
   const wheelOpen = wheelAnchor !== null;
   const [message, setMessage] = useState("");
   const input = useRef<HTMLInputElement>(null);
-  const root = useRef<HTMLDivElement>(null);
   const wheel = useRef<HTMLDivElement>(null);
-  const reactionTrigger = useRef<HTMLButtonElement>(null);
   const lastSent = useRef(0);
   const toggleWheel = useCallback((point?: CanvasPoint) => {
-    const bounds = root.current?.parentElement?.getBoundingClientRect();
-    const triggerBounds = reactionTrigger.current?.getBoundingClientRect();
-    if (!bounds || !triggerBounds) return;
-    const anchor = point ?? pointerPosition() ?? { x: triggerBounds.left + triggerBounds.width / 2, y: triggerBounds.top + triggerBounds.height / 2 };
+    const bounds = container()?.getBoundingClientRect();
+    if (!bounds) return;
+    const anchor = point ?? pointerPosition() ?? { x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 };
     setWheelAnchor((current) => current ? null : { x: anchor.x - bounds.left, y: anchor.y - bounds.top });
     setChatOpen(false);
-  }, [pointerPosition, setChatOpen]);
+  }, [container, pointerPosition, setChatOpen]);
+  useImperativeHandle(ref, () => ({ toggleReactions: toggleWheel }), [toggleWheel]);
   useEffect(() => {
     const keyDown = (event: KeyboardEvent) => {
       const target = event.target instanceof Element ? event.target : null;
@@ -61,7 +61,7 @@ export function SocialControls({ chatOpen, setChatOpen, position, screenPosition
   useEffect(() => {
     if (!wheelOpen) return;
     wheel.current?.querySelector<HTMLButtonElement>(".reaction-option")?.focus();
-    const close = (event: PointerEvent) => { if (event.target instanceof Node && !root.current?.contains(event.target) && !wheel.current?.contains(event.target)) setWheelAnchor(null); };
+    const close = (event: PointerEvent) => { if (event.target instanceof Node && !wheel.current?.contains(event.target)) setWheelAnchor(null); };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
   }, [wheelOpen]);
@@ -70,14 +70,10 @@ export function SocialControls({ chatOpen, setChatOpen, position, screenPosition
     lastSent.current = Date.now(); onSend(signal);
   }, [onSend]);
   return <>
-    <div className="board-social-controls" ref={root}>
-      <button ref={reactionTrigger} type="button" aria-label="Quick reactions" title="Quick reactions (R)" aria-keyshortcuts="R" aria-expanded={wheelOpen} onClick={(event) => toggleWheel(event.detail ? { x: event.clientX, y: event.clientY } : undefined)}>☺ <span>React</span><kbd>R</kbd></button>
-      <button type="button" aria-label="Cursor message" title="Cursor message (Enter)" onClick={() => { setWheelAnchor(null); setChatOpen(!chatOpen); }}>◌ <span>Message</span><kbd>↵</kbd></button>
-    </div>
     {wheelAnchor && <div ref={wheel} className="reaction-wheel" role="dialog" aria-label="Choose a reaction"
       style={{ left: `clamp(var(--wheel-inset), ${wheelAnchor.x}px, calc(100% - var(--wheel-inset)))`, top: `clamp(var(--wheel-inset), ${wheelAnchor.y}px, calc(100% - var(--wheel-inset)))` }}
       onKeyDown={(event) => {
-        if (event.key === "Escape") { event.stopPropagation(); setWheelAnchor(null); reactionTrigger.current?.focus(); }
+        if (event.key === "Escape") { event.stopPropagation(); setWheelAnchor(null); onClose(); }
         if (["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown"].includes(event.key)) {
           event.preventDefault(); const choices = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button"));
           const index = choices.indexOf(document.activeElement as HTMLButtonElement);
@@ -85,7 +81,7 @@ export function SocialControls({ chatOpen, setChatOpen, position, screenPosition
         }
       }}><span className="reaction-wheel-center" aria-hidden="true">✦</span>{Object.entries(reactions).map(([key, glyph], index) => <button type="button" className="reaction-option" key={key} aria-label={`React with ${key}`}
         style={{ "--angle": `${index * 60 - 90}deg` } as CSSProperties}
-        onClick={() => { send({ id: createIdeaId(), kind: "reaction", value: key as keyof typeof reactions, position: position() }); setWheelAnchor(null); reactionTrigger.current?.focus(); }}>{glyph}</button>)}</div>}
+        onClick={() => { send({ id: createIdeaId(), kind: "reaction", value: key as keyof typeof reactions, position: position() }); setWheelAnchor(null); onClose(); }}>{glyph}</button>)}</div>}
     {chatOpen && <form className="cursor-chat-composer" aria-label="Cursor message" style={{ left: screenPosition?.x ?? 220, top: screenPosition?.y ?? 160 }}
       onSubmit={(event) => { event.preventDefault(); if (!message.trim()) return; send({ id: createIdeaId(), kind: "chat", value: message.trim(), position: position() }); setMessage(""); setChatOpen(false); onClose(); }}
       onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Escape") { setMessage(""); setChatOpen(false); onClose(); } }}>

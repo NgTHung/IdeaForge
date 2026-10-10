@@ -1,28 +1,3 @@
-.board-decoration-controls { position: absolute; z-index: 26; top: 84px; left: 94px; display: flex; align-items: flex-start; gap: 8px; }
-.board-decoration-controls .board-achievements { position: relative; inset: auto; }
-.board-decoration-controls summary, .board-social-controls > button { list-style: none; border: 1px solid #c5d9ce; background: #fff; color: #355448; border-radius: 14px; padding: 10px 13px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; box-shadow: 0 3px 12px #20483a09; }
-.board-decoration-controls summary::-webkit-details-marker { display: none; }
-.achievement-collection summary { display: flex; align-items: center; gap: 7px; }
-.achievement-collection summary > span:first-child { font-size: 20px; }
-.achievement-collection summary b { color: #777; font-size: 10px; }
-.earned-badges { display: flex; gap: 3px; font-size: 18px; }
-.achievement-popup, .sticker-palette { position: absolute; left: 0; top: 54px; width: 290px; box-sizing: border-box; padding: 18px; border: 1px solid #c8dbce; border-radius: 20px; background: #fff; color: #355448; box-shadow: 0 16px 40px #20483a22; max-height: calc(100dvh - 190px); overflow: auto; }
-.achievement-popup > strong, .sticker-palette > strong { font-size: 15px; }
-.achievement-popup ul { position: static; width: auto; padding: 0; margin: 12px 0; background: none; border: 0; box-shadow: none; }
-.achievement-popup li { align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #e2ebe5; opacity: .7; }
-.achievement-popup li[data-earned="true"] { opacity: 1; }
-.achievement-popup li > span:first-child { font-size: 34px; filter: grayscale(1); }
-.achievement-popup li[data-earned="true"] > span:first-child { filter: none; }
-.achievement-popup small { font-size: 11px; }
-.achievement-state { display: block; margin-top: 5px; color: #69776d; font-size: 10px; }
-.achievement-popup button { display: block; margin-top: 7px; padding: 5px 8px; border: 1px solid #b7d6c6; border-radius: 7px; background: #edf7f0; color: #23664c; font: inherit; font-size: 11px; cursor: pointer; }
-.achievement-popup p { position: static; width: auto; margin-bottom: 0; font-size: 10px; line-height: 1.5; color: #69776d; }
-.sticker-picker { position: relative; }
-.sticker-palette { width: 260px; }
-.sticker-palette p { font-size: 11px; line-height: 1.5; }
-.sticker-palette > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
-.sticker-palette button { display: grid; justify-items: center; padding: 8px 3px; gap: 5px; border: 1px solid #d7e6da; border-radius: 12px; color: inherit; background: #f5f9f4; font: inherit; font-size: 10px; cursor: pointer; }
-.sticker-palette button span { font-size: 32px; }
 .sticker-placement-notice { position: absolute; z-index: 30; top: 140px; left: 94px; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; background: #255b46; color: white; font-size: 12px; box-shadow: 0 5px 20px #17352b22; }
 .sticker-placement-notice button { border: 0; background: #ffffff20; color: white; padding: 4px 7px; border-radius: 6px; cursor: pointer; }
 .sticker-decorations { position: absolute; inset: 0; z-index: 12; pointer-events: none; }
@@ -32,9 +7,6 @@
 .board-sticker[data-dragging="true"] .sticker-handle { cursor: grabbing; transform: scale(1.12) rotate(8deg); }
 .board-sticker[data-selected="true"] .sticker-handle { border-color: var(--personal-accent); background: #ffffff55; }
 .sticker-remove { position: absolute; top: -9px; right: -9px; border: 1px solid #bdccc3; background: #fff; color: #8b3440; border-radius: 50%; width: 23px; height: 23px; font-size: 17px; cursor: pointer; }
-.board-social-controls { position: absolute; z-index: 28; left: 84px; bottom: 78px; display: flex; gap: 8px; }
-.board-social-controls > button { display: flex; gap: 7px; align-items: center; font-size: 13px; }
-.board-social-controls kbd { font-size: 10px; color: #7f8f84; }
 .reaction-wheel { --wheel-size: 182px; --wheel-inset: calc(var(--wheel-size) / 2 + 8px); position: absolute; z-index: 80; width: var(--wheel-size); height: var(--wheel-size); transform: translate(-50%, -50%); border: 1px solid #d0e0d5; border-radius: 50%; background: #ffffffed; box-shadow: 0 8px 40px #224d3e25; }
 .reaction-option { position: absolute; left: 50%; top: 50%; width: 43px; height: 43px; margin: -21.5px; transform: rotate(var(--angle)) translateX(64px) rotate(calc(-1 * var(--angle))); border: 1px solid #dce8df; border-radius: 50%; background: #f4faf6; font-size: 25px; cursor: pointer; }
 .reaction-option:hover { background: #d9f4e6; }
@@ -66,11 +38,10 @@
 .activity-anchor[data-effect="merge"] { animation: none; }
 @keyframes merge-core { 0% { scale: .1; rotate: -30deg; } 65% { scale: 1.5; } 100% { scale: 1; } }
 @keyframes merge-spark { 0% { transform: rotate(var(--spark-angle)) translateX(0) scale(0); opacity: 1; } 100% { transform: rotate(var(--spark-angle)) translateX(115px) scale(.5); opacity: 0; } }
-.board-shell[data-theme="dark"] :is(.achievement-popup, .sticker-palette, .board-decoration-controls summary, .board-social-controls > button, .reaction-wheel, .cursor-chat-composer, .cursor-signal) { background: #243831; color: #e0eae4; border-color: #476155; }
-.board-shell[data-theme="dark"] :is(.sticker-palette button, .reaction-option, .achievement-popup button, .cursor-chat-composer input) { background: #304b3e; color: #e0eae4; border-color: #476155; }
-.board-shell :is(.board-decoration-controls, .board-social-controls, .reaction-wheel, .cursor-chat-composer, .board-sticker) :focus-visible { outline: 3px solid var(--personal-accent); outline-offset: 3px; }
-.board-shell :is(.sticker-palette, .achievement-popup) button:disabled { opacity: .45; cursor: default; }
-@media (max-width: 640px) { .board-decoration-controls { left: 82px; top: 80px; gap: 4px; } .board-decoration-controls summary { padding: 8px; font-size: 10px; } .board-social-controls { left: 70px; bottom: 72px; } .sticker-palette { left: auto; right: 0; } .sticker-placement-notice { left: 82px; right: 12px; top: 134px; font-size: 10px; } .earned-badges { display: none; } }
+.board-shell[data-theme="dark"] :is(.reaction-wheel, .cursor-chat-composer, .cursor-signal) { background: #243831; color: #e0eae4; border-color: #476155; }
+.board-shell[data-theme="dark"] :is(.reaction-option, .cursor-chat-composer input) { background: #304b3e; color: #e0eae4; border-color: #476155; }
+.board-shell :is(.reaction-wheel, .cursor-chat-composer, .board-sticker) :focus-visible { outline: 3px solid var(--personal-accent); outline-offset: 3px; }
+@media (max-width: 640px) { .sticker-placement-notice { left: 82px; right: 12px; top: 134px; font-size: 10px; } }
 
 .board-shell[data-motion="off"] .board-sticker[data-dragging="true"] .sticker-handle { transform: none; }
 

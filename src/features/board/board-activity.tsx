@@ -84,19 +84,14 @@ export function BoardActivity({ activity, board, positions }: { activity: Return
     })}</div></ViewportPortal>
   </>;
 }
-export function AchievementCollection({ achievements, canWrite, onPlace }: { achievements: ReturnType<typeof earnedAchievements>; canWrite: boolean; onPlace: (kind: StickerKind) => void }) {
-  return <aside className="board-achievements" aria-label="Achievements">
-    <details className="achievement-collection"><summary><span aria-hidden="true">🏅</span> Achievements <b>{achievements.length}/3</b>
-      <span className="earned-badges" aria-hidden="true">{achievements.map((key) => <span key={key}>{stickerCatalog[key].glyph}</span>)}</span></summary>
-      <div className="achievement-popup"><strong>Your achievements</strong><ul>
-        {Object.entries(achievementLabels).map(([key, label]) => {
-          const earned = achievements.includes(key as keyof typeof achievementLabels);
-          return <li key={key} data-earned={earned}><span aria-hidden="true">{stickerCatalog[key as StickerKind].glyph}</span><div><b>{label}</b><small>{key === "spark" ? "Save your first idea" : key === "combo" ? "Keep a merge across groups" : "Save five ideas"}</small><span className="achievement-state">{earned ? "Earned" : "Not earned yet"}</span>
-            {earned && <button type="button" disabled={!canWrite} aria-label={`Place ${label} achievement sticker`} onClick={(event) => { onPlace(key as StickerKind); event.currentTarget.closest("details")?.removeAttribute("open"); }}>Place sticker ↗</button>}</div></li>;
-        })}
-      </ul><p>Awards stay in this browser for you and this board. Placed stickers are shared and saved.</p></div>
-    </details>
-  </aside>;
+export function AchievementList({ achievements, canWrite, onPlace }: { achievements: ReturnType<typeof earnedAchievements>; canWrite: boolean; onPlace: (kind: StickerKind) => void }) {
+  return <ul className="achievement-list">
+    {Object.entries(achievementLabels).map(([key, label]) => {
+      const earned = achievements.includes(key as keyof typeof achievementLabels);
+      return <li key={key} data-earned={earned}><span aria-hidden="true">{stickerCatalog[key as StickerKind].glyph}</span><div><b>{label}</b><small>{key === "spark" ? "Save your first idea" : key === "combo" ? "Keep a merge across groups" : "Save five ideas"}</small></div>
+        {earned ? <button type="button" disabled={!canWrite} aria-label={`Place ${label} achievement sticker`} onClick={() => onPlace(key as StickerKind)}>Place</button> : <span className="achievement-state">Not earned</span>}</li>;
+    })}
+  </ul>;
 }
 export function ThinkingAnimation() {
   const { preferences, motion } = useContext(AnimationContext);
