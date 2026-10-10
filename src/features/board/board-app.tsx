@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type FormEvent, type SetStateAction } from "react";
-import { ReactFlow, Background, BackgroundVariant, type NodeChange, type ReactFlowInstance } from "@xyflow/react";
+import { ReactFlow, Background, BackgroundVariant, getNodesBounds, getViewportForBounds, type NodeChange, type ReactFlowInstance } from "@xyflow/react";
 import Link from "next/link";
 import { createIdeaId } from "./id";
 import { initialBoard } from "./fixtures";
@@ -149,6 +149,11 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const [dragPositions, setDragPositions] = useState<Record<string, Idea["position"]>>({});
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [shareNotice, setShareNotice] = useState("");
+  const [shareOpen, setShareOpen] = useState(false);
+  const [includeFreeDrawings, setIncludeFreeDrawings] = useState(true);
+  const [exportingPng, setExportingPng] = useState(false);
+  const [exportMessage, setExportMessage] = useState("");
+  const [exportFailed, setExportFailed] = useState(false);
   const [tool, setTool] = useState<Tool>("select");
   const [drawTool, setDrawTool] = useState<FreeDrawTool | null>(null);
   const canWriteBoard = !onBoardChange || historyActions?.canWrite === true;
@@ -206,6 +211,8 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
   const [assignmentUndo, setAssignmentUndo] = useState<{ id: string; position: Idea["position"]; after: Idea["position"]; snapshot: Board["clusterSnapshot"]; appliedRevision: string } | null>(null);
   const flow = useRef<ReactFlowInstance<IdeaNode, OrthogonalCanvasEdge> | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
+  const shareControl = useRef<HTMLDivElement>(null);
+  const exportingPngRef = useRef(false);
   const titleInput = useRef<HTMLInputElement>(null);
   const editorDraftRef = useRef<{ id: string; title: string; content: string } | null>(null);
   const draftIdeaRef = useRef<Idea | null>(null);
@@ -441,8 +448,23 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     } catch {
       setShareNotice("Copy the board URL from your browser address bar");
     }
-    window.setTimeout(() => setShareNotice(""), 2500);
   }
+
+  useEffect(() => {
+    if (!shareOpen) return;
+    function closeShare(event: PointerEvent) {
+      if (event.target instanceof Node && !shareControl.current?.contains(event.target)) setShareOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setShareOpen(false);
+    }
+    document.addEventListener("pointerdown", closeShare);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", closeShare);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [shareOpen]);
 
   function openEditor(idea: Idea) {
     const editorName = editingLocks[idea.id];
@@ -550,6 +572,103 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     const x = 205 + (availableWidth - width * zoom) / 2 - minX * zoom;
     const y = 190 + (availableHeight - height * zoom) / 2 - minY * zoom;
     await flow.current.setViewport({ x, y, zoom }, { duration: 250 });
+  }
+  async function exportCanvasPng(includeDrawings: boolean) {
+    if (exportingPngRef.current || !flow.current || !canvas.current) return;
+    const target = canvas.current.querySelector<HTMLElement>(".react-flow");
+    if (!target || target.clientWidth < 1 || target.clientHeight < 1) {
+      setExportFailed(true);
+      setExportMessage("The canvas is not ready to export yet.");
+      return;
+    }
+
+    exportingPngRef.current = true;
+    setExportingPng(true);
+    setExportMessage("");
+    setExportFailed(false);
+    const instance = flow.current;
+    const previousViewport = instance.getViewport();
+    const nodes = instance.getNodes();
+    const nodeBounds = getNodesBounds(nodes);
+    let bounds = nodeBounds;
+    let drawingBounds: { left: number; top: number; right: number; bottom: number } | null = null;
+    const drawings = includeDrawings ? board.drawings ?? [] : [];
+    for (const stroke of drawings) for (const point of stroke.points) {
+      drawingBounds = drawingBounds ? {
+        left: Math.min(drawingBounds.left, point.x), top: Math.min(drawingBounds.top, point.y),
+        right: Math.max(drawingBounds.right, point.x), bottom: Math.max(drawingBounds.bottom, point.y),
+      } : { left: point.x, top: point.y, right: point.x, bottom: point.y };
+    }
+    if (drawingBounds) {
+      const left = nodes.length ? Math.min(nodeBounds.x, drawingBounds.left) : drawingBounds.left;
+      const top = nodes.length ? Math.min(nodeBounds.y, drawingBounds.top) : drawingBounds.top;
+      const right = nodes.length ? Math.max(nodeBounds.x + nodeBounds.width, drawingBounds.right) : drawingBounds.right;
+      const bottom = nodes.length ? Math.max(nodeBounds.y + nodeBounds.height, drawingBounds.bottom) : drawingBounds.bottom;
+      bounds = { x: left, y: top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) };
+    }
+    target.classList.add("board-exporting");
+
+    try {
+      let exportViewport = previousViewport;
+      if (nodes.length || drawingBounds) {
+        exportViewport = getViewportForBounds(bounds, target.clientWidth, target.clientHeight, 0.05, 2, 0.12);
+        await instance.setViewport(exportViewport, { duration: 0 });
+        await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
+      }
+      const { toPng } = await import("html-to-image");
+      const pixelRatio = Math.min(2, 4096 / Math.max(target.clientWidth, target.clientHeight));
+      const dataUrl = await toPng(target, {
+        backgroundColor: theme === "dark" ? "#172321" : "#f0f5f1",
+        pixelRatio,
+        cacheBust: true,
+        filter: (element) => ![
+          "board-live-cursors", "board-free-draw-visual", "board-free-draw-input", "board-free-draw-live", "board-free-draw-draft",
+        ].some((className) => element.classList?.contains(className)),
+      });
+      let downloadUrl = dataUrl;
+      if (drawings.length > 0) {
+        const image = new Image();
+        image.src = dataUrl;
+        await image.decode();
+        const output = document.createElement("canvas");
+        output.width = image.naturalWidth;
+        output.height = image.naturalHeight;
+        const context = output.getContext("2d");
+        if (!context) throw new Error("Canvas rendering is unavailable");
+        context.drawImage(image, 0, 0);
+        context.scale(output.width / target.clientWidth, output.height / target.clientHeight);
+        context.strokeStyle = theme === "dark" ? "#7bd6af" : "#176c52";
+        context.lineWidth = 3.2;
+        context.lineCap = "round";
+        context.lineJoin = "round";
+        for (const stroke of drawings) {
+          if (stroke.points.length === 0) continue;
+          context.beginPath();
+          context.moveTo(stroke.points[0].x * exportViewport.zoom + exportViewport.x, stroke.points[0].y * exportViewport.zoom + exportViewport.y);
+          for (const point of stroke.points.slice(1)) {
+            context.lineTo(point.x * exportViewport.zoom + exportViewport.x, point.y * exportViewport.zoom + exportViewport.y);
+          }
+          context.stroke();
+        }
+        downloadUrl = output.toDataURL("image/png");
+      }
+      const safeTitle = title.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, "").replace(/\s+/g, "-").slice(0, 80);
+      const link = document.createElement("a");
+      link.download = `${safeTitle || "ideaforge-board"}.png`;
+      link.href = downloadUrl;
+      link.click();
+      setExportMessage("PNG downloaded.");
+      setShareOpen(false);
+    } catch {
+      setExportFailed(true);
+      setExportMessage("Could not export the board as a PNG. Please try again.");
+    } finally {
+      try { await instance.setViewport(previousViewport, { duration: 0 }); }
+      catch { /* Keep the board usable even if the viewport cannot be restored. */ }
+      target.classList.remove("board-exporting");
+      exportingPngRef.current = false;
+      setExportingPng(false);
+    }
   }
   function confirmLink(event: FormEvent) {
     event.preventDefault();
@@ -1520,12 +1639,24 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       </details>
       <div className="board-top-actions"><ConclusionTrigger open={conclusionOpen} hasConclusion={Boolean(board.conclusion)} onToggle={() => setConclusionOpen((value) => !value)} />
         {onBoardChange && <>{voteUserId && <IdeaVotes ideas={board.ideas} votes={board.votes} voterId={voteUserId} voterName={authorName || "Unknown contributor"}
-        canWrite={canWriteBoard} onBoardChange={onBoardChange} />}<ActiveMembers /><button className="board-share-button" type="button" aria-label="Share board" onClick={() => void copyBoardLink()}>
+        canWrite={canWriteBoard} onBoardChange={onBoardChange} />}<ActiveMembers /><div className="board-share-control" ref={shareControl}>
+        <button className="board-share-button" type="button" aria-label="Share board" aria-expanded={shareOpen} aria-haspopup="dialog" onClick={() => { setShareOpen((open) => !open); setShareNotice(""); }}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11.5 3.5h5v5M16.2 3.8 9.5 10.5" /><path d="M14.5 10.5v4.8a1.2 1.2 0 0 1-1.2 1.2H4.7a1.2 1.2 0 0 1-1.2-1.2V6.7a1.2 1.2 0 0 1 1.2-1.2h4.8" /></svg>
-          <span className="board-share-label">Share</span></button></>}
+          <span className="board-share-label">Share</span></button>
+        {shareOpen && <section className="board-share-popover" role="dialog" aria-label="Share and export board">
+          <div className="board-share-popover-heading"><strong>Share board</strong><button type="button" aria-label="Close share menu" onClick={() => setShareOpen(false)}>×</button></div>
+          <div className="board-share-section"><span className="board-share-section-label">Share link</span>
+            <button className="board-share-action" type="button" onClick={() => void copyBoardLink()}><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="6" width="9" height="11" rx="1.5"/><path d="M12 6V4.5A1.5 1.5 0 0 0 10.5 3h-6A1.5 1.5 0 0 0 3 4.5v8A1.5 1.5 0 0 0 4.5 14H7"/></svg>Copy link</button>
+          </div>
+          <div className="board-share-section"><span className="board-share-section-label">Download</span>
+            <label className="board-share-drawing-option"><input type="checkbox" checked={includeFreeDrawings} disabled={exportingPng} onChange={(event) => setIncludeFreeDrawings(event.target.checked)} />Include freehand drawings</label>
+            <button className="board-share-action is-primary" type="button" disabled={exportingPng} onClick={() => void exportCanvasPng(includeFreeDrawings)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 13v3a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-3"/></svg>{exportingPng ? "Preparing PNG…" : "Download PNG"}</button>
+          </div>
+          {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
+        </section>}
+        </div></>}
         <AccountMenu />
         <button className="board-theme-toggle" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} aria-pressed={theme === "dark"} onClick={() => setTheme((value) => value === "dark" ? "light" : "dark")}>{theme === "dark" ? "☼" : "◐"}</button></div>
-      {shareNotice && <span className="board-share-notice" role="status">{shareNotice}</span>}
     </header>
     <div className="board-workspace">
       <div ref={canvas} className={`board-canvas ${tool === "add" ? "placing" : ""} ${tool === "connect" ? "connecting" : ""} ${tool === "hand" || spaceDown ? "panning" : ""} ${drawTool ? `drawing-${drawTool}` : ""}`}
@@ -1575,6 +1706,9 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
             }}
           />
         </ReactFlow>
+        {exportMessage && <div className={`board-export-status${exportFailed ? " is-error" : ""}`} role={exportFailed ? "alert" : "status"}>
+          <span>{exportMessage}</span><button type="button" aria-label="Dismiss export message" onClick={() => setExportMessage("")}>×</button>
+        </div>}
         {connectDrag.preview?.active && <svg className="board-connection-preview" aria-hidden="true">
           <path d={orthogonalPreviewPath({ x: connectDrag.preview.x1, y: connectDrag.preview.y1 }, { x: connectDrag.preview.x2, y: connectDrag.preview.y2 })} />
           <circle cx={connectDrag.preview.x2} cy={connectDrag.preview.y2} r="6" />
