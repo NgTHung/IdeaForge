@@ -14,7 +14,7 @@ const emptyState: State = { key: '', loading: false, cooldown: false, error: '',
 export function useConnectionSuggestions(board: Board, goal: string, editing: boolean) {
   const pathname = usePathname();
   const boardId = pathname.match(/^\/board\/([0-9a-f-]{36})$/i)?.[1];
-  const [enabled, setEnabled] = useState(false);
+  const [enabled, setEnabled] = useState(true);
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState<State>(emptyState);
   const [manualRequestRevision, setManualRequestRevision] = useState(0);

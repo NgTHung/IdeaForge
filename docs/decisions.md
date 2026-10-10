@@ -32,7 +32,7 @@ A link records how two ideas relate. Each link has a type, an explanation, and a
 - When asked for connections, the AI can answer that no useful relationship exists, or that a relationship needs clarification and what question would settle it.
 - AI suggestions are provisional. Nothing is saved until a person accepts a suggestion, optionally after changing its type or direction and requesting an explanation.
 - A request returns at most three suggestions across the board. For each card, candidates include four nearest neighbors and up to three diverse cards selected by their lowest maximum similarity to the cards already chosen. Boards do not store semantic groups yet; this diversity rule is a provisional way to reach other themes. The counts still need evaluation on real notes.
-- Automatic suggestions are off by default. When enabled, each browser requests suggestions after two seconds without saved text or board-goal changes. Moving cards, accepting links, and dismissing suggestions do not trigger generation. Requests exclude pairs with a saved link, a dismissal, or merge lineage. Lineage covers a merged card and every ancestor, plus the two sources of each merge. People can pause automatic suggestions or refresh manually. Previews stay local until accepted. A dismissal is saved with the board, so it applies to every participant and survives reloads.
+- Automatic suggestions are on by default. Each browser requests suggestions after two seconds without saved text or board-goal changes. Moving cards, accepting links, and dismissing suggestions do not trigger generation. Requests exclude pairs with a saved link, a dismissal, or merge lineage. Lineage covers a merged card and every ancestor, plus the two sources of each merge. People can pause automatic suggestions or refresh manually. Previews stay local until accepted. A dismissal is saved with the board, so it applies to every participant and survives reloads.
 - Anyone can link or merge any two cards, however far apart they are.
 
 ### Merge rules
@@ -162,6 +162,8 @@ For Organize, the browser sends eligible note text and the selected group count 
 - The merge route exports `maxDuration = 95` to cover three 30-second AI attempts and the retry delay. Keep Fluid compute enabled when deploying; its duration limits support this budget. See [Vercel function duration](https://vercel.com/docs/functions/configuring-functions/duration).
 
 ## Log
+
+- 2026-10-10: at the user's request, automatic Suggested Links starts enabled; each participant can still pause it. Extends links use purple by default. Link labels appear only while hovering a link and render above the canvas edges with an opaque background.
 
 - 2026-10-10: the Style panel uses a group selector that focuses the selected group's ideas, and group boundaries show by default. The pencil opens color and thickness controls; saved strokes keep those values so collaborators and PNG exports render them consistently. PNG export writes each group border's saved color explicitly and falls back to a solid colored outline for RGB groups whose mask cannot be serialized reliably.
 - 2026-10-10: Board sharing shows a QR code after Copy link. The browser generates it locally with `qrcode.react` from the exact copied URL, without sending the link to a QR service. Clicking the code opens a larger native dialog with keyboard dismissal and focus restoration. The QR code remains available when clipboard access fails, and existing board access rules apply when someone scans it. `work:WORK-050` tracks this change.

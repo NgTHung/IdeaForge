@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type FormEvent, type SetStateAction } from "react";
-import { ReactFlow, Background, BackgroundVariant, getNodesBounds, getViewportForBounds, type NodeChange, type ReactFlowInstance } from "@xyflow/react";
+import { ReactFlow, Background, BackgroundVariant, getViewportForBounds, type NodeChange, type ReactFlowInstance } from "@xyflow/react";
 import Link from "next/link";
 import { createIdeaId } from "./id";
 import { initialBoard } from "./fixtures";
@@ -690,7 +690,7 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
     const instance = flow.current;
     const previousViewport = instance.getViewport();
     const nodes = instance.getNodes();
-    const nodeBounds = getNodesBounds(nodes);
+    const nodeBounds = instance.getNodesBounds(nodes);
     const originalGroupBorderColors = new Map<HTMLElement, { value: string; priority: string }>();
     let restoreSvgPaint = () => {};
     let bounds = nodeBounds;
@@ -1673,19 +1673,21 @@ export function BoardApp({ sharedBoard, sharedTitle, boardDescription = "", onBo
       const appearance = board.relationships.find((relationship) => relationship.id === link.id)?.appearance;
       const stroke = appearance && styleColor(appearance.color) || (link.assistant ? (theme === "dark" ? "#c09bdd" : "#8c62a8") :
         link.ancestry ? (theme === "dark" ? "#83c7ac" : "#5b9c82") :
-          link.type === "conflict" ? (theme === "dark" ? "#e08b7e" : "#b6665b") :
-            link.type === "extends" ? (theme === "dark" ? "#86bdd0" : "#46758c") : (theme === "dark" ? "#79c5a6" : "#4b8a79"));
+          link.type === "conflict" ? (theme === "dark" ? "#ff8278" : "#c43d36") :
+            link.type === "extends" ? (theme === "dark" ? "#c5a3ed" : "#7951a8") : (theme === "dark" ? "#71d697" : "#2f8050"));
+      const conflictLink = link.type === "conflict" && !link.assistant && !link.ancestry;
+      const strokeWidth = link.ancestry ? 2.4 : conflictLink ? (selected ? 3 : 2.8) : selected ? 3 : edgeFocus.active && related ? 2.5 : 2;
       return {
         id: link.id, source: link.source, target: link.target,
         sourceHandle: `source-${route.sourceSide}`, targetHandle: `target-${route.targetSide}`,
-        type: "orthogonal" as const, data: { route, directional: link.type === "extends" },
+        type: "orthogonal" as const, data: { route, directional: link.type === "extends", labelVisible: hoveredEdgeId === link.id },
         selectable: !link.ancestry && !link.provisional, focusable: !link.ancestry && !link.provisional,
         selected, interactionWidth: 24, zIndex: index + 1,
-        style: { stroke, strokeWidth: edgeFocus.active && related ? 2.5 : link.ancestry ? 2.4 : selected ? 3 : 2,
+        style: { stroke, strokeWidth,
           strokeDasharray: link.provisional ? "7 5" : appearance?.stroke === "dashed" ? "8 5" : appearance?.stroke === "dotted" ? "1 6" : undefined,
           opacity: link.assistant ? 1 : edgeFocus.active && !related ? 0.2 : 1 },
       };
-    }), [routedLinks, selection, hoveredIdeaId, edgeFocus, onlySelectedNodeEdges, theme, board.relationships]);
+    }), [routedLinks, selection, hoveredIdeaId, hoveredEdgeId, edgeFocus, onlySelectedNodeEdges, theme, board.relationships]);
 
   function upvoteWithEffect(ideaId: string) {
     if (!voteUserId || !canWriteBoard) return;
